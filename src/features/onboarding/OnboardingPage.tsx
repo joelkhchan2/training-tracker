@@ -12,10 +12,11 @@ export function OnboardingPage() {
   const [enabled, setEnabled] = useState<string[]>(['strength'])
 
   async function finish() {
+    if (!user) return
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
     await getSupabase().from('profiles').update({
       units, timezone: tz, enabled_disciplines: enabled, onboarding_complete: true,
-    }).eq('id', user!.id)
+    }).eq('id', user.id)
     nav('/', { replace: true })
   }
 

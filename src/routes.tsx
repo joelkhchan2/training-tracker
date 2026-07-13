@@ -15,12 +15,16 @@ function Protected({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return
+    let active = true
     const s = getSupabase()
     ;(async () => {
       await s.from('profiles').upsert({ id: user.id }, { onConflict: 'id', ignoreDuplicates: true })
       const { data } = await s.from('profiles').select('onboarding_complete').eq('id', user.id).single()
-      setOnboarded(Boolean(data?.onboarding_complete))
+      if (active) setOnboarded(Boolean(data?.onboarding_complete))
     })()
+    return () => {
+      active = false
+    }
   }, [user])
 
   if (loading) return <p className="p-6">Loading…</p>
