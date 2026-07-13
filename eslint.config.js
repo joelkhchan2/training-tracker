@@ -31,12 +31,4 @@ export default tseslint.config(
       }],
     },
   },
-  {
-    files: ['src/lib/AuthProvider.tsx'],
-    rules: {
-      // This file intentionally exports both the AuthContext and the AuthProvider
-      // component so useAuth.ts can import the context directly.
-      'react-refresh/only-export-components': 'off',
-    },
-  },
 )

@@ -1,13 +1,9 @@
-import { createContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { Session } from '@supabase/supabase-js'
 import { getSupabase } from '../data/supabase'
-
-type AuthValue = {
-  session: Session | null; user: User | null; loading: boolean
-  signInWithGoogle: () => Promise<void>; signOut: () => Promise<void>
-}
-export const AuthContext = createContext<AuthValue | null>(null)
+import { AuthContext } from './authContext'
+import type { AuthValue } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = getSupabase()
