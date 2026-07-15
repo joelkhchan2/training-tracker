@@ -1,0 +1,32 @@
+name: test
+on: { push: { branches: [main] }, pull_request: {} }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run --exclude '**/*.integration.test.ts'
+  rls:
+    # Boots a local Supabase and enforces RLS in CI (isolation test + every-table-RLS-enabled check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with: { version: latest }
+      - run: supabase start
+      - name: Every public table has RLS enabled
+        run: |
+          N=$(psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -tAc "select count(*) from pg_class where relnamespace='public'::regnamespace and relkind='r' and not relrowsecurity;")
+          test "$N" = "0" || (echo "::error::$N public table(s) missing RLS" && exit 1)
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: RLS isolation test
+        run: |
+          set -a && source <(supabase status -o env) && set +a
+          VITE_SUPABASE_URL="$API_URL" VITE_SUPABASE_ANON_KEY="$ANON_KEY" \
+            npx vitest run src/data/rls.integration.test.ts
