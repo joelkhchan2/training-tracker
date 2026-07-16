@@ -1,9 +1,38 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { WorkoutPage } from './WorkoutPage'
 import { useSessionStore } from './sessionStore'
 import type { PrescribedExercise } from '../../domain/types'
+import type { ActiveWorkoutBundle } from '../../data/queries'
+
+const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate } = vi.hoisted(() => {
+  const mockMutate = vi.fn()
+  return {
+    mockNavigate: vi.fn(),
+    useActiveWorkout: vi.fn(),
+    useSaveWorkout: vi.fn(() => ({ mutate: mockMutate, isPending: false })),
+    mockMutate,
+  }
+})
+
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router-dom')>()
+  return { ...actual, useNavigate: () => mockNavigate }
+})
+
+vi.mock('../../lib/useAuth', () => ({
+  useAuth: () => ({
+    session: null,
+    user: { id: 'user-1' },
+    loading: false,
+    signInWithGoogle: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}))
+
+vi.mock('../../data/queries', () => ({ useActiveWorkout }))
+vi.mock('../../data/mutations', () => ({ useSaveWorkout }))
 
 const prescription: PrescribedExercise[] = [
   {
@@ -32,6 +61,51 @@ const meta = {
   startedAt: '2026-07-12T00:00:00.000Z',
 }
 
+const bundle: ActiveWorkoutBundle = {
+  program: { name: 'Test Program', discipline: 'strength', days: [] },
+  days: [],
+  programExercises: [
+    {
+      id: 'pe-1',
+      program_day_id: 'day-1',
+      exercise_id: 'ex-squat',
+      role_key: null,
+      order_index: 0,
+      scheme: { type: 'fixed', sets: [{ reps: 5 }] },
+    },
+  ],
+  exercisesById: {
+    'ex-squat': {
+      id: 'ex-squat',
+      user_id: null,
+      name: 'Squat',
+      primary_muscles: null,
+      equipment: null,
+      movement_pattern: null,
+      exercise_type: 'weighted',
+      popularity: null,
+      is_active: true,
+      created_at: '',
+    },
+  },
+  trainingMaxes: {},
+  cursor: { dayIndex: 0, week: 2, cycle: 1 },
+  personalRecords: [
+    {
+      id: 'pr-1',
+      user_id: 'user-1',
+      exercise_id: 'ex-squat',
+      pr_type: 'e1rm',
+      value: 250,
+      reps: null,
+      weight: null,
+      date_achieved: '2026-01-01',
+      previous_value: null,
+      session_id: null,
+    },
+  ],
+}
+
 function renderAtWorkout() {
   return render(
     <MemoryRouter initialEntries={['/workout']}>
@@ -45,6 +119,12 @@ function renderAtWorkout() {
 
 beforeEach(() => {
   useSessionStore.getState().reset()
+  mockNavigate.mockReset()
+  mockMutate.mockReset()
+  useActiveWorkout.mockReset()
+  useActiveWorkout.mockReturnValue({ data: bundle, isLoading: false })
+  useSaveWorkout.mockReset()
+  useSaveWorkout.mockReturnValue({ mutate: mockMutate, isPending: false })
 })
 
 describe('WorkoutPage', () => {
@@ -116,5 +196,79 @@ describe('WorkoutPage', () => {
 
     expect(screen.getByText('Home')).toBeInTheDocument()
     expect(screen.queryByText('Squat')).not.toBeInTheDocument()
+  })
+
+  it('Finish workout calls the save mutation with a correctly-shaped payload', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    // Bump the first squat set's weight high enough to clear the mocked
+    // existing e1RM PR (250) once saved.
+    const firstSet = screen.getByTestId('set-row-0-0')
+    fireEvent.change(within(firstSet).getByLabelText('Weight'), { target: { value: '300' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    expect(mockMutate).toHaveBeenCalledTimes(1)
+    const [payload] = mockMutate.mock.calls[0]
+
+    expect(payload.clientId).toBe('client-123')
+    expect(payload.program).toBe(bundle.program)
+    expect(payload.cursor).toBe(bundle.cursor)
+    expect(payload.session).toMatchObject({
+      discipline: 'strength',
+      session_type: 'Squat Day',
+      status: 'completed',
+      program_variant: 'Test Program',
+      program_week: 2,
+    })
+    expect(payload.session.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+    // Only the three squat sets carry both weight and reps; the two
+    // weightless push-up sets are excluded.
+    expect(payload.sets).toEqual([
+      { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, rpe: null, is_warmup: false, order_index: 0 },
+      { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, rpe: null, is_warmup: false, order_index: 1 },
+      { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, rpe: null, is_warmup: false, order_index: 2 },
+    ])
+  })
+
+  it('shows the SummarySheet with tonnage and a detected PR on save success', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    const firstSet = screen.getByTestId('set-row-0-0')
+    fireEvent.change(within(firstSet).getByLabelText('Weight'), { target: { value: '300' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    const [, options] = mockMutate.mock.calls[0]
+    act(() => options.onSuccess())
+
+    expect(screen.getByRole('dialog', { name: 'Workout summary' })).toBeInTheDocument()
+    // tonnage = 300*5 + 155*5 + 175*3 = 2800
+    expect(screen.getByText('2,800')).toBeInTheDocument()
+    expect(screen.getByText(/Squat — new e1RM 350 \(was 250\)/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+
+    expect(useSessionStore.getState().status).toBe('idle')
+    expect(mockNavigate).toHaveBeenCalledWith('/')
+  })
+
+  it('shows an error and keeps the session intact when the save mutation fails', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    const [, options] = mockMutate.mock.calls[0]
+    act(() => options.onError(new Error('network down')))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('network down')
+    expect(useSessionStore.getState().status).toBe('active')
+    expect(useSessionStore.getState().clientId).toBe('client-123')
+    expect(useSessionStore.getState().exercises[0].sets).toHaveLength(3)
+    expect(screen.queryByRole('dialog', { name: 'Workout summary' })).not.toBeInTheDocument()
   })
 })
