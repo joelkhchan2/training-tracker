@@ -92,4 +92,43 @@ describe('getPrescription (5/3/1 preset)', () => {
     expect(acc.sets.every(s => s.weight === undefined)).toBe(true)
     expect(acc.sets.length).toBe(3)
   })
+
+  it('accessory reps match the source Config.js SESSION_TEMPLATES defaultReps', () => {
+    const dayA = getPrescription(fiveThreeOne, { dayIndex: 0, week: 1, cycle: 1 }, maxes)
+    const dayB = getPrescription(fiveThreeOne, { dayIndex: 1, week: 1, cycle: 1 }, maxes)
+
+    const pullUps = dayA.find(e => e.exerciseName === 'Pull-ups')!
+    expect(pullUps.sets.every(s => s.reps === 5)).toBe(true)
+
+    const row = dayA.find(e => e.exerciseName === 'Chest-Supported Row')!
+    expect(row.sets.every(s => s.reps === 8)).toBe(true)
+
+    const facePulls = dayA.find(e => e.exerciseName === 'Face Pulls')!
+    expect(facePulls.sets.every(s => s.reps === 15)).toBe(true)
+
+    const squatAcc = dayB.find(e => e.exerciseName === 'Squat')!
+    expect(squatAcc.sets.every(s => s.reps === 8)).toBe(true)
+
+    const legRaises = dayB.find(e => e.exerciseName === 'Hanging Leg Raises')!
+    expect(legRaises.sets.every(s => s.reps === 10)).toBe(true)
+
+    const externalRotation = dayB.find(e => e.exerciseName === 'External Rotation')!
+    expect(externalRotation.sets.every(s => s.reps === 15)).toBe(true)
+  })
+
+  it('week 5 (past program length) clamps to week 4 deload — squat 3 working sets, no FSL', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 0, week: 5, cycle: 1 }, maxes)
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([
+      { weight: 80, reps: 5, isFsl: false },
+      { weight: 100, reps: 5, isFsl: false },
+      { weight: 120, reps: 5, isFsl: false },
+    ])
+  })
+
+  it('empty maxes ({}) — percentage sets get weight 0 via r5(0)', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 0, week: 1, cycle: 1 }, {})
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets.every(s => s.weight === 0)).toBe(true)
+  })
 })

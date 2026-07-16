@@ -30,12 +30,12 @@ export const fiveThreeOne: Program = {
     { name: 'Gym A', exercises: [
       { exerciseName: 'Squat', tmKey: 'squat', order: 0, scheme: { type: 'percentage', tmKey: 'squat', weeks: mainLiftWeeks(3) } },
       { exerciseName: 'Bench Press', tmKey: 'benchPress', order: 1, scheme: { type: 'percentage', tmKey: 'benchPress', weeks: mainLiftWeeks(3) } },
-      acc('Pull-ups', 3, 8, 2), acc('Chest-Supported Row', 3, 10, 3), acc('Face Pulls', 3, 15, 4),
+      acc('Pull-ups', 3, 5, 2), acc('Chest-Supported Row', 3, 8, 3), acc('Face Pulls', 3, 15, 4),
     ] },
     { name: 'Gym B', exercises: [
       { exerciseName: 'Barbell Deadlift', tmKey: 'barbellDeadlift', order: 0, scheme: { type: 'percentage', tmKey: 'barbellDeadlift', weeks: mainLiftWeeks(2) } },
       { exerciseName: 'Overhead Press', tmKey: 'overheadPress', order: 1, scheme: { type: 'percentage', tmKey: 'overheadPress', weeks: mainLiftWeeks(2) } },
-      acc('Squat', 3, 8, 2), acc('Hanging Leg Raises', 3, 12, 3), acc('External Rotation', 3, 15, 4),
+      acc('Squat', 3, 8, 2), acc('Hanging Leg Raises', 3, 10, 3), acc('External Rotation', 3, 15, 4),
     ] },
   ],
 }

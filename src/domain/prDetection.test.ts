@@ -26,6 +26,24 @@ describe('detectStrengthPRs', () => {
     const prs = detectStrengthPRs([{ exerciseName: 'Squat', weight: 100, reps: 5 }], [])
     expect(prs.find(p => p.prType === 'e1rm')?.oldValue).toBeNull()
   })
+  it('a session with two different exercises produces PRs grouped per exercise', () => {
+    const mixedSets = [
+      { exerciseName: 'Bench Press', weight: 225, reps: 5 },
+      { exerciseName: 'Bench Press', weight: 200, reps: 8 },
+      { exerciseName: 'Squat', weight: 100, reps: 5 },
+    ]
+    const prs = detectStrengthPRs(mixedSets, [
+      { exerciseName: 'Bench Press', prType: 'e1rm', value: 250 },
+      { exerciseName: 'Bench Press', prType: 'volume', value: 2600 },
+    ])
+    const benchPRs = prs.filter(p => p.exerciseName === 'Bench Press')
+    const squatPRs = prs.filter(p => p.exerciseName === 'Squat')
+    expect(benchPRs).toHaveLength(2) // e1rm + volume, both computed from Bench Press sets only
+    expect(benchPRs.find(p => p.prType === 'e1rm')).toEqual({ exerciseName: 'Bench Press', prType: 'e1rm', oldValue: 250, newValue: 262.5 })
+    expect(benchPRs.find(p => p.prType === 'volume')).toEqual({ exerciseName: 'Bench Press', prType: 'volume', oldValue: 2600, newValue: 2725 })
+    expect(squatPRs).toHaveLength(2) // e1rm + volume, no existing record for Squat
+    expect(squatPRs.every(p => p.oldValue === null)).toBe(true)
+  })
 })
 
 describe('detectClimbingPR', () => {

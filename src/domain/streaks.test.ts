@@ -17,4 +17,10 @@ describe('dailyStreak', () => {
   it('empty input → zeros', () => {
     expect(dailyStreak([], '2026-06-03')).toEqual({ currentStreak: 0, thisWeekDays: 0 })
   })
+  it('Sunday today uses a Mon..Sun window for thisWeekDays; currentStreak still computed correctly', () => {
+    // 2026-06-07 is a Sunday; done Mon(06-01) & Tue(06-02) only, nothing since (incl. today)
+    const r = dailyStreak(['2026-06-01', '2026-06-02'], '2026-06-07')
+    expect(r.thisWeekDays).toBe(2)
+    expect(r.currentStreak).toBe(0) // today not done; miss on offset>0 (Sat) breaks the lookback
+  })
 })

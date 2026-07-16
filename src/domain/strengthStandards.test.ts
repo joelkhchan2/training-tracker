@@ -15,4 +15,10 @@ describe('strengthLevel', () => {
     expect(strengthLevel(300, 0, 'Squat')).toBeNull()
     expect(strengthLevel(300, 150, 'Nonexistent')).toBeNull()
   })
+  it('below the Beginner threshold reports "Below Beginner", next tier is Beginner', () => {
+    // squat e1RM 100 @ bw 200 → ratio 0.5, below Beginner (0.75)
+    expect(strengthLevel(100, 200, 'Squat')).toEqual({
+      level: 'Below Beginner', ratio: 0.5, nextLevel: 'Beginner', nextWeight: 150,
+    })
+  })
 })

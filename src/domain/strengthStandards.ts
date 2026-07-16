@@ -12,7 +12,7 @@ export function strengthLevel(e1rm: number, bodyWeight: number, lift: string): S
   const table = STANDARDS[lift]
   if (!table || !e1rm || !bodyWeight) return null
   const ratio = e1rm / bodyWeight
-  let level = LEVELS[0]
+  let level: string | null = null
   let nextLevel: string | null = null
   let nextRatio: number | null = null
   for (const tier of LEVELS) {
@@ -20,7 +20,7 @@ export function strengthLevel(e1rm: number, bodyWeight: number, lift: string): S
     else { nextLevel = tier; nextRatio = table[tier]; break }
   }
   return {
-    level,
+    level: level ?? 'Below Beginner',
     ratio: Math.round(ratio * 100) / 100,
     nextLevel,
     nextWeight: nextRatio == null ? null : Math.round(nextRatio * bodyWeight),
