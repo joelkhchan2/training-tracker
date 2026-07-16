@@ -32,3 +32,6 @@ dist-ssr
 supabase/.branches
 supabase/.temp
 **/.DS_Store
+
+# Migration source data (contains personal data, never commit)
+scripts/migration/.data/
