@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { loadExport } from '../loadExport.ts'
+import type { RawExport } from '../exportSchema.ts'
 import { toExerciseCatalog, buildNameToId } from './exercises.ts'
 import { toPersonalRecords, toTemplates } from './records.ts'
 
@@ -9,9 +10,15 @@ import { toPersonalRecords, toTemplates } from './records.ts'
 const dataPath = path.resolve(process.cwd(), 'scripts/migration/.data/export.xlsx')
 
 describe.skipIf(!existsSync(dataPath))('records transform (real export)', () => {
-  const raw = loadExport(dataPath)
-  const catalog = toExerciseCatalog(raw)
-  const { map: nameToId } = buildNameToId(catalog, raw)
+  // No real-file I/O at describe/collection scope — see golden.test.ts for why.
+  let raw: RawExport
+  let nameToId: Map<string, string>
+
+  beforeAll(() => {
+    raw = loadExport(dataPath)
+    const catalog = toExerciseCatalog(raw)
+    nameToId = buildNameToId(catalog, raw).map
+  })
 
   it('produces the ~56 personal_records with mapped pr_type enum values', () => {
     const records = toPersonalRecords(raw, nameToId)

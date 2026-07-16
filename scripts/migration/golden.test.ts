@@ -1,9 +1,12 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { loadExport } from './loadExport.ts'
+import type { RawExport } from './exportSchema.ts'
 import { toExerciseCatalog, buildNameToId } from './transform/exercises.ts'
+import type { NameToIdResult } from './transform/exercises.ts'
 import { toSessions } from './transform/log.ts'
+import type { SessionRow, StrengthSetRow } from './transform/log.ts'
 import { epley1RM, round1 } from '../../src/domain/oneRepMax.ts'
 
 /**
@@ -77,11 +80,28 @@ function parseDate(v: string | number | boolean | null | undefined): string | nu
 }
 
 describe.skipIf(!existsSync(dataPath))('golden test: domain core vs the Sheet\'s own numbers (real export)', () => {
-  const raw = loadExport(dataPath)
-  const rows = raw.trainingLogMatrix as LogRow[]
-  const catalog = toExerciseCatalog(raw)
-  const nameToIdResult = buildNameToId(catalog, raw)
-  const { sessions, strengthSets } = toSessions(raw, nameToIdResult)
+  // NOTE: no real-file I/O may happen here at describe/collection scope — a
+  // describe.skipIf block's factory still runs during collection even when
+  // skipped, so any loadExport() call made directly in this scope would
+  // throw ENOENT on CI (where the git-ignored fixture is absent) before the
+  // skip ever takes effect. Everything derived from the real file is
+  // deferred to beforeAll, which vitest does not invoke for skipped suites.
+  let raw: RawExport
+  let rows: LogRow[]
+  let catalog: ReturnType<typeof toExerciseCatalog>
+  let nameToIdResult: NameToIdResult
+  let sessions: SessionRow[]
+  let strengthSets: StrengthSetRow[]
+
+  beforeAll(() => {
+    raw = loadExport(dataPath)
+    rows = raw.trainingLogMatrix as LogRow[]
+    catalog = toExerciseCatalog(raw)
+    nameToIdResult = buildNameToId(catalog, raw)
+    const result = toSessions(raw, nameToIdResult)
+    sessions = result.sessions
+    strengthSets = result.strengthSets
+  })
 
   it('oracle 1: per-row e1RM faithfulness — domain epley1RM matches the Sheet\'s own derived column (idx8) for every checkable Strength row', () => {
     let checked = 0

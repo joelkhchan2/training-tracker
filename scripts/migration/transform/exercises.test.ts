@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { loadExport } from '../loadExport.ts'
+import type { RawExport } from '../exportSchema.ts'
 import { toExerciseCatalog, buildNameToId } from './exercises.ts'
 
 // The real staged export (git-ignored) lives at scripts/migration/.data/export.xlsx.
@@ -9,8 +10,14 @@ import { toExerciseCatalog, buildNameToId } from './exercises.ts'
 const dataPath = path.resolve(process.cwd(), 'scripts/migration/.data/export.xlsx')
 
 describe.skipIf(!existsSync(dataPath))('exercise catalog transform (real export)', () => {
-  const raw = loadExport(dataPath)
-  const catalog = toExerciseCatalog(raw)
+  // No real-file I/O at describe/collection scope — see golden.test.ts for why.
+  let raw: RawExport
+  let catalog: ReturnType<typeof toExerciseCatalog>
+
+  beforeAll(() => {
+    raw = loadExport(dataPath)
+    catalog = toExerciseCatalog(raw)
+  })
 
   it('imports only Active=Y rows, ~708 of them', () => {
     expect(catalog.length).toBeGreaterThan(700)

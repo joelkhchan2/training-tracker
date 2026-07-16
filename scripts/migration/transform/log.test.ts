@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { loadExport } from '../loadExport.ts'
 import type { RawExport } from '../exportSchema.ts'
 import type { NameToIdResult } from './exercises.ts'
 import { toExerciseCatalog, buildNameToId } from './exercises.ts'
 import { toSessions } from './log.ts'
+import type { ToSessionsResult } from './log.ts'
 
 /** Builds a 33-column Training Log row (idx 0-32 per the mapping doc),
  * defaulting every column to null and overriding only what a test cares
@@ -334,10 +335,16 @@ describe('toSessions (exact-duplicate row dedup — double-submit artifact)', ()
 const dataPath = path.resolve(process.cwd(), 'scripts/migration/.data/export.xlsx')
 
 describe.skipIf(!existsSync(dataPath))('toSessions (real export)', () => {
-  const raw = loadExport(dataPath)
-  const catalog = toExerciseCatalog(raw)
-  const nameToId = buildNameToId(catalog, raw)
-  const result = toSessions(raw, nameToId)
+  // No real-file I/O at describe/collection scope — see golden.test.ts for why.
+  let raw: RawExport
+  let result: ToSessionsResult
+
+  beforeAll(() => {
+    raw = loadExport(dataPath)
+    const catalog = toExerciseCatalog(raw)
+    const nameToId = buildNameToId(catalog, raw)
+    result = toSessions(raw, nameToId)
+  })
 
   it('produces at least one session, each with a client_id and a YYYY-MM-DD date', () => {
     expect(result.sessions.length).toBeGreaterThan(0)

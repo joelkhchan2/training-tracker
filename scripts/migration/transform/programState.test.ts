@@ -1,14 +1,20 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { loadExport } from '../loadExport.ts'
+import type { RawExport } from '../exportSchema.ts'
 import { toTrainingMaxes, toProgramState } from './programState.ts'
 
 // The real staged export (git-ignored) lives at scripts/migration/.data/export.xlsx.
 const dataPath = path.resolve(process.cwd(), 'scripts/migration/.data/export.xlsx')
 
 describe.skipIf(!existsSync(dataPath))('program state transform (real export)', () => {
-  const raw = loadExport(dataPath)
+  // No real-file I/O at describe/collection scope — see golden.test.ts for why.
+  let raw: RawExport
+
+  beforeAll(() => {
+    raw = loadExport(dataPath)
+  })
 
   it('produces the 4 training maxes with real current + prev values', () => {
     const maxes = toTrainingMaxes(raw)
