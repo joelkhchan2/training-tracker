@@ -76,6 +76,10 @@ export interface ToSessionsResult {
    * `buildNameToId(catalog, raw)`, since that walk already covers every
    * distinct Training Log strength-style name. */
   unmatched: string[]
+  /** Count of raw Training Log rows dropped as exact duplicates (see
+   * `DEDUP_FIELD_INDICES`) before grouping — a double-submit artifact where
+   * the same set got logged twice, not a legitimate repeat set. */
+  duplicatesRemoved: number
 }
 
 type LogRow = (string | number | null)[]
@@ -84,6 +88,27 @@ const SESSION_ENTRY_TYPES = new Set(['Strength', 'Calisthenics', 'Climbing', 'Ca
 const STRENGTH_LIKE_ENTRY_TYPES = new Set(['Strength', 'Calisthenics'])
 const V_GRADE_COLUMN_START = 9
 const V_GRADE_COUNT = 9 // V0..V8
+
+/**
+ * Column indices that define an "exact duplicate" Training Log row for
+ * dedup purposes: date, session, entry type, exercise, set number, weight,
+ * reps, and the full V0-V8 climbing block (idx9-17, inclusive of
+ * V_GRADE_COLUMN_START..+V_GRADE_COUNT-1). A double-submit re-logs a row
+ * verbatim, so matching on every one of these fields is what distinguishes
+ * that artifact from a genuinely repeated set (which would differ in
+ * weight/reps/set-number).
+ */
+const DEDUP_FIELD_INDICES = [
+  0, 1, 2, 3, 4, 5, 6,
+  ...Array.from({ length: V_GRADE_COUNT }, (_, i) => V_GRADE_COLUMN_START + i),
+]
+
+/** Builds a stable dedup key from the fields in `DEDUP_FIELD_INDICES`. Two
+ * rows produce the same key iff they are identical across every one of
+ * those fields. */
+function dedupKey(row: LogRow): string {
+  return JSON.stringify(DEDUP_FIELD_INDICES.map(i => row[i] ?? null))
+}
 
 function num(v: string | number | null | undefined): number | null {
   if (v == null || v === '') return null
@@ -166,7 +191,23 @@ export function toSessions(raw: RawExport, nameToId: NameToIdResult): ToSessions
 
   const sessionsByKey = new Map<string, SessionRow>()
 
+  // Drop exact-duplicate rows (double-submit artifact) before grouping.
+  // Keep the first occurrence; a genuinely different set always differs in
+  // set-number/weight/reps and is never touched by this.
+  let duplicatesRemoved = 0
+  const seenRowKeys = new Set<string>()
+  const dedupedRows: LogRow[] = []
   for (const row of raw.trainingLogMatrix as LogRow[]) {
+    const key = dedupKey(row)
+    if (seenRowKeys.has(key)) {
+      duplicatesRemoved++
+      continue
+    }
+    seenRowKeys.add(key)
+    dedupedRows.push(row)
+  }
+
+  for (const row of dedupedRows) {
     const entryType = str(row[2])
     if (!entryType) continue
 
@@ -265,5 +306,6 @@ export function toSessions(raw: RawExport, nameToId: NameToIdResult): ToSessions
     calisthenicsSets,
     dailyCheckins: Array.from(dailyCheckinsByDate.values()),
     unmatched,
+    duplicatesRemoved,
   }
 }

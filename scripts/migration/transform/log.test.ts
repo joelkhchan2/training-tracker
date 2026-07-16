@@ -206,6 +206,66 @@ describe('toSessions (synthetic fixture, one row per entry type)', () => {
   })
 })
 
+describe('toSessions (exact-duplicate row dedup — double-submit artifact)', () => {
+  it('drops an exact-duplicate row (same date/session/entry type/exercise/set/weight/reps/V-block), keeping only one strengthSet', () => {
+    const original = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '135',
+      6: '8',
+      7: '7',
+    })
+    const exactDuplicate = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '135',
+      6: '8',
+      7: '7',
+    })
+
+    const raw = emptyRawExport([original, exactDuplicate])
+    const result = toSessions(raw, fixtureNameToId())
+
+    expect(result.strengthSets).toHaveLength(1)
+    expect(result.duplicatesRemoved).toBe(1)
+  })
+
+  it('keeps both rows when the set number matches but weight/reps differ (a legitimate second set, not a dupe)', () => {
+    const setOne = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '135',
+      6: '8',
+      7: '7',
+    })
+    const setOneDifferentWeight = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '145', // different weight -> not a duplicate, even though set number matches
+      6: '8',
+      7: '7',
+    })
+
+    const raw = emptyRawExport([setOne, setOneDifferentWeight])
+    const result = toSessions(raw, fixtureNameToId())
+
+    expect(result.strengthSets).toHaveLength(2)
+    expect(result.duplicatesRemoved).toBe(0)
+  })
+})
+
 // The real staged export (git-ignored) lives at scripts/migration/.data/export.xlsx.
 // Vitest's cwd is the repo root, matching how scripts/migration/inspect.ts resolves it.
 const dataPath = path.resolve(process.cwd(), 'scripts/migration/.data/export.xlsx')
@@ -253,6 +313,7 @@ describe.skipIf(!existsSync(dataPath))('toSessions (real export)', () => {
       calisthenicsSets: result.calisthenicsSets.length,
       dailyCheckins: result.dailyCheckins.length,
       unmatched: result.unmatched,
+      duplicatesRemoved: result.duplicatesRemoved,
     }
     console.log('Training Log transform summary (real export):', summary)
     expect(summary.sessions).toBeGreaterThan(0)
