@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { r5, programWeekCount, advanceCursor, applyProgression } from './programEngine'
+import { r5, programWeekCount, advanceCursor, applyProgression, getPrescription } from './programEngine'
 import type { Program } from './types'
+import { fiveThreeOne } from './presets/fiveThreeOne'
 
 // Minimal 2-day, 4-week percentage program (structure only; sets filled in Task 4 tests)
 const P4: Program = {
@@ -49,5 +50,46 @@ describe('applyProgression', () => {
   it('no rule returns maxes unchanged', () => {
     const none: Program = { ...P4, progressionRule: undefined }
     expect(applyProgression(none, { squat: 200 })).toEqual({ squat: 200 })
+  })
+})
+
+describe('getPrescription (5/3/1 preset)', () => {
+  const maxes = { squat: 200, benchPress: 200, barbellDeadlift: 200, overheadPress: 200 }
+
+  it('week 1, day A squat = 3 working + 3 FSL, FSL reps are 5', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 0, week: 1, cycle: 1 }, maxes)
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([
+      { weight: 130, reps: 5, isFsl: false },
+      { weight: 150, reps: 5, isFsl: false },
+      { weight: 170, reps: 5, isFsl: false },
+      { weight: 130, reps: 5, isFsl: true },
+      { weight: 130, reps: 5, isFsl: true },
+      { weight: 130, reps: 5, isFsl: true },
+    ])
+  })
+
+  it('week 1, day B deadlift = 3 working + 2 FSL (5 sets total)', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 1, week: 1, cycle: 1 }, maxes)
+    const dl = day.find(e => e.exerciseName === 'Barbell Deadlift')!
+    expect(dl.sets.filter(s => s.isFsl).length).toBe(2)
+    expect(dl.sets.length).toBe(5)
+  })
+
+  it('week 4 (deload) squat = 3 working sets, no FSL', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 0, week: 4, cycle: 1 }, maxes)
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([
+      { weight: 80, reps: 5, isFsl: false },
+      { weight: 100, reps: 5, isFsl: false },
+      { weight: 120, reps: 5, isFsl: false },
+    ])
+  })
+
+  it('fixed-scheme accessory has no weight prescribed', () => {
+    const day = getPrescription(fiveThreeOne, { dayIndex: 0, week: 1, cycle: 1 }, maxes)
+    const acc = day.find(e => e.exerciseName === 'Pull-ups')!
+    expect(acc.sets.every(s => s.weight === undefined)).toBe(true)
+    expect(acc.sets.length).toBe(3)
   })
 })

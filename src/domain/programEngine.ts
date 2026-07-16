@@ -1,4 +1,4 @@
-import type { Program, Cursor, TrainingMaxes } from './types'
+import type { Program, Cursor, TrainingMaxes, PrescribedExercise, PrescribedSet } from './types'
 
 export function r5(n: number): number { return Math.round(n / 5) * 5 }
 
@@ -35,4 +35,20 @@ export function applyProgression(program: Program, maxes: TrainingMaxes): Traini
     for (const k of Object.keys(out)) out[k] = out[k] + rule.add
   }
   return out
+}
+
+export function getPrescription(program: Program, cursor: Cursor, maxes: TrainingMaxes): PrescribedExercise[] {
+  const day = program.days[cursor.dayIndex]
+  if (!day) return []
+  return day.exercises.map(ex => {
+    let sets: PrescribedSet[]
+    if (ex.scheme.type === 'percentage') {
+      const tm = maxes[ex.scheme.tmKey] ?? 0
+      const wk = ex.scheme.weeks[Math.min(cursor.week, ex.scheme.weeks.length) - 1] ?? { sets: [] }
+      sets = wk.sets.map(s => ({ weight: r5(tm * s.pct), reps: s.reps, isFsl: !!s.fsl }))
+    } else {
+      sets = ex.scheme.sets.map(s => ({ weight: s.weight, reps: s.reps }))
+    }
+    return { exerciseName: ex.exerciseName, tmKey: ex.tmKey, sets }
+  })
 }
