@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { describe, it, expect } from 'vitest'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const url = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321'
 const anon = process.env.VITE_SUPABASE_ANON_KEY
@@ -19,7 +19,7 @@ async function makeUser(email: string) {
 // Each test user needs a valid exercise_id to reference from strength_sets.
 // Insert a custom exercise owned by that user (satisfies the "insert own" RLS
 // policy on exercises) rather than depending on any seeded/global catalog row.
-async function makeExercise(client: ReturnType<typeof createClient>, userId: string) {
+async function makeExercise(client: SupabaseClient, userId: string) {
   const { data, error } = await client
     .from('exercises')
     .insert({ user_id: userId, name: `Test Exercise ${userId.slice(0, 8)}` })
