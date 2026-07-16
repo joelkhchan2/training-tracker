@@ -264,6 +264,69 @@ describe('toSessions (exact-duplicate row dedup — double-submit artifact)', ()
     expect(result.strengthSets).toHaveLength(2)
     expect(result.duplicatesRemoved).toBe(0)
   })
+
+  it('keeps both rows when two identical GTG rows are logged the same day (legitimate repeat, not a dupe)', () => {
+    const gtgOne = row({
+      0: '2026-07-06',
+      2: 'GTG',
+      3: 'Push-up',
+      6: '10',
+    })
+    const gtgTwo = row({
+      0: '2026-07-06',
+      2: 'GTG',
+      3: 'Push-up',
+      6: '10',
+    })
+
+    const raw = emptyRawExport([gtgOne, gtgTwo])
+    const result = toSessions(raw, fixtureNameToId())
+
+    expect(result.calisthenicsSets).toHaveLength(2)
+    expect(result.duplicatesRemoved).toBe(0)
+  })
+
+  it('still collapses two identical Strength rows (same set number) to one, alongside untouched GTG duplicates', () => {
+    const strengthOne = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '135',
+      6: '8',
+      7: '7',
+    })
+    const strengthDuplicate = row({
+      0: '2026-07-06',
+      1: 'Monday Full-body Strength A',
+      2: 'Strength',
+      3: 'Barbell Back Squat',
+      4: '1',
+      5: '135',
+      6: '8',
+      7: '7',
+    })
+    const gtgOne = row({
+      0: '2026-07-06',
+      2: 'GTG',
+      3: 'Push-up',
+      6: '10',
+    })
+    const gtgTwo = row({
+      0: '2026-07-06',
+      2: 'GTG',
+      3: 'Push-up',
+      6: '10',
+    })
+
+    const raw = emptyRawExport([strengthOne, strengthDuplicate, gtgOne, gtgTwo])
+    const result = toSessions(raw, fixtureNameToId())
+
+    expect(result.strengthSets).toHaveLength(1)
+    expect(result.calisthenicsSets).toHaveLength(2)
+    expect(result.duplicatesRemoved).toBe(1)
+  })
 })
 
 // The real staged export (git-ignored) lives at scripts/migration/.data/export.xlsx.

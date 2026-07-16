@@ -86,6 +86,14 @@ type LogRow = (string | number | null)[]
 
 const SESSION_ENTRY_TYPES = new Set(['Strength', 'Calisthenics', 'Climbing', 'Cardio'])
 const STRENGTH_LIKE_ENTRY_TYPES = new Set(['Strength', 'Calisthenics'])
+/** Entry types where an identical row is definitionally a double-submit
+ * glitch: each real set is distinguished by a set-number (Strength/
+ * Calisthenics) or a grade block (Climbing), so two rows identical across
+ * `DEDUP_FIELD_INDICES` can only be the same set logged twice. Never widen
+ * this to GTG/Daily Check-in/Cardio/Skipped/Recovery — those have no
+ * per-row distinguisher, so identical rows are legitimate repeats (e.g. 5x
+ * identical GTG sets in a day) and must be passed through untouched. */
+const DEDUP_ENTRY_TYPES = new Set(['Strength', 'Calisthenics', 'Climbing'])
 const V_GRADE_COLUMN_START = 9
 const V_GRADE_COUNT = 9 // V0..V8
 
@@ -191,13 +199,21 @@ export function toSessions(raw: RawExport, nameToId: NameToIdResult): ToSessions
 
   const sessionsByKey = new Map<string, SessionRow>()
 
-  // Drop exact-duplicate rows (double-submit artifact) before grouping.
-  // Keep the first occurrence; a genuinely different set always differs in
-  // set-number/weight/reps and is never touched by this.
+  // Drop exact-duplicate rows (double-submit artifact) before grouping —
+  // but only for entry types in DEDUP_ENTRY_TYPES, where a set-number/grade
+  // distinguishes real sets so an identical row can only be a re-submit.
+  // GTG/Daily Check-in/Cardio/Skipped/Recovery rows have no such
+  // distinguisher and pass through untouched, since identical rows there
+  // (e.g. repeated GTG sets in a day) are legitimate, not duplicates.
   let duplicatesRemoved = 0
   const seenRowKeys = new Set<string>()
   const dedupedRows: LogRow[] = []
   for (const row of raw.trainingLogMatrix as LogRow[]) {
+    const entryType = str(row[2])
+    if (!entryType || !DEDUP_ENTRY_TYPES.has(entryType)) {
+      dedupedRows.push(row)
+      continue
+    }
     const key = dedupKey(row)
     if (seenRowKeys.has(key)) {
       duplicatesRemoved++
