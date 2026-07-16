@@ -25,8 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
-      - name: RLS isolation test
+      - name: Integration tests
         run: |
           set -a && source <(supabase status -o env) && set +a
           VITE_SUPABASE_URL="$API_URL" VITE_SUPABASE_ANON_KEY="$ANON_KEY" \
-            npx vitest run src/data/rls.integration.test.ts
+            npx vitest run "src/**/*.integration.test.ts"
