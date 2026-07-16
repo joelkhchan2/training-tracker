@@ -7,6 +7,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { AuthCallback } from './features/auth/AuthCallback'
 import { HomePage } from './features/home/HomePage'
 import { OnboardingPage } from './features/onboarding/OnboardingPage'
+import { WorkoutPage } from './features/workout/WorkoutPage'
 
 function Protected({ children }: { children: ReactNode }) {
   const { session, loading, user } = useAuth()
@@ -41,6 +42,7 @@ export function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/onboarding" element={<Protected><OnboardingPage /></Protected>} />
       <Route path="/" element={<Protected><HomePage /></Protected>} />
+      <Route path="/workout" element={<Protected><WorkoutPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
