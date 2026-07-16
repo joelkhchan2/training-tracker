@@ -37,17 +37,13 @@ describe('buildSavePlan', () => {
   })
 })
 
-const { rpc, from, getUser, updateEq, update } = vi.hoisted(() => {
-  const updateEq = vi.fn().mockResolvedValue({ error: null })
-  const update = vi.fn().mockReturnValue({ eq: updateEq })
-  const from = vi.fn().mockReturnValue({ update })
+const { rpc } = vi.hoisted(() => {
   const rpc = vi.fn().mockResolvedValue({ data: 'session-123', error: null })
-  const getUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
-  return { rpc, from, getUser, updateEq, update }
+  return { rpc }
 })
 
 vi.mock('./supabase', () => ({
-  getSupabase: () => ({ rpc, from, auth: { getUser } }),
+  getSupabase: () => ({ rpc }),
 }))
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -59,12 +55,9 @@ describe('useSaveWorkout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rpc.mockResolvedValue({ data: 'session-123', error: null })
-    getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
-    update.mockReturnValue({ eq: updateEq })
-    updateEq.mockResolvedValue({ error: null })
   })
 
-  it('calls log_workout with the correctly-shaped args, then advances the cursor', async () => {
+  it('calls log_workout with the session/sets AND the next-cursor args in one atomic RPC call', async () => {
     const { result } = renderHook(() => useSaveWorkout(), { wrapper })
 
     const session = { discipline: 'strength' as const, status: 'active' as const }
@@ -82,17 +75,14 @@ describe('useSaveWorkout', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
+    expect(rpc).toHaveBeenCalledTimes(1)
     expect(rpc).toHaveBeenCalledWith('log_workout', {
       p_client_id: 'client-abc',
       p_session: session,
       p_sets: sets,
+      p_next_cursor: { dayIndex: 1, week: 1, cycle: 1 },
+      p_last_advance_key: '1-1-1',
     })
-    expect(from).toHaveBeenCalledWith('program_state')
-    expect(update).toHaveBeenCalledWith({
-      cursor: { dayIndex: 1, week: 1, cycle: 1 },
-      last_advance_key: '1-1-1',
-    })
-    expect(updateEq).toHaveBeenCalledWith('user_id', 'user-1')
     expect(result.current.data).toEqual({
       sessionId: 'session-123',
       cycleComplete: false,
@@ -100,7 +90,7 @@ describe('useSaveWorkout', () => {
     })
   })
 
-  it('surfaces an rpc error without touching program_state', async () => {
+  it('surfaces an rpc error (the cursor never partially advances since it is the same call)', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
     const { result } = renderHook(() => useSaveWorkout(), { wrapper })
 
@@ -115,6 +105,6 @@ describe('useSaveWorkout', () => {
     })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
-    expect(update).not.toHaveBeenCalled()
+    expect(rpc).toHaveBeenCalledTimes(1)
   })
 })

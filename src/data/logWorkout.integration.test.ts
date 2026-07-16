@@ -39,6 +39,70 @@ function twoSets(exerciseId: string) {
 // Requires a running Supabase stack with VITE_SUPABASE_ANON_KEY set. Skips locally
 // when that env is absent so `npm run test` stays green; CI runs it with env sourced.
 describe.skipIf(!anon)('log_workout RPC', () => {
+  it('advances the caller\'s program_state cursor atomically with the save, and stays idempotent on replay', async () => {
+    const user = await makeUser(`logwk_cursor_${Date.now()}@test.dev`)
+    const exerciseId = await makeExercise(user.client, user.userId)
+    const clientId = `session-${Date.now()}`
+    const session = { discipline: 'strength', session_type: 'A', date: '2026-07-16', status: 'active' }
+    const sets = twoSets(exerciseId)
+
+    // Seed a program_state row — the RPC only UPDATEs (mirrors what useActiveWorkout
+    // already required to exist before a save could ever be triggered).
+    const seedCursor = { dayIndex: 0, week: 1, cycle: 1 }
+    const { error: seedError } = await user.client
+      .from('program_state')
+      .insert({ user_id: user.userId, cursor: seedCursor })
+    expect(seedError).toBeNull()
+
+    const nextCursor = { dayIndex: 1, week: 1, cycle: 1 }
+    const lastAdvanceKey = '1-1-1'
+
+    const first = await user.client.rpc('log_workout', {
+      p_client_id: clientId,
+      p_session: session,
+      p_sets: sets,
+      p_next_cursor: nextCursor,
+      p_last_advance_key: lastAdvanceKey,
+    })
+    expect(first.error).toBeNull()
+    const sessionId = first.data as string
+
+    const { data: stateAfterFirst } = await user.client
+      .from('program_state')
+      .select('cursor, last_advance_key')
+      .eq('user_id', user.userId)
+      .single()
+    expect(stateAfterFirst?.cursor).toEqual(nextCursor)
+    expect(stateAfterFirst?.last_advance_key).toBe(lastAdvanceKey)
+
+    // Re-applying the same next_cursor (e.g. a client retry after a dropped response)
+    // must be idempotent: same session, same set count, same cursor value — no
+    // double-advance.
+    const second = await user.client.rpc('log_workout', {
+      p_client_id: clientId,
+      p_session: session,
+      p_sets: sets,
+      p_next_cursor: nextCursor,
+      p_last_advance_key: lastAdvanceKey,
+    })
+    expect(second.error).toBeNull()
+    expect(second.data).toBe(sessionId)
+
+    const { data: stateAfterSecond } = await user.client
+      .from('program_state')
+      .select('cursor, last_advance_key')
+      .eq('user_id', user.userId)
+      .single()
+    expect(stateAfterSecond?.cursor).toEqual(nextCursor)
+    expect(stateAfterSecond?.last_advance_key).toBe(lastAdvanceKey)
+
+    const { data: setRows } = await user.client
+      .from('strength_sets')
+      .select('id')
+      .eq('session_id', sessionId)
+    expect(setRows).toHaveLength(2)
+  })
+
   it('is idempotent: calling twice with the same client_id yields one session + the sets, not duplicates', async () => {
     const user = await makeUser(`logwk_idempotent_${Date.now()}@test.dev`)
     const exerciseId = await makeExercise(user.client, user.userId)

@@ -14,6 +14,17 @@ import { SummarySheet } from './SummarySheet'
 import type { SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
 
+/** Formats a Date as a local-calendar YYYY-MM-DD string. Using
+ *  `toISOString().slice(0, 10)` would report the UTC date, which flips to
+ *  "tomorrow" for anyone logging a workout late at night in a timezone
+ *  behind UTC. */
+function localDateString(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** Maps exerciseName -> exercise_id using the active-program bundle, since
  *  the session store's own `exerciseId` is never populated (sets are keyed
  *  by name during logging, but the DB needs the real exercise row id). */
@@ -79,12 +90,13 @@ export function WorkoutPage() {
 
     for (const exercise of exercises) {
       exercise.sets.forEach((set, setIdx) => {
-        if (set.weight == null || set.reps == null) return
-        loggedSets.push({ exerciseName: exercise.exerciseName, weight: set.weight, reps: set.reps })
+        if (set.reps == null) return
+        const weight = set.weight ?? 0
+        loggedSets.push({ exerciseName: exercise.exerciseName, weight, reps: set.reps })
         sets.push({
           exercise_id: exercise.exerciseId ?? exerciseIdByName[exercise.exerciseName] ?? null,
           set_number: setIdx + 1,
-          weight: set.weight,
+          weight,
           reps: set.reps,
           rpe: null,
           is_warmup: false,
@@ -100,7 +112,7 @@ export function WorkoutPage() {
     const session: WorkoutSessionInput = {
       discipline: 'strength',
       session_type: dayName ?? sessionType ?? undefined,
-      date: new Date().toISOString().slice(0, 10),
+      date: localDateString(new Date()),
       program_variant: bundle.program.name,
       program_week: bundle.cursor.week,
       status: 'completed',

@@ -52,8 +52,10 @@ export interface SaveWorkoutResult {
   nextCursor: Cursor
 }
 
-/** Saves a strength session via the atomic `log_workout` RPC, then advances the user's
- *  program cursor and invalidates `['activeWorkout']` so the next screen reflects it. */
+/** Saves a strength session and advances the user's program cursor via the atomic
+ *  `log_workout` RPC (the RPC applies both under a single transaction — see
+ *  0005_log_workout_advance.sql), then invalidates `['activeWorkout']` so the next
+ *  screen reflects it. */
 export function useSaveWorkout() {
   const queryClient = useQueryClient()
 
@@ -61,25 +63,16 @@ export function useSaveWorkout() {
     mutationFn: async ({ clientId, session, sets, program, cursor }) => {
       const supabase = getSupabase()
 
+      const { nextCursor, cycleComplete, lastAdvanceKey } = buildSavePlan(program, cursor)
+
       const { data: sessionId, error: rpcError } = await supabase.rpc('log_workout', {
         p_client_id: clientId,
         p_session: session,
         p_sets: sets,
+        p_next_cursor: nextCursor,
+        p_last_advance_key: lastAdvanceKey,
       })
       if (rpcError) throw rpcError
-
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      const userId = userData.user?.id
-      if (!userId) throw new Error('useSaveWorkout requires an authenticated user')
-
-      const { nextCursor, cycleComplete, lastAdvanceKey } = buildSavePlan(program, cursor)
-
-      const { error: stateError } = await supabase
-        .from('program_state')
-        .update({ cursor: nextCursor, last_advance_key: lastAdvanceKey })
-        .eq('user_id', userId)
-      if (stateError) throw stateError
 
       return { sessionId: sessionId as string, cycleComplete, nextCursor }
     },
