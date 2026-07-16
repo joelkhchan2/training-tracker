@@ -41,6 +41,7 @@ export function loadExport(xlsxPath: string): RawExport {
 
   const result: RawExport = {
     trainingLog: [],
+    trainingLogMatrix: [],
     exercises: [],
     personalBests: [],
     settings: [],
@@ -63,6 +64,22 @@ export function loadExport(xlsxPath: string): RawExport {
     });
 
     result[key] = rows;
+  }
+
+  // Training Log has no usable header row (row 0 is broken/blank in the
+  // real export), so it must also be parsed positionally, bound by 0-based
+  // column index per the migration mapping doc rather than by header key.
+  const trainingLogSheetName = sheetsByNormalizedName.get(normalizeSheetName("Training Log"));
+  if (trainingLogSheetName) {
+    const worksheet = workbook.Sheets[trainingLogSheetName];
+    const matrixRows = XLSX.utils.sheet_to_json<(string | number | null)[]>(worksheet, {
+      header: 1,
+      raw: false,
+      defval: null,
+    });
+
+    // Row 0 is the broken header — drop it so callers only see data rows.
+    result.trainingLogMatrix = matrixRows.slice(1);
   }
 
   return result;
