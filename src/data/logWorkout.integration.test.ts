@@ -29,6 +29,19 @@ async function makeExercise(client: SupabaseClient, userId: string) {
   return data.id as string
 }
 
+// exercise_progress.program_id is a FK into programs, so tests that exercise
+// p_progress need a real program row owned by the user (satisfies the
+// "programs - write own" RLS policy on insert).
+async function makeProgram(client: SupabaseClient, userId: string) {
+  const { data, error } = await client
+    .from('programs')
+    .insert({ user_id: userId, name: `Test Program ${userId.slice(0, 8)}` })
+    .select('id')
+    .single()
+  if (error) throw error
+  return data.id as string
+}
+
 function twoSets(exerciseId: string) {
   return [
     { exercise_id: exerciseId, set_number: 1, weight: 135, reps: 5, rpe: 7, is_warmup: false, order_index: 0 },
@@ -184,5 +197,95 @@ describe.skipIf(!anon)('log_workout RPC', () => {
     const { data: bOwnSession } = await b.client
       .from('sessions').select('user_id').eq('id', bSessionId).single()
     expect(bOwnSession?.user_id).toBe(b.userId)
+  })
+
+  it('upserts exercise_progress atomically with the save, and stays idempotent on replay', async () => {
+    const user = await makeUser(`logwk_progress_${Date.now()}@test.dev`)
+    const exerciseId = await makeExercise(user.client, user.userId)
+    const programId = await makeProgram(user.client, user.userId)
+    const clientId = `session-progress-${Date.now()}`
+    const session = { discipline: 'strength', session_type: 'A', date: '2026-07-16', status: 'active' }
+    const sets = twoSets(exerciseId)
+    const progress = [
+      { program_id: programId, exercise_id: exerciseId, current_weight: 135, consecutive_fails: 0 },
+    ]
+
+    const first = await user.client.rpc('log_workout', {
+      p_client_id: clientId,
+      p_session: session,
+      p_sets: sets,
+      p_progress: progress,
+    })
+    expect(first.error).toBeNull()
+
+    const { data: progressAfterFirst } = await user.client
+      .from('exercise_progress')
+      .select('user_id, program_id, exercise_id, current_weight, consecutive_fails')
+      .eq('user_id', user.userId)
+    expect(progressAfterFirst).toHaveLength(1)
+    expect(progressAfterFirst?.[0]).toMatchObject({
+      user_id: user.userId,
+      program_id: programId,
+      exercise_id: exerciseId,
+      current_weight: 135,
+      consecutive_fails: 0,
+    })
+
+    // Re-calling with an updated progress payload (same client_id, same
+    // program/exercise) must UPDATE the same row, not insert a second one.
+    const updatedProgress = [
+      { program_id: programId, exercise_id: exerciseId, current_weight: 140, consecutive_fails: 1 },
+    ]
+    const second = await user.client.rpc('log_workout', {
+      p_client_id: clientId,
+      p_session: session,
+      p_sets: sets,
+      p_progress: updatedProgress,
+    })
+    expect(second.error).toBeNull()
+
+    const { data: progressAfterSecond } = await user.client
+      .from('exercise_progress')
+      .select('user_id, program_id, exercise_id, current_weight, consecutive_fails')
+      .eq('user_id', user.userId)
+    expect(progressAfterSecond).toHaveLength(1) // still one row per (user, program, exercise)
+    expect(progressAfterSecond?.[0]).toMatchObject({
+      user_id: user.userId,
+      program_id: programId,
+      exercise_id: exerciseId,
+      current_weight: 140,
+      consecutive_fails: 1,
+    })
+  })
+
+  it('keeps exercise_progress rows RLS-scoped to their owning user', async () => {
+    const a = await makeUser(`logwk_progress_isolation_a_${Date.now()}@test.dev`)
+    const b = await makeUser(`logwk_progress_isolation_b_${Date.now()}@test.dev`)
+    const exerciseA = await makeExercise(a.client, a.userId)
+    const programA = await makeProgram(a.client, a.userId)
+
+    const aResult = await a.client.rpc('log_workout', {
+      p_client_id: `progress-isolation-${Date.now()}`,
+      p_session: { discipline: 'strength', status: 'active' },
+      p_sets: twoSets(exerciseA),
+      p_progress: [
+        { program_id: programA, exercise_id: exerciseA, current_weight: 100, consecutive_fails: 0 },
+      ],
+    })
+    expect(aResult.error).toBeNull()
+
+    // B cannot see A's exercise_progress row (RLS), even querying unfiltered.
+    const { data: bSeesA } = await b.client
+      .from('exercise_progress')
+      .select('*')
+      .eq('program_id', programA)
+    expect(bSeesA).toEqual([])
+
+    const { data: aOwnProgress } = await a.client
+      .from('exercise_progress')
+      .select('user_id')
+      .eq('program_id', programA)
+      .single()
+    expect(aOwnProgress?.user_id).toBe(a.userId)
   })
 })
