@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchActiveWorkout } from './queries'
+import { buildWorkingWeights, fetchActiveWorkout } from './queries'
 import type {
+  ExerciseProgressRow,
   ExerciseRow,
   ProgramDayRow,
   ProgramExerciseRow,
@@ -79,6 +80,12 @@ describe('fetchActiveWorkout', () => {
     const trainingMaxes: TrainingMaxRow[] = [
       { id: 'tm-1', user_id: 'u1', key: 'squat', value: 275, prev_value: 265, updated_at: '2026-01-01T00:00:00Z' },
     ]
+    const exerciseProgress: ExerciseProgressRow[] = [
+      { id: 'progress-1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-squat',
+        current_weight: 225, consecutive_fails: 0, updated_at: '2026-01-01T00:00:00Z' },
+      { id: 'progress-2', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-bench',
+        current_weight: 135, consecutive_fails: 1, updated_at: '2026-01-01T00:00:00Z' },
+    ]
 
     __setSupabase(makeSupabase({
       program_state: [programState],
@@ -88,6 +95,7 @@ describe('fetchActiveWorkout', () => {
       personal_records: [],
       program_exercises: programExercises,
       exercises,
+      exercise_progress: exerciseProgress,
     }))
 
     const bundle = await fetchActiveWorkout('u1')
@@ -104,5 +112,56 @@ describe('fetchActiveWorkout', () => {
       { exerciseName: 'Bench Press', tmKey: 'benchPress', order: 1, scheme: programExercises[0].scheme },
     ])
     expect(bundle!.program.days[1].exercises).toEqual([])
+
+    // exercise_progress rows are mapped exercise_id -> (role_key ?? exercise name), the
+    // same key getPrescription's linear branch looks up by (tmKey ?? exerciseName).
+    expect(bundle!.workingWeights).toEqual({
+      squat: { weight: 225, fails: 0 },
+      benchPress: { weight: 135, fails: 1 },
+    })
+    expect(bundle!.workingWeightValues).toEqual({ squat: 225, benchPress: 135 })
+  })
+})
+
+describe('buildWorkingWeights', () => {
+  const exercisesById: Record<string, ExerciseRow> = {
+    'ex-squat': { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
+      movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+  }
+  const programExercises: ProgramExerciseRow[] = [
+    { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
+      scheme: { type: 'linear', sets: [{ reps: 5 }] } },
+  ]
+
+  it('keys by role_key (tmKey) when present', () => {
+    const progressRows: ExerciseProgressRow[] = [
+      { id: 'p1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-squat',
+        current_weight: 100, consecutive_fails: 2, updated_at: '2026-01-01T00:00:00Z' },
+    ]
+    expect(buildWorkingWeights(programExercises, exercisesById, progressRows)).toEqual({
+      squat: { weight: 100, fails: 2 },
+    })
+  })
+
+  it('falls back to the resolved exercise name when there is no role_key', () => {
+    const noRoleKeyExercises: ProgramExerciseRow[] = [
+      { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: null, order_index: 0,
+        scheme: { type: 'linear', sets: [{ reps: 5 }] } },
+    ]
+    const progressRows: ExerciseProgressRow[] = [
+      { id: 'p1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-squat',
+        current_weight: 100, consecutive_fails: 0, updated_at: '2026-01-01T00:00:00Z' },
+    ]
+    expect(buildWorkingWeights(noRoleKeyExercises, exercisesById, progressRows)).toEqual({
+      Squat: { weight: 100, fails: 0 },
+    })
+  })
+
+  it('ignores a progress row whose exercise_id is not in the program', () => {
+    const progressRows: ExerciseProgressRow[] = [
+      { id: 'p1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-unrelated',
+        current_weight: 999, consecutive_fails: 0, updated_at: '2026-01-01T00:00:00Z' },
+    ]
+    expect(buildWorkingWeights(programExercises, exercisesById, progressRows)).toEqual({})
   })
 })

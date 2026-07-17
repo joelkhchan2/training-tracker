@@ -35,6 +35,8 @@ const seededBundle: ActiveWorkoutBundle = {
   trainingMaxes: { squat: 275, benchPress: 175, barbellDeadlift: 315, overheadPress: 115 },
   cursor: { dayIndex: 0, week: 2, cycle: 6 },
   personalRecords: [],
+  workingWeights: {},
+  workingWeightValues: {},
 }
 
 describe('HomePage', () => {

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Program, ProgramExercise, TrainingMaxes, Cursor } from '../domain'
 import { getSupabase } from './supabase'
 import type {
+  ExerciseProgressRow,
   ExerciseRow,
   PersonalRecordRow,
   ProgramDayRow,
@@ -10,6 +11,10 @@ import type {
   ProgramStateRow,
   TrainingMaxRow,
 } from './types'
+
+/** Per-exercise linear-progression state, keyed the same way `getPrescription`'s
+ *  `workingWeights` arg expects (`tmKey ?? exerciseName` — see `exerciseKey` below). */
+export type WorkingWeights = Record<string, { weight: number; fails: number }>
 
 /** Everything a workout-logging screen needs for the user's current program position. */
 export interface ActiveWorkoutBundle {
@@ -20,6 +25,40 @@ export interface ActiveWorkoutBundle {
   trainingMaxes: TrainingMaxes
   cursor: Cursor
   personalRecords: PersonalRecordRow[]
+  /** Current weight + consecutive-fails per linear-scheme exercise, from `exercise_progress`. */
+  workingWeights: WorkingWeights
+  /** `workingWeights` flattened to weight-only, ready to pass straight into
+   *  `getPrescription(program, cursor, maxes, workingWeightValues)`. */
+  workingWeightValues: Record<string, number>
+}
+
+/** The same `tmKey ?? exerciseName` key `getPrescription`'s linear branch looks up by
+ *  (see `programEngine.ts`), derived from a DB row instead of the built `ProgramExercise`. */
+function exerciseKey(pe: ProgramExerciseRow, exercisesById: Record<string, ExerciseRow>): string {
+  const tmKey = pe.role_key ?? undefined
+  const exerciseName = (pe.exercise_id && exercisesById[pe.exercise_id]?.name) || pe.role_key || 'Unknown exercise'
+  return tmKey ?? exerciseName
+}
+
+/** Maps `exercise_progress` rows (keyed by `exercise_id`) onto the `tmKey ?? exerciseName`
+ *  key `getPrescription`/`applyLinearProgression` expect, via the program's own exercises. */
+export function buildWorkingWeights(
+  programExercises: ProgramExerciseRow[],
+  exercisesById: Record<string, ExerciseRow>,
+  progressRows: ExerciseProgressRow[],
+): WorkingWeights {
+  const keyByExerciseId = new Map<string, string>()
+  for (const pe of programExercises) {
+    if (pe.exercise_id) keyByExerciseId.set(pe.exercise_id, exerciseKey(pe, exercisesById))
+  }
+
+  const result: WorkingWeights = {}
+  for (const row of progressRows) {
+    const key = row.exercise_id ? keyByExerciseId.get(row.exercise_id) : undefined
+    if (!key) continue
+    result[key] = { weight: row.current_weight, fails: row.consecutive_fails }
+  }
+  return result
 }
 
 /** Assembles the domain `Program` shape (days -> exercises with their scheme) from DB rows,
@@ -75,16 +114,18 @@ export async function fetchActiveWorkout(userId: string): Promise<ActiveWorkoutB
 
   const programId = stateRow.active_program_id
 
-  const [programRes, daysRes, maxesRes, prsRes] = await Promise.all([
+  const [programRes, daysRes, maxesRes, prsRes, progressRes] = await Promise.all([
     supabase.from('programs').select('*').eq('id', programId).single(),
     supabase.from('program_days').select('*').eq('program_id', programId).order('order_index'),
     supabase.from('training_maxes').select('*').eq('user_id', userId),
     supabase.from('personal_records').select('*').eq('user_id', userId),
+    supabase.from('exercise_progress').select('*').eq('user_id', userId).eq('program_id', programId),
   ])
   if (programRes.error) throw programRes.error
   if (daysRes.error) throw daysRes.error
   if (maxesRes.error) throw maxesRes.error
   if (prsRes.error) throw prsRes.error
+  if (progressRes.error) throw progressRes.error
 
   const programRow = programRes.data as ProgramRow
   const days = (daysRes.data ?? []) as ProgramDayRow[]
@@ -122,6 +163,12 @@ export async function fetchActiveWorkout(userId: string): Promise<ActiveWorkoutB
 
   const program = buildDomainProgram(programRow, days, programExercises, exercisesById)
 
+  const progressRows = (progressRes.data ?? []) as ExerciseProgressRow[]
+  const workingWeights = buildWorkingWeights(programExercises, exercisesById, progressRows)
+  const workingWeightValues = Object.fromEntries(
+    Object.entries(workingWeights).map(([key, { weight }]) => [key, weight]),
+  )
+
   return {
     program,
     days,
@@ -130,6 +177,8 @@ export async function fetchActiveWorkout(userId: string): Promise<ActiveWorkoutB
     trainingMaxes,
     cursor: stateRow.cursor,
     personalRecords: (prsRes.data ?? []) as PersonalRecordRow[],
+    workingWeights,
+    workingWeightValues,
   }
 }
 

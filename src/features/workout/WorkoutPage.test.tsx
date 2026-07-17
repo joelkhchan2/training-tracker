@@ -104,6 +104,8 @@ const bundle: ActiveWorkoutBundle = {
       session_id: null,
     },
   ],
+  workingWeights: {},
+  workingWeightValues: {},
 }
 
 function renderAtWorkout() {

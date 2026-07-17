@@ -53,6 +53,8 @@ const bundleWithActiveProgram: ActiveWorkoutBundle = {
   trainingMaxes: {},
   cursor: { dayIndex: 0, week: 1, cycle: 1 },
   personalRecords: [],
+  workingWeights: {},
+  workingWeightValues: {},
 }
 
 describe('ProgramsPage', () => {
