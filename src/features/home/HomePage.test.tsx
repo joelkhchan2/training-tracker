@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { HomePage } from './HomePage'
 import type { ActiveWorkoutBundle } from '../../data/queries'
@@ -55,6 +55,16 @@ describe('HomePage', () => {
     expect(screen.getByRole('button', { name: 'Start workout' })).toBeInTheDocument()
   })
 
+  it('navigates to /programs when "Change program" is tapped on the active state', () => {
+    useActiveWorkout.mockReturnValue({ data: seededBundle, isLoading: false })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change program' }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/programs')
+  })
+
   it('shows an empty state and no Start button when there is no active program', () => {
     useActiveWorkout.mockReturnValue({ data: null, isLoading: false })
 
@@ -62,5 +72,15 @@ describe('HomePage', () => {
 
     expect(screen.getByText('No active program yet')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start workout' })).not.toBeInTheDocument()
+  })
+
+  it('navigates to /programs when "Choose a program" is tapped on the empty state', () => {
+    useActiveWorkout.mockReturnValue({ data: null, isLoading: false })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a program' }))
+
+    expect(mockNavigate).toHaveBeenCalledWith('/programs')
   })
 })

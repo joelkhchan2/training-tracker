@@ -65,11 +65,12 @@ export function HomePage() {
   if (!hasProgram) {
     return (
       <AppShell title="Home" right={signOutLink}>
-        <Card>
+        <Card className="space-y-3">
           <h2 className="text-lg font-semibold text-text">No active program yet</h2>
-          <p className="mt-2 text-sm text-muted">
-            No active program yet — program builder is coming soon.
-          </p>
+          <p className="text-sm text-muted">Pick a program to get started.</p>
+          <Button fullWidth onClick={() => nav('/programs')}>
+            Choose a program
+          </Button>
         </Card>
       </AppShell>
     )
@@ -78,7 +79,12 @@ export function HomePage() {
   return (
     <AppShell title="Home" right={signOutLink}>
       <div className="space-y-4">
-        <p className="text-sm font-medium text-muted">{label}</p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium text-muted">{label}</p>
+          <Button variant="ghost" size="sm" onClick={() => nav('/programs')}>
+            Change program
+          </Button>
+        </div>
 
         <Card className="space-y-3">
           {prescription.map((ex, i) => (
