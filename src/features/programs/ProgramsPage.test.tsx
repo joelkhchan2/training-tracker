@@ -148,7 +148,7 @@ describe('ProgramsPage', () => {
   it('without onUse, "Use this program" on a fixed-scheme preset skips straight to a plain confirm', () => {
     renderProgramsPage()
 
-    fireEvent.click(screen.getByText('StrongLifts 5x5'))
+    fireEvent.click(screen.getByText('Push/Pull/Legs'))
     fireEvent.click(screen.getByRole('button', { name: 'Use this program' }))
 
     expect(screen.getByRole('dialog', { name: 'Activate program' })).toBeInTheDocument()
@@ -159,7 +159,7 @@ describe('ProgramsPage', () => {
     expect(mockMutate).toHaveBeenCalledTimes(1)
     const [payload] = mockMutate.mock.calls[0]
     expect(payload).toEqual({
-      preset: PRESETS.find(p => p.id === 'strongLifts5x5'),
+      preset: PRESETS.find(p => p.id === 'pushPullLegs'),
       trainingMaxes: {},
       startingWeights: {},
     })

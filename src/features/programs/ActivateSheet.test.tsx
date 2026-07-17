@@ -22,10 +22,12 @@ vi.mock('react-router-dom', async (importOriginal) => {
 vi.mock('../../data/activateProgram', () => ({ useActivateProgram }))
 
 const fiveThreeOnePreset = PRESETS.find(p => p.id === 'fiveThreeOne')!
-const strongLiftsPreset = PRESETS.find(p => p.id === 'strongLifts5x5')!
+// Fixed-scheme, no-maxes, no-starting-weights preset — used to exercise the plain-confirm path.
+const pushPullLegsPreset = PRESETS.find(p => p.id === 'pushPullLegs')!
 
-// No real preset uses the linear scheme yet (Task 6 builds the mechanism ahead of a
-// concrete LP preset), so the starting-weights step is exercised against a fixture.
+// A hand-built fixture, distinct from the real linear-progression presets (strongLifts5x5,
+// startingStrength, basicBeginner, greyskullLP), so the starting-weights step's behavior is
+// pinned independently of any one preset's exact lift list.
 const lpPreset: PresetMeta = {
   id: 'lp-fixture',
   name: 'LP Fixture',
@@ -126,16 +128,16 @@ describe('ActivateSheet', () => {
   })
 
   it('skips the maxes form for a fixed-scheme preset and activates with no training maxes', () => {
-    renderSheet({ preset: strongLiftsPreset })
+    renderSheet({ preset: pushPullLegsPreset })
 
-    expect(screen.getByText(`Activate ${strongLiftsPreset.name}?`)).toBeInTheDocument()
+    expect(screen.getByText(`Activate ${pushPullLegsPreset.name}?`)).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Activate' }))
 
     expect(mockMutate).toHaveBeenCalledTimes(1)
     const [payload] = mockMutate.mock.calls[0]
-    expect(payload).toEqual({ preset: strongLiftsPreset, trainingMaxes: {}, startingWeights: {} })
+    expect(payload).toEqual({ preset: pushPullLegsPreset, trainingMaxes: {}, startingWeights: {} })
   })
 
   it('shows a starting-weight field per startingWeightLifts entry for a linear-progression preset, and none for a non-LP preset', () => {
@@ -148,7 +150,7 @@ describe('ActivateSheet', () => {
   })
 
   it('does not show the starting-weights form for a non-LP preset', () => {
-    renderSheet({ preset: strongLiftsPreset })
+    renderSheet({ preset: pushPullLegsPreset })
     expect(screen.queryByText('Squat')).not.toBeInTheDocument()
     expect(screen.queryByText('Bench Press')).not.toBeInTheDocument()
   })

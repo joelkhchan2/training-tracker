@@ -3,6 +3,9 @@ import { fiveThreeOne } from './fiveThreeOne'
 import { strongLifts5x5 } from './strongLifts5x5'
 import { pushPullLegs } from './pushPullLegs'
 import { beginnerLinear } from './beginnerLinear'
+import { startingStrength } from './startingStrength'
+import { basicBeginner } from './basicBeginner'
+import { greyskullLP } from './greyskullLP'
 
 export interface PresetMeta {
   id: string
@@ -21,6 +24,21 @@ export interface PresetMeta {
   program: Program
 }
 
+/** Every distinct exercise name used by a `linear`-scheme exercise across a program's days,
+ *  in first-seen order — used to build `startingWeightLifts` for the LP presets below. */
+function linearSchemeLifts(program: Program): { exerciseName: string; label: string }[] {
+  const seen = new Set<string>()
+  const lifts: { exerciseName: string; label: string }[] = []
+  for (const day of program.days) {
+    for (const ex of day.exercises) {
+      if (ex.scheme.type !== 'linear' || seen.has(ex.exerciseName)) continue
+      seen.add(ex.exerciseName)
+      lifts.push({ exerciseName: ex.exerciseName, label: ex.exerciseName })
+    }
+  }
+  return lifts
+}
+
 export const PRESETS: PresetMeta[] = [
   {
     id: 'fiveThreeOne',
@@ -37,13 +55,13 @@ export const PRESETS: PresetMeta[] = [
   {
     id: 'strongLifts5x5',
     name: strongLifts5x5.name,
-    description: 'Alternating A/B full-body 5x5 with linear weight progression each session.',
+    description: 'Alternating A/B full-body 5x5 — straight sets, +weight every session you hit all 25 reps, deload 10% after 3 stalls.',
     discipline: strongLifts5x5.discipline,
     daysPerWeek: strongLifts5x5.days.length,
     requiresTrainingMaxes: false,
     tmKeys: [],
-    requiresStartingWeights: false,
-    startingWeightLifts: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: linearSchemeLifts(strongLifts5x5),
     program: strongLifts5x5,
   },
   {
@@ -70,6 +88,42 @@ export const PRESETS: PresetMeta[] = [
     startingWeightLifts: [],
     program: beginnerLinear,
   },
+  {
+    id: 'startingStrength',
+    name: startingStrength.name,
+    description: 'Mark Rippetoe\'s novice program — alternating A/B, 3x5 straight sets (deadlift 1x5), +10 lbs/session lower body, +5 lbs/session press & bench.',
+    discipline: startingStrength.discipline,
+    daysPerWeek: startingStrength.days.length,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: linearSchemeLifts(startingStrength),
+    program: startingStrength,
+  },
+  {
+    id: 'basicBeginner',
+    name: basicBeginner.name,
+    description: 'r/Fitness\'s classic A/B novice routine — 3x5+ with an AMRAP last set, doubled jumps on big AMRAP sets, deload on a missed one.',
+    discipline: basicBeginner.discipline,
+    daysPerWeek: basicBeginner.days.length,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: linearSchemeLifts(basicBeginner),
+    program: basicBeginner,
+  },
+  {
+    id: 'greyskullLP',
+    name: greyskullLP.name,
+    description: 'Greyskull LP — 2x5, 1x5+ on the big lifts, +weight every session, ~10% reset on a missed AMRAP.',
+    discipline: greyskullLP.discipline,
+    daysPerWeek: greyskullLP.days.length,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: linearSchemeLifts(greyskullLP),
+    program: greyskullLP,
+  },
 ]
 
-export { fiveThreeOne, strongLifts5x5, pushPullLegs, beginnerLinear }
+export { fiveThreeOne, strongLifts5x5, pushPullLegs, beginnerLinear, startingStrength, basicBeginner, greyskullLP }
