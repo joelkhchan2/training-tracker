@@ -1,6 +1,7 @@
 export * from './types'
 export * from './oneRepMax'
 export * from './programEngine'
+export * from './linearProgression'
 export * from './presets/fiveThreeOne'
 export * from './prDetection'
 export * from './volume'

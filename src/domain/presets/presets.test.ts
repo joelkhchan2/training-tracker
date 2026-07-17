@@ -44,10 +44,10 @@ describe('PRESETS registry', () => {
           expect(day.exercises.length).toBeGreaterThan(0)
           for (const exercise of day.exercises) {
             expect(exercise.scheme).toBeDefined()
-            if (exercise.scheme.type === 'fixed') {
-              expect(exercise.scheme.sets.length).toBeGreaterThan(0)
-            } else {
+            if (exercise.scheme.type === 'percentage') {
               expect(exercise.scheme.weeks.length).toBeGreaterThan(0)
+            } else {
+              expect(exercise.scheme.sets.length).toBeGreaterThan(0)
             }
           }
         }

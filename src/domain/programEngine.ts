@@ -46,8 +46,12 @@ export function getPrescription(program: Program, cursor: Cursor, maxes: Trainin
       const tm = maxes[ex.scheme.tmKey] ?? 0
       const wk = ex.scheme.weeks[Math.min(cursor.week, ex.scheme.weeks.length) - 1] ?? { sets: [] }
       sets = wk.sets.map(s => ({ weight: r5(tm * s.pct), reps: s.reps, isFsl: !!s.fsl }))
-    } else {
+    } else if (ex.scheme.type === 'fixed') {
       sets = ex.scheme.sets.map(s => ({ weight: s.weight, reps: s.reps }))
+    } else {
+      // 'linear' scheme: weight is tracked/progressed externally (see applyLinearProgression),
+      // not derived from the scheme definition itself.
+      sets = ex.scheme.sets.map(s => ({ weight: undefined, reps: s.reps }))
     }
     return { exerciseName: ex.exerciseName, tmKey: ex.tmKey, sets }
   })
