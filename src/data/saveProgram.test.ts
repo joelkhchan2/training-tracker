@@ -101,4 +101,37 @@ describe('buildProgramRows', () => {
       expect('weight' in pushUpRow.scheme.sets[0]).toBe(false)
     }
   })
+
+  it('resets order_index per day across multiple days, rather than incrementing globally', () => {
+    const draft = draftWith({
+      days: [
+        {
+          name: 'Day 1',
+          exercises: [
+            { exerciseName: 'Bench Press', kind: 'strength', sets: [{ reps: 5, weight: 100 }] },
+            { exerciseName: 'Push Up', kind: 'bodyweight', sets: [{ reps: 10 }] },
+          ],
+        },
+        {
+          name: 'Day 2',
+          exercises: [
+            { exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5, weight: 150 }] },
+            { exerciseName: 'Lunge', kind: 'bodyweight', sets: [{ reps: 12 }] },
+          ],
+        },
+      ],
+    })
+    const exerciseIdByName = {
+      'Bench Press': 'ex-bench',
+      'Push Up': 'ex-pushup',
+      Squat: 'ex-squat',
+      Lunge: 'ex-lunge',
+    }
+    const ids = { programId: 'prog-1', dayIds: ['day-1', 'day-2'] }
+
+    const rows = buildProgramRows(draft, exerciseIdByName, ids)
+
+    expect(rows.exercises.map((ex) => ex.order_index)).toEqual([0, 1, 0, 1])
+    expect(rows.exercises.map((ex) => ex.program_day_id)).toEqual(['day-1', 'day-1', 'day-2', 'day-2'])
+  })
 })
