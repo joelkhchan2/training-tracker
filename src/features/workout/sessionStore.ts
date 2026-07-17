@@ -11,6 +11,11 @@ export interface SessionSet {
    *  identify the AMRAP set and its target reps without re-deriving them from `scheme`. */
   isAmrap?: boolean
   targetReps?: number
+  /** The set's original index into the exercise's `scheme.sets`, captured at prescription
+   *  time. Undefined for sets the user adds mid-session (not part of the prescription).
+   *  Used by the save flow to match logged sets to prescribed sets by a stable key rather
+   *  than by recomputed array position, which shifts when a set is added/removed. */
+  prescriptionIndex?: number
 }
 
 export interface SessionExercise {
@@ -69,13 +74,14 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           exerciseId: null,
           exerciseName: ex.exerciseName,
           tmKey: ex.tmKey,
-          sets: ex.sets.map((s) => ({
+          sets: ex.sets.map((s, i) => ({
             weight: s.weight ?? null,
             reps: s.reps,
             done: false,
             isFsl: s.isFsl,
             isAmrap: s.isAmrap,
             targetReps: s.targetReps,
+            prescriptionIndex: i,
           })),
         }))
         set({

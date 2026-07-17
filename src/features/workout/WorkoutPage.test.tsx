@@ -230,11 +230,11 @@ describe('WorkoutPage', () => {
     // The three squat sets carry their logged weight; the two weightless-but-repped
     // push-up sets are still included (bodyweight accessories), persisted with weight 0.
     expect(payload.sets).toEqual([
-      { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, rpe: null, is_warmup: false, order_index: 0 },
-      { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, rpe: null, is_warmup: false, order_index: 1 },
-      { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, rpe: null, is_warmup: false, order_index: 2 },
-      { exercise_id: null, set_number: 1, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 3 },
-      { exercise_id: null, set_number: 2, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 4 },
+      { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
+      { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, rpe: null, is_warmup: false, order_index: 1, prescription_index: 1 },
+      { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, rpe: null, is_warmup: false, order_index: 2, prescription_index: 2 },
+      { exercise_id: null, set_number: 1, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 3, prescription_index: 0 },
+      { exercise_id: null, set_number: 2, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 4, prescription_index: 1 },
     ])
   })
 

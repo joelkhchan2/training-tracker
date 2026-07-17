@@ -136,9 +136,9 @@ const squatWorkingWeights: WorkingWeights = { squat: { weight: 100, fails: 0 } }
 describe('buildProgressionUpdates', () => {
   it('all sets (incl. AMRAP) met: increases the working weight and resets fails', () => {
     const loggedSets = [
-      { exercise_id: 'ex-squat', set_number: 1, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 2, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 3, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, reps: 5 },
     ]
 
     const plan = buildProgressionUpdates('prog-1', [squatExercise], loggedSets, squatWorkingWeights)
@@ -153,9 +153,9 @@ describe('buildProgressionUpdates', () => {
 
   it('AMRAP set missed its target: holds the weight and increments fails', () => {
     const loggedSets = [
-      { exercise_id: 'ex-squat', set_number: 1, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 2, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 3, reps: 3 },
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, reps: 3 },
     ]
 
     const plan = buildProgressionUpdates('prog-1', [squatExercise], loggedSets, squatWorkingWeights)
@@ -170,12 +170,12 @@ describe('buildProgressionUpdates', () => {
 
   it('a percentage-scheme exercise in the same session contributes no progress update', () => {
     const loggedSets = [
-      { exercise_id: 'ex-squat', set_number: 1, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 2, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 3, reps: 5 },
-      { exercise_id: 'ex-bench', set_number: 1, reps: 5 },
-      { exercise_id: 'ex-bench', set_number: 2, reps: 3 },
-      { exercise_id: 'ex-bench', set_number: 3, reps: 1 },
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, reps: 5 },
+      { exercise_id: 'ex-bench', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-bench', set_number: 2, prescription_index: 1, reps: 3 },
+      { exercise_id: 'ex-bench', set_number: 3, prescription_index: 2, reps: 1 },
     ]
 
     const plan = buildProgressionUpdates(
@@ -196,6 +196,73 @@ describe('buildProgressionUpdates', () => {
       updates: [], outcomes: [],
     })
   })
+
+  it('AMRAP survives a removed middle set: matches by prescription_index, not the shifted set_number', () => {
+    // The middle straight set (scheme index 1) was removed mid-session, so the AMRAP set
+    // (scheme index 2) now logs at the shifted set_number 2 — but it still carries its
+    // original prescription_index of 2. The removed set leaves scheme index 1 unmatched.
+    const loggedSets = [
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 2, reps: 8 },
+    ]
+
+    const plan = buildProgressionUpdates('prog-1', [squatExercise], loggedSets, squatWorkingWeights)
+
+    // amrapReps must be read as 8 (from the correctly-matched AMRAP set), not 0 (which is
+    // what the old set_number-keyed lookup would produce, since nothing logs set_number 3).
+    // Because prescribed index 1 has no matching logged set, allWorkingSetsMet is false, so
+    // the action is 'hold' (not yet at failsBeforeDeload) with the weight unchanged — and
+    // critically not a deload driven by a spurious amrapReps=0.
+    expect(plan.updates).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 100, consecutive_fails: 1 },
+    ])
+    expect(plan.outcomes).toEqual([
+      { exerciseName: 'Squat', action: 'hold', nextWeight: 100 },
+    ])
+  })
+
+  it('AMRAP misread avoided when a set inserted before it shifts its set_number (old code would wrongly deload)', () => {
+    // A set was inserted mid-session BEFORE the AMRAP set (e.g. an extra back-off set), so
+    // the real AMRAP now logs at set_number 4 instead of 3, while the inserted set occupies
+    // set_number 3. The old set_number-keyed match would read amrapReps from the INSERTED
+    // set (3 reps) instead of the real AMRAP (8 reps, well above target) — producing a wrong
+    // 'deload' at the fails-before-deload threshold. Matching by prescription_index reads the
+    // real AMRAP set correctly and produces the correct 'increase'.
+    const loggedSets = [
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: null, reps: 3 },
+      { exercise_id: 'ex-squat', set_number: 4, prescription_index: 2, reps: 8 },
+    ]
+    const workingWeightsAtTwoFails: WorkingWeights = { squat: { weight: 100, fails: 2 } }
+
+    const plan = buildProgressionUpdates('prog-1', [squatExercise], loggedSets, workingWeightsAtTwoFails)
+
+    expect(plan.updates).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 105, consecutive_fails: 0 },
+    ])
+    expect(plan.outcomes).toEqual([
+      { exerciseName: 'Squat', action: 'increase', nextWeight: 105 },
+    ])
+  })
+
+  it('an added extra set (no prescription_index) is ignored and does not break a clean progression', () => {
+    const loggedSets = [
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 4, prescription_index: null, reps: 5 },
+    ]
+
+    const plan = buildProgressionUpdates('prog-1', [squatExercise], loggedSets, squatWorkingWeights)
+
+    expect(plan.updates).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 105, consecutive_fails: 0 },
+    ])
+    expect(plan.outcomes).toEqual([
+      { exerciseName: 'Squat', action: 'increase', nextWeight: 105 },
+    ])
+  })
 })
 
 describe('useSaveWorkout progression wiring', () => {
@@ -209,9 +276,9 @@ describe('useSaveWorkout progression wiring', () => {
 
     const session = { discipline: 'strength' as const, status: 'active' as const }
     const sets = [
-      { exercise_id: 'ex-squat', set_number: 1, weight: 100, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 2, weight: 100, reps: 5 },
-      { exercise_id: 'ex-squat', set_number: 3, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, weight: 100, reps: 5 },
     ]
 
     await act(async () => {

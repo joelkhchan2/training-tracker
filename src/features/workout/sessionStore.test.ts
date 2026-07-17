@@ -51,17 +51,17 @@ describe('startFromPrescription', () => {
     expect(squat.exerciseName).toBe('Squat')
     expect(squat.tmKey).toBe('squat')
     expect(squat.sets).toEqual([
-      { weight: 135, reps: 5, done: false, isFsl: undefined },
-      { weight: 155, reps: 5, done: false, isFsl: true },
-      { weight: 175, reps: 3, done: false, isFsl: undefined },
+      { weight: 135, reps: 5, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0 },
+      { weight: 155, reps: 5, done: false, isFsl: true, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1 },
+      { weight: 175, reps: 3, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 2 },
     ])
 
     const pushup = state.exercises[1]
     expect(pushup.exerciseName).toBe('Push-up')
     expect(pushup.tmKey).toBeUndefined()
     expect(pushup.sets).toEqual([
-      { weight: null, reps: 10, done: false, isFsl: undefined },
-      { weight: null, reps: 10, done: false, isFsl: undefined },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0 },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1 },
     ])
   })
 })

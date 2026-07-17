@@ -156,6 +156,7 @@ export function WorkoutPage() {
           rpe: null,
           is_warmup: false,
           order_index: orderIndex++,
+          prescription_index: set.prescriptionIndex ?? null,
         })
       })
     }

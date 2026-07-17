@@ -22,7 +22,12 @@ export interface WorkoutSessionInput {
 
 /** Shape of one element of `p_sets` passed to the `log_workout` RPC. */
 export type WorkoutSetInput = Pick<StrengthSetRow, 'exercise_id' | 'set_number'> &
-  Partial<Pick<StrengthSetRow, 'weight' | 'reps' | 'rpe' | 'is_warmup' | 'order_index'>>
+  Partial<Pick<StrengthSetRow, 'weight' | 'reps' | 'rpe' | 'is_warmup' | 'order_index'>> & {
+    /** Original index into the exercise's `scheme.sets` (see sessionStore `SessionSet.prescriptionIndex`).
+     *  Not persisted — the RPC ignores unknown keys — used only to match logged sets to prescribed
+     *  sets by a stable key. Null/undefined for user-added extra sets. */
+    prescription_index?: number | null
+  }
 
 export interface SavePlan {
   nextCursor: Cursor
@@ -78,7 +83,9 @@ export interface ProgressionPlan {
 /**
  * Pure progression-plan building, split out of the mutation so it's testable without a
  * mocked Supabase client. For each `linear`-scheme exercise: matches its logged sets (by
- * `set_number`, 1-indexed against `scheme.sets`' order) to find whether every non-AMRAP
+ * the stable `prescription_index` captured at prescription time, not by `set_number` —
+ * which is just the recomputed array position at save time and shifts when a set is
+ * added/removed mid-session) to find whether every non-AMRAP
  * prescribed set met its reps (`allWorkingSetsMet`) and what the AMRAP set's logged reps
  * were (`amrapReps`, against `targetReps`), then feeds that plus the exercise's current
  * working weight/fails into `applyLinearProgression` using the scheme's `progression` config.
@@ -101,14 +108,21 @@ export function buildProgressionUpdates(
     const setsForExercise = loggedSets.filter(s => s.exercise_id === ex.exerciseId)
     if (setsForExercise.length === 0) continue
 
-    const byNumber = new Map(setsForExercise.map(s => [s.set_number, s]))
+    // Match prescribed sets to logged sets by the stable prescription index, not by
+    // set_number: set_number is the recomputed array position at save time, which shifts
+    // when a set is added/removed mid-session and would misidentify the AMRAP set.
+    const byPrescriptionIndex = new Map(
+      setsForExercise
+        .filter(s => s.prescription_index != null)
+        .map(s => [s.prescription_index as number, s]),
+    )
 
     let allWorkingSetsMet = true
     let amrapReps = 0
     let targetReps = 0
 
     ex.scheme.sets.forEach((prescribed, i) => {
-      const logged = byNumber.get(i + 1)
+      const logged = byPrescriptionIndex.get(i)
       if (prescribed.amrap) {
         amrapReps = logged?.reps ?? 0
         targetReps = prescribed.targetReps ?? prescribed.reps
