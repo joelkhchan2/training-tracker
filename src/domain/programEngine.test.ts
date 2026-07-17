@@ -132,3 +132,57 @@ describe('getPrescription (5/3/1 preset)', () => {
     expect(squat.sets.every(s => s.weight === 0)).toBe(true)
   })
 })
+
+describe('getPrescription (linear scheme)', () => {
+  const linearProgram: Program = {
+    name: 'linear-test', discipline: 'strength',
+    days: [
+      { name: 'A', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0,
+        scheme: { type: 'linear', sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }] } }] },
+    ],
+  }
+
+  it('every set gets the working weight, and the amrap set carries isAmrap + targetReps', () => {
+    const day = getPrescription(linearProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { squat: 100 })
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([
+      { weight: 100, reps: 5 },
+      { weight: 100, reps: 5 },
+      { weight: 100, reps: 5, isAmrap: true, targetReps: 5 },
+    ])
+  })
+
+  it('falls back to weight 0 when the working weight is missing', () => {
+    const day = getPrescription(linearProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, {})
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets.every(s => s.weight === 0)).toBe(true)
+  })
+
+  it('falls back to weight 0 when workingWeights is omitted entirely (back-compat call)', () => {
+    const day = getPrescription(linearProgram, { dayIndex: 0, week: 1, cycle: 1 }, {})
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets.every(s => s.weight === 0)).toBe(true)
+  })
+
+  it('defaults targetReps to the set reps when amrap is true but targetReps is omitted', () => {
+    const noTargetProgram: Program = {
+      ...linearProgram,
+      days: [{ name: 'A', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0,
+        scheme: { type: 'linear', sets: [{ reps: 5, amrap: true }] } }] }],
+    }
+    const day = getPrescription(noTargetProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { squat: 100 })
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([{ weight: 100, reps: 5, isAmrap: true, targetReps: 5 }])
+  })
+
+  it('uses exerciseName as the workingWeights key when the exercise has no tmKey', () => {
+    const noTmKeyProgram: Program = {
+      ...linearProgram,
+      days: [{ name: 'A', exercises: [{ exerciseName: 'Squat', order: 0,
+        scheme: { type: 'linear', sets: [{ reps: 5 }] } }] }],
+    }
+    const day = getPrescription(noTmKeyProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { Squat: 135 })
+    const squat = day.find(e => e.exerciseName === 'Squat')!
+    expect(squat.sets).toEqual([{ weight: 135, reps: 5 }])
+  })
+})

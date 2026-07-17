@@ -47,7 +47,7 @@ export interface Program {
 /** Where the user is in a program: 0-based day, 1-based week, 1-based cycle. */
 export interface Cursor { dayIndex: number; week: number; cycle: number }
 
-export interface PrescribedSet { weight?: number; reps: number; isFsl?: boolean }
+export interface PrescribedSet { weight?: number; reps: number; isFsl?: boolean; isAmrap?: boolean; targetReps?: number }
 export interface PrescribedExercise { exerciseName: string; tmKey?: string; sets: PrescribedSet[] }
 
 // ----- Logging / analytics inputs -----

@@ -37,7 +37,12 @@ export function applyProgression(program: Program, maxes: TrainingMaxes): Traini
   return out
 }
 
-export function getPrescription(program: Program, cursor: Cursor, maxes: TrainingMaxes): PrescribedExercise[] {
+export function getPrescription(
+  program: Program,
+  cursor: Cursor,
+  maxes: TrainingMaxes,
+  workingWeights?: Record<string, number>,
+): PrescribedExercise[] {
   const day = program.days[cursor.dayIndex]
   if (!day) return []
   return day.exercises.map(ex => {
@@ -49,9 +54,15 @@ export function getPrescription(program: Program, cursor: Cursor, maxes: Trainin
     } else if (ex.scheme.type === 'fixed') {
       sets = ex.scheme.sets.map(s => ({ weight: s.weight, reps: s.reps }))
     } else {
-      // 'linear' scheme: weight is tracked/progressed externally (see applyLinearProgression),
-      // not derived from the scheme definition itself.
-      sets = ex.scheme.sets.map(s => ({ weight: undefined, reps: s.reps }))
+      // 'linear' scheme: weight comes from the per-exercise working weight (progressed
+      // externally via applyLinearProgression), keyed by ex.tmKey if present else exerciseName.
+      const key = ex.tmKey ?? ex.exerciseName
+      const weight = workingWeights?.[key] ?? 0
+      sets = ex.scheme.sets.map(s => {
+        const set: PrescribedSet = { weight, reps: s.reps }
+        if (s.amrap) { set.isAmrap = true; set.targetReps = s.targetReps ?? s.reps }
+        return set
+      })
     }
     return { exerciseName: ex.exerciseName, tmKey: ex.tmKey, sets }
   })
