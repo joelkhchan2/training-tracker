@@ -231,6 +231,22 @@ function validateAssembly(a: Assembly): string[] {
     }
   })
 
+  // calisthenics_sets upserts on (user_id, client_id) — a duplicate
+  // client_id within one batch makes Postgres reject the upsert with
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time" (this
+  // is exactly how the GTG same-day/same-exercise collision surfaced).
+  // Catch it here, before touching the DB, rather than relying on Postgres
+  // to reject the whole batch at upsert time.
+  const seenCalisthenicsClientIds = new Map<string, number>()
+  a.calisthenicsSets.forEach(s => {
+    seenCalisthenicsClientIds.set(s.client_id, (seenCalisthenicsClientIds.get(s.client_id) ?? 0) + 1)
+  })
+  for (const [clientId, count] of seenCalisthenicsClientIds) {
+    if (count > 1) {
+      dangling.push(`calisthenics_sets: duplicate client_id "${clientId}" appears ${count} times`)
+    }
+  }
+
   return dangling
 }
 

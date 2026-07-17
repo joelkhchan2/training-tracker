@@ -199,6 +199,17 @@ export function toSessions(raw: RawExport, nameToId: NameToIdResult): ToSessions
 
   const sessionsByKey = new Map<string, SessionRow>()
 
+  // GTG legitimately has many sets of the same exercise on the same day (no
+  // per-row distinguisher like a set-number), so a client_id derived from
+  // just date+exercise would collide across rows within one upsert batch —
+  // Postgres rejects "ON CONFLICT DO UPDATE" touching the same row twice in
+  // one statement. Appending a per-(date, exercise) occurrence counter, in
+  // source row order, makes every client_id unique while staying
+  // deterministic across re-runs (same source order -> same seq) and
+  // idempotent (re-running produces the same client_ids, so upserts update
+  // rather than duplicate).
+  const gtgSeqByKey = new Map<string, number>()
+
   // Drop exact-duplicate rows (double-submit artifact) before grouping —
   // but only for entry types in DEDUP_ENTRY_TYPES, where a set-number/grade
   // distinguishes real sets so an identical row can only be a re-submit.
@@ -294,8 +305,12 @@ export function toSessions(raw: RawExport, nameToId: NameToIdResult): ToSessions
       }
     } else if (entryType === 'GTG') {
       const exercise = str(row[3])
+      const seqKey = `${dateKey}|${exercise ?? ''}`
+      const seq = gtgSeqByKey.get(seqKey) ?? 0
+      gtgSeqByKey.set(seqKey, seq + 1)
+
       calisthenicsSets.push({
-        client_id: `mig:gtg:${dateKey}|${exercise ?? ''}`,
+        client_id: `mig:gtg:${dateKey}|${exercise ?? ''}|${seq}`,
         date: dateKey,
         exercise,
         value: num(row[6]),

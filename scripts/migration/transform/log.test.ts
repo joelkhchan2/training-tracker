@@ -183,7 +183,7 @@ describe('toSessions (synthetic fixture, one row per entry type)', () => {
       date: '2026-07-07',
       exercise: 'Pull-up',
       value: 5,
-      client_id: 'mig:gtg:2026-07-07|Pull-up',
+      client_id: 'mig:gtg:2026-07-07|Pull-up|0',
     })
   })
 
@@ -285,6 +285,11 @@ describe('toSessions (exact-duplicate row dedup — double-submit artifact)', ()
 
     expect(result.calisthenicsSets).toHaveLength(2)
     expect(result.duplicatesRemoved).toBe(0)
+    // Same date + exercise -> client_id must still be unique per row, via a
+    // per-(date, exercise) occurrence counter (seq 0, 1, ...).
+    const clientIds = result.calisthenicsSets.map(s => s.client_id)
+    expect(clientIds).toEqual(['mig:gtg:2026-07-06|Push-up|0', 'mig:gtg:2026-07-06|Push-up|1'])
+    expect(new Set(clientIds).size).toBe(clientIds.length)
   })
 
   it('still collapses two identical Strength rows (same set number) to one, alongside untouched GTG duplicates', () => {
@@ -327,6 +332,58 @@ describe('toSessions (exact-duplicate row dedup — double-submit artifact)', ()
     expect(result.strengthSets).toHaveLength(1)
     expect(result.calisthenicsSets).toHaveLength(2)
     expect(result.duplicatesRemoved).toBe(1)
+    const clientIds = result.calisthenicsSets.map(s => s.client_id)
+    expect(new Set(clientIds).size).toBe(clientIds.length)
+  })
+})
+
+describe('toSessions (calisthenics_sets client_id uniqueness)', () => {
+  it('gives distinct, deterministic client_ids to many same-day, same-exercise GTG sets (e.g. 5 identical Pull-up sets)', () => {
+    const rows = Array.from({ length: 5 }, () =>
+      row({
+        0: '2026-07-09',
+        2: 'GTG',
+        3: 'Pull-up',
+        6: '3',
+      }),
+    )
+
+    const raw = emptyRawExport(rows)
+    const result = toSessions(raw, fixtureNameToId())
+
+    expect(result.calisthenicsSets).toHaveLength(5)
+    const clientIds = result.calisthenicsSets.map(s => s.client_id)
+    expect(clientIds).toEqual([
+      'mig:gtg:2026-07-09|Pull-up|0',
+      'mig:gtg:2026-07-09|Pull-up|1',
+      'mig:gtg:2026-07-09|Pull-up|2',
+      'mig:gtg:2026-07-09|Pull-up|3',
+      'mig:gtg:2026-07-09|Pull-up|4',
+    ])
+    expect(new Set(clientIds).size).toBe(clientIds.length)
+
+    // Re-running the transform over the same source order must be
+    // deterministic (idempotent re-runs -> same client_ids, not new ones).
+    const rerun = toSessions(raw, fixtureNameToId())
+    expect(rerun.calisthenicsSets.map(s => s.client_id)).toEqual(clientIds)
+  })
+
+  it('keeps the counter independent per (date, exercise) — a different exercise or date restarts the sequence at 0', () => {
+    const rows = [
+      row({ 0: '2026-07-09', 2: 'GTG', 3: 'Pull-up', 6: '3' }),
+      row({ 0: '2026-07-09', 2: 'GTG', 3: 'Push-up', 6: '10' }),
+      row({ 0: '2026-07-10', 2: 'GTG', 3: 'Pull-up', 6: '3' }),
+    ]
+
+    const raw = emptyRawExport(rows)
+    const result = toSessions(raw, fixtureNameToId())
+
+    const clientIds = result.calisthenicsSets.map(s => s.client_id)
+    expect(clientIds).toEqual([
+      'mig:gtg:2026-07-09|Pull-up|0',
+      'mig:gtg:2026-07-09|Push-up|0',
+      'mig:gtg:2026-07-10|Pull-up|0',
+    ])
   })
 })
 
@@ -372,6 +429,11 @@ describe.skipIf(!existsSync(dataPath))('toSessions (real export)', () => {
   it('produces GTG calisthenics sets and daily check-ins', () => {
     expect(result.calisthenicsSets.length).toBeGreaterThan(0)
     expect(result.dailyCheckins.length).toBeGreaterThan(0)
+  })
+
+  it('gives every calisthenics_sets client_id (the upsert key alongside user_id) a unique value, even across many same-day/same-exercise GTG sets', () => {
+    const clientIds = result.calisthenicsSets.map(s => s.client_id)
+    expect(new Set(clientIds).size).toBe(clientIds.length)
   })
 
   it('prints a summary of counts per output table', () => {
