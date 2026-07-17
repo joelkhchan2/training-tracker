@@ -88,7 +88,8 @@ export function buildDomainProgram(
           .slice()
           .sort((a, b) => a.order_index - b.order_index)
           .map((pe): ProgramExercise => ({
-            exerciseName: (pe.exercise_id && exercisesById[pe.exercise_id]?.name) || pe.role_key || 'Unknown exercise',
+            exerciseName: (pe.exercise_id ? exercisesById[pe.exercise_id]?.name : undefined)
+              ?? pe.exercise_name ?? pe.role_key ?? 'Unknown exercise',
             tmKey: pe.role_key ?? undefined,
             order: pe.order_index,
             scheme: pe.scheme,

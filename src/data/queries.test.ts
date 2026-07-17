@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LinearProgressionConfig } from '../domain'
-import { buildWorkingWeights, fetchActiveWorkout } from './queries'
+import { buildDomainProgram, buildWorkingWeights, fetchActiveWorkout } from './queries'
 import type {
   ExerciseProgressRow,
   ExerciseRow,
@@ -165,5 +165,59 @@ describe('buildWorkingWeights', () => {
         current_weight: 999, consecutive_fails: 0, updated_at: '2026-01-01T00:00:00Z' },
     ]
     expect(buildWorkingWeights(programExercises, exercisesById, progressRows)).toEqual({})
+  })
+})
+
+describe('buildDomainProgram', () => {
+  const programRow: ProgramRow = {
+    id: 'prog-1', user_id: 'u1', name: 'Test Program', description: null,
+    discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
+  }
+  const days: ProgramDayRow[] = [
+    { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 },
+  ]
+
+  it('uses exercisesById[id].name when the exercise row is present (current behavior preserved)', () => {
+    const programExercises: ProgramExerciseRow[] = [
+      { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
+        scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: 'Stale Denormalized Name', exercise_type: null },
+    ]
+    const exercisesById: Record<string, ExerciseRow> = {
+      'ex-squat': { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
+        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+    }
+
+    const program = buildDomainProgram(programRow, days, programExercises, exercisesById)
+    expect(program.days[0].exercises[0].exerciseName).toBe('Squat')
+  })
+
+  it('falls back to exercise_name when exercisesById[id] is missing (e.g. a community program whose author-owned exercise row is unreadable under RLS)', () => {
+    const programExercises: ProgramExerciseRow[] = [
+      { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-unreadable', role_key: null, order_index: 0,
+        scheme: { type: 'fixed', sets: [{ reps: 8 }] }, exercise_name: 'Bulgarian Split Squat', exercise_type: 'weighted' },
+    ]
+
+    const program = buildDomainProgram(programRow, days, programExercises, {})
+    expect(program.days[0].exercises[0].exerciseName).toBe('Bulgarian Split Squat')
+  })
+
+  it('falls back to role_key when exercisesById[id] and exercise_name are both missing', () => {
+    const programExercises: ProgramExerciseRow[] = [
+      { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-unreadable', role_key: 'squat', order_index: 0,
+        scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
+    ]
+
+    const program = buildDomainProgram(programRow, days, programExercises, {})
+    expect(program.days[0].exercises[0].exerciseName).toBe('squat')
+  })
+
+  it("falls back to 'Unknown exercise' when exercisesById[id], exercise_name, and role_key are all missing", () => {
+    const programExercises: ProgramExerciseRow[] = [
+      { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-unreadable', role_key: null, order_index: 0,
+        scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
+    ]
+
+    const program = buildDomainProgram(programRow, days, programExercises, {})
+    expect(program.days[0].exercises[0].exerciseName).toBe('Unknown exercise')
   })
 })
