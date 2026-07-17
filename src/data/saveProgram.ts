@@ -83,12 +83,13 @@ export function buildProgramRows(
 // shrinks.
 //
 // Each mutation needs the authenticated user's id both inside `mutationFn` (to scope
-// writes) and again in `onSuccess` (to build the `['publicPrograms', userId]` key) —
-// `onSuccess` only receives the mutation's own return value and its input variables,
-// neither of which carries the id, so it's captured in this `let` closed over by both
-// callbacks. Safe here because each `useXProgram()` call gets its own closure and this
-// app has no concurrent overlapping calls to the same mutation instance (consistent
-// with the other accepted non-transactional risk notes in this data layer).
+// writes) and again in `onSuccess` (to build the `['publicPrograms', userId]` key).
+// Rather than stashing it in a `let` shared across both callbacks, each `mutationFn`
+// returns `userId` alongside its own result (e.g. `{ programId, userId }`), and
+// `onSuccess` reads it straight off that return value — no extra auth round-trip and
+// no cross-callback mutable state. `useSaveProgram` then re-narrows the public `data`
+// it exposes down to just `programId`, per "returns the new program id" (see
+// `SaveProgramResult` below).
 
 export interface SaveProgramInput {
   draft: ProgramDraft

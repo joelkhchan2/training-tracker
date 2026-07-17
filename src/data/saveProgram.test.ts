@@ -354,7 +354,7 @@ describe('useUpdateProgram', () => {
   })
 
   it('updates programs.name/description/is_public from the draft', async () => {
-    trackQueries({
+    const calls = trackQueries({
       program_days: () => ({ data: [], error: null }),
       program_state: () => ({ data: null, error: null }),
     })
@@ -368,6 +368,13 @@ describe('useUpdateProgram', () => {
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const updatePayload = calls.find(c => c.table === 'programs' && c.method === 'update')?.args[0] as {
+      name: string
+      description: string
+      is_public: boolean
+    }
+    expect(updatePayload).toEqual({ name: 'Renamed', description: 'New desc', is_public: false })
   })
 
   it('clamps program_state.cursor.dayIndex to 0 when the edited program is active and shrinks from 3 to 1 day', async () => {
