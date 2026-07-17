@@ -66,6 +66,26 @@ describe('startFromPrescription', () => {
   })
 })
 
+describe('startFromPrescription with an AMRAP set', () => {
+  it('carries isAmrap/targetReps through onto the matching session set only', () => {
+    const amrapPrescription: PrescribedExercise[] = [
+      {
+        exerciseName: 'Squat',
+        tmKey: 'squat',
+        sets: [
+          { weight: 100, reps: 5 },
+          { weight: 100, reps: 5, isAmrap: true, targetReps: 8 },
+        ],
+      },
+    ]
+    useSessionStore.getState().startFromPrescription(amrapPrescription, meta)
+
+    const state = useSessionStore.getState()
+    expect(state.exercises[0].sets[0]).toMatchObject({ isAmrap: undefined, targetReps: undefined })
+    expect(state.exercises[0].sets[1]).toMatchObject({ weight: 100, reps: 5, isAmrap: true, targetReps: 8 })
+  })
+})
+
 describe('updateSet', () => {
   it('patches weight/reps on the target set only', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)

@@ -6,12 +6,12 @@ import { useAuth } from '../../lib/useAuth'
 import { useActiveWorkout } from '../../data/queries'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import { useSaveWorkout } from '../../data/mutations'
-import type { WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
+import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
 import { SummarySheet } from './SummarySheet'
-import type { SummarySheetProps } from './SummarySheet'
+import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
 
 /** Formats a Date as a local-calendar YYYY-MM-DD string. Using
@@ -48,6 +48,61 @@ function mapExistingPRs(bundle: ActiveWorkoutBundle): PersonalRecord[] {
     out.push({ exerciseName: name, prType: row.pr_type as PrType, value: row.value })
   }
   return out
+}
+
+/** Builds `useSaveWorkout`'s `progressionExercises` input: every linear-scheme exercise on
+ *  today's program day, resolved to its real `exercise_id` via `exerciseIdByName`. Exercises
+ *  with no resolvable id (shouldn't happen for a real linear lift, which always has one) are
+ *  skipped — `buildProgressionUpdates` needs a real id to match logged sets against. */
+function buildProgressionExercises(
+  bundle: ActiveWorkoutBundle,
+  exerciseIdByName: Record<string, string>,
+): ProgressionExerciseInput[] {
+  const day = bundle.program.days[bundle.cursor.dayIndex]
+  const out: ProgressionExerciseInput[] = []
+  for (const ex of day?.exercises ?? []) {
+    if (ex.scheme.type !== 'linear') continue
+    const exerciseId = exerciseIdByName[ex.exerciseName]
+    if (!exerciseId) continue
+    out.push({ exerciseId, exerciseName: ex.exerciseName, tmKey: ex.tmKey, scheme: ex.scheme })
+  }
+  return out
+}
+
+/** Per-exercise lookup (by exerciseName, matching `ProgressionOutcomeSummary.exerciseName`)
+ *  of the working-weight key and `failsBeforeDeload`, needed to turn the mutation's bare
+ *  outcome (action + nextWeight) into a displayable before/after for `SummarySheet`. */
+function buildProgressionMeta(bundle: ActiveWorkoutBundle): Record<string, { key: string; failsBeforeDeload: number }> {
+  const day = bundle.program.days[bundle.cursor.dayIndex]
+  const out: Record<string, { key: string; failsBeforeDeload: number }> = {}
+  for (const ex of day?.exercises ?? []) {
+    if (ex.scheme.type !== 'linear') continue
+    out[ex.exerciseName] = { key: ex.tmKey ?? ex.exerciseName, failsBeforeDeload: ex.scheme.progression.failsBeforeDeload }
+  }
+  return out
+}
+
+/** Combines `useSaveWorkout`'s bare outcomes (exerciseName/action/nextWeight) with the
+ *  pre-save working weight/fails the bundle already had, so `SummarySheet` can show a
+ *  "100 → 105 (+5)" delta or a "2/3 fails" count without either side needing to persist
+ *  the "before" values itself. */
+function buildProgressionOutcomeDisplays(
+  bundle: ActiveWorkoutBundle,
+  outcomes: SaveWorkoutResult['progressionOutcomes'],
+): ProgressionOutcomeDisplay[] {
+  const meta = buildProgressionMeta(bundle)
+  return outcomes.map((outcome) => {
+    const m = meta[outcome.exerciseName]
+    const prev = m ? bundle.workingWeights[m.key] : undefined
+    return {
+      exerciseName: outcome.exerciseName,
+      action: outcome.action,
+      previousWeight: prev?.weight ?? outcome.nextWeight,
+      nextWeight: outcome.nextWeight,
+      fails: outcome.action === 'hold' && prev ? prev.fails + 1 : undefined,
+      failsBeforeDeload: m?.failsBeforeDeload,
+    }
+  })
 }
 
 type Summary = Omit<SummarySheetProps, 'onClose'>
@@ -118,11 +173,24 @@ export function WorkoutPage() {
       status: 'completed',
     }
 
+    const programId = bundle.days[0]?.program_id
+    const progressionExercises = buildProgressionExercises(bundle, exerciseIdByName)
+
     saveWorkout.mutate(
-      { clientId, session, sets, program: bundle.program, cursor: bundle.cursor },
       {
-        onSuccess: () => {
-          setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs })
+        clientId,
+        session,
+        sets,
+        program: bundle.program,
+        cursor: bundle.cursor,
+        programId,
+        progressionExercises,
+        workingWeights: bundle.workingWeights,
+      },
+      {
+        onSuccess: (result) => {
+          const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
+          setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes })
         },
         onError: (err) => {
           setErrorMsg(err.message || 'Could not save your workout. Please try again.')

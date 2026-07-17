@@ -4,6 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { WorkoutPage } from './WorkoutPage'
 import { useSessionStore } from './sessionStore'
 import type { PrescribedExercise } from '../../domain/types'
+import type { LinearProgressionConfig } from '../../domain/types'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 
 const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate } = vi.hoisted(() => {
@@ -247,7 +248,14 @@ describe('WorkoutPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
 
     const [, options] = mockMutate.mock.calls[0]
-    act(() => options.onSuccess())
+    act(() =>
+      options.onSuccess({
+        sessionId: 'session-1',
+        cycleComplete: false,
+        nextCursor: bundle.cursor,
+        progressionOutcomes: [],
+      }),
+    )
 
     expect(screen.getByRole('dialog', { name: 'Workout summary' })).toBeInTheDocument()
     // tonnage = 300*5 + 155*5 + 175*3 = 2800
@@ -274,5 +282,110 @@ describe('WorkoutPage', () => {
     expect(useSessionStore.getState().clientId).toBe('client-123')
     expect(useSessionStore.getState().exercises[0].sets).toHaveLength(3)
     expect(screen.queryByRole('dialog', { name: 'Workout summary' })).not.toBeInTheDocument()
+  })
+})
+
+const LINEAR_CONFIG: LinearProgressionConfig = { increment: 5, failsBeforeDeload: 3, deloadPercent: 0.1 }
+
+const linearScheme = {
+  type: 'linear' as const,
+  sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }],
+  progression: LINEAR_CONFIG,
+}
+
+// The prescription a wired-up useTodaysPrescription would hand off for this day: the
+// AMRAP set carries isAmrap/targetReps, and every set's weight is the working weight.
+const linearPrescription: PrescribedExercise[] = [
+  {
+    exerciseName: 'Squat',
+    tmKey: 'squat',
+    sets: [
+      { weight: 100, reps: 5 },
+      { weight: 100, reps: 5 },
+      { weight: 100, reps: 5, isAmrap: true, targetReps: 5 },
+    ],
+  },
+]
+
+const linearMeta = {
+  sessionType: 'Squat Day',
+  dayName: 'Squat Day',
+  dayIndex: 0,
+  clientId: 'client-lp',
+  startedAt: '2026-07-12T00:00:00.000Z',
+}
+
+const linearBundle: ActiveWorkoutBundle = {
+  program: {
+    name: 'Linear Program',
+    discipline: 'strength',
+    days: [{ name: 'Squat Day', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0, scheme: linearScheme }] }],
+  },
+  days: [{ id: 'day-1', program_id: 'prog-1', name: 'Squat Day', order_index: 0 }],
+  programExercises: [
+    { id: 'pe-1', program_day_id: 'day-1', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0, scheme: linearScheme },
+  ],
+  exercisesById: {
+    'ex-squat': {
+      id: 'ex-squat',
+      user_id: null,
+      name: 'Squat',
+      primary_muscles: null,
+      equipment: null,
+      movement_pattern: null,
+      exercise_type: 'weighted',
+      popularity: null,
+      is_active: true,
+      created_at: '',
+    },
+  },
+  trainingMaxes: {},
+  cursor: { dayIndex: 0, week: 1, cycle: 1 },
+  personalRecords: [],
+  workingWeights: { squat: { weight: 100, fails: 0 } },
+  workingWeightValues: { squat: 100 },
+}
+
+describe('WorkoutPage — AMRAP display and linear-progression wiring', () => {
+  it('renders the AMRAP label with its target on the AMRAP set, at the resolved working weight', () => {
+    useSessionStore.getState().startFromPrescription(linearPrescription, linearMeta)
+    useActiveWorkout.mockReturnValue({ data: linearBundle, isLoading: false })
+    renderAtWorkout()
+
+    const firstSet = screen.getByTestId('set-row-0-0')
+    expect(within(firstSet).getByLabelText('Weight')).toHaveValue('100')
+    expect(within(firstSet).queryByText(/AMRAP/)).not.toBeInTheDocument()
+
+    const amrapSet = screen.getByTestId('set-row-0-2')
+    expect(within(amrapSet).getByLabelText('Weight')).toHaveValue('100')
+    expect(within(amrapSet).getByText('AMRAP · target 5')).toBeInTheDocument()
+  })
+
+  it('Finish workout on a linear-progression day sends programId/progressionExercises/workingWeights, and the summary renders the returned outcome', () => {
+    useSessionStore.getState().startFromPrescription(linearPrescription, linearMeta)
+    useActiveWorkout.mockReturnValue({ data: linearBundle, isLoading: false })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    expect(mockMutate).toHaveBeenCalledTimes(1)
+    const [payload, options] = mockMutate.mock.calls[0]
+
+    expect(payload.programId).toBe('prog-1')
+    expect(payload.progressionExercises).toEqual([
+      { exerciseId: 'ex-squat', exerciseName: 'Squat', tmKey: 'squat', scheme: linearScheme },
+    ])
+    expect(payload.workingWeights).toEqual({ squat: { weight: 100, fails: 0 } })
+
+    act(() =>
+      options.onSuccess({
+        sessionId: 'session-lp',
+        cycleComplete: false,
+        nextCursor: linearBundle.cursor,
+        progressionOutcomes: [{ exerciseName: 'Squat', action: 'increase', nextWeight: 105 }],
+      }),
+    )
+
+    expect(screen.getByText('Squat 100 → 105 (+5)')).toBeInTheDocument()
   })
 })

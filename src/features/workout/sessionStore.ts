@@ -7,6 +7,10 @@ export interface SessionSet {
   reps: number | null
   done: boolean
   isFsl?: boolean
+  /** Carried through from the prescription so `handleFinish` (Task 4's save flow) can
+   *  identify the AMRAP set and its target reps without re-deriving them from `scheme`. */
+  isAmrap?: boolean
+  targetReps?: number
 }
 
 export interface SessionExercise {
@@ -70,6 +74,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             reps: s.reps,
             done: false,
             isFsl: s.isFsl,
+            isAmrap: s.isAmrap,
+            targetReps: s.targetReps,
           })),
         }))
         set({

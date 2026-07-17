@@ -33,11 +33,11 @@ export function useTodaysPrescription(): TodaysPrescription {
     if (isLoading) return { loading: true, ...EMPTY }
     if (!bundle) return { loading: false, ...EMPTY }
 
-    const { program, cursor, trainingMaxes } = bundle
+    const { program, cursor, trainingMaxes, workingWeightValues } = bundle
     const day = program.days[cursor.dayIndex]
     const dayName = day?.name ?? ''
     const label = `Cycle ${cursor.cycle} · Week ${cursor.week} · ${dayName}`
-    const prescription = getPrescription(program, cursor, trainingMaxes)
+    const prescription = getPrescription(program, cursor, trainingMaxes, workingWeightValues)
 
     return {
       loading: false,
