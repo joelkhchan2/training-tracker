@@ -23,6 +23,13 @@ describe('PRESETS registry', () => {
     }
   })
 
+  it('flags every current preset as not requiring starting weights (no preset uses the linear scheme yet)', () => {
+    for (const preset of PRESETS) {
+      expect(preset.requiresStartingWeights).toBe(false)
+      expect(preset.startingWeightLifts).toEqual([])
+    }
+  })
+
   it('derives daysPerWeek from program.days.length', () => {
     for (const preset of PRESETS) {
       expect(preset.daysPerWeek).toBe(preset.program.days.length)

@@ -138,6 +138,7 @@ describe('ProgramsPage', () => {
     expect(payload).toEqual({
       preset: PRESETS.find(p => p.id === 'fiveThreeOne'),
       trainingMaxes: { squat: 225, benchPress: 185, barbellDeadlift: 315, overheadPress: 115 },
+      startingWeights: {},
     })
 
     act(() => options.onSuccess())
@@ -160,6 +161,7 @@ describe('ProgramsPage', () => {
     expect(payload).toEqual({
       preset: PRESETS.find(p => p.id === 'strongLifts5x5'),
       trainingMaxes: {},
+      startingWeights: {},
     })
   })
 })

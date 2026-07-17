@@ -43,11 +43,19 @@ export interface ProgramStateInsert {
   last_advance_key: null
 }
 
+export interface ExerciseProgressInsert {
+  program_id: string
+  exercise_id: string
+  current_weight: number
+  consecutive_fails: number
+}
+
 export interface ActivationRows {
   program: ProgramInsert
   days: ProgramDayInsert[]
   programExercises: ProgramExerciseInsert[]
   trainingMaxes: TrainingMaxInsert[]
+  exerciseProgress: ExerciseProgressInsert[]
   programState: ProgramStateInsert
 }
 
@@ -65,6 +73,7 @@ export function buildActivationRows(
   trainingMaxes: Record<string, number>,
   exerciseIdByName: Map<string, string>,
   ids: ActivationIds,
+  startingWeights: Record<string, number> = {},
 ): ActivationRows {
   const { programId, dayIds } = ids
 
@@ -98,25 +107,52 @@ export function buildActivationRows(
     .filter(key => trainingMaxes[key] != null)
     .map(key => ({ key, value: trainingMaxes[key] }))
 
+  // One row per distinct linear-scheme exercise with a supplied starting weight — dedupe
+  // by exercise id since the same lift can appear on multiple days, and exercise_progress
+  // has a unique (user_id, program_id, exercise_id) constraint.
+  const exerciseProgressByExerciseId = new Map<string, ExerciseProgressInsert>()
+  for (const day of preset.program.days) {
+    for (const exercise of day.exercises) {
+      if (exercise.scheme.type !== 'linear') continue
+      const weight = startingWeights[exercise.exerciseName]
+      if (weight == null) continue
+      const exerciseId = exerciseIdByName.get(exercise.exerciseName)
+      if (exerciseId == null || exerciseProgressByExerciseId.has(exerciseId)) continue
+      exerciseProgressByExerciseId.set(exerciseId, {
+        program_id: programId,
+        exercise_id: exerciseId,
+        current_weight: weight,
+        consecutive_fails: 0,
+      })
+    }
+  }
+  const exerciseProgress = [...exerciseProgressByExerciseId.values()]
+
   const programState: ProgramStateInsert = {
     active_program_id: programId,
     cursor: { dayIndex: 0, week: 1, cycle: 1 },
     last_advance_key: null,
   }
 
-  return { program, days, programExercises, trainingMaxes: trainingMaxRows, programState }
+  return { program, days, programExercises, trainingMaxes: trainingMaxRows, exerciseProgress, programState }
 }
 
 export interface ActivateProgramInput {
   preset: PresetMeta
   trainingMaxes: Record<string, number>
+  /** Starting working weight per exercise name, for linear-progression presets
+   *  (`preset.requiresStartingWeights`). Seeds `exercise_progress` on activation. */
+  startingWeights?: Record<string, number>
 }
 
 /**
  * Clones a chosen preset into the current user's own rows — everything runs as
  * `auth.uid()` (no service role): resolve exercise names to ids, then insert in FK
- * order (programs -> program_days -> program_exercises), then upsert training_maxes
- * and program_state to point at the new program. Returns the new program id.
+ * order (programs -> program_days -> program_exercises -> exercise_progress), then
+ * upsert training_maxes and program_state to point at the new program. Returns the
+ * new program id. `exercise_progress` seeds each linear-scheme exercise's starting
+ * weight (from `startingWeights`) so AMRAP progression has a working weight to start
+ * from; it's a no-op insert for presets with no linear-scheme exercises.
  *
  * Errors from any step are surfaced (via the mutation's error state) rather than
  * swallowed, so a partial failure never reads as success; TanStack Query does not
@@ -128,7 +164,7 @@ export function useActivateProgram() {
   const queryClient = useQueryClient()
 
   return useMutation<string, Error, ActivateProgramInput>({
-    mutationFn: async ({ preset, trainingMaxes }) => {
+    mutationFn: async ({ preset, trainingMaxes, startingWeights = {} }) => {
       const supabase = getSupabase()
 
       const { data: userData, error: userError } = await supabase.auth.getUser()
@@ -142,7 +178,7 @@ export function useActivateProgram() {
       const programId = crypto.randomUUID()
       const dayIds = preset.program.days.map(() => crypto.randomUUID())
 
-      const rows = buildActivationRows(preset, trainingMaxes, exerciseIdByName, { programId, dayIds })
+      const rows = buildActivationRows(preset, trainingMaxes, exerciseIdByName, { programId, dayIds }, startingWeights)
 
       const { error: programError } = await supabase
         .from('programs')
@@ -157,6 +193,13 @@ export function useActivateProgram() {
       if (rows.programExercises.length > 0) {
         const { error: peError } = await supabase.from('program_exercises').insert(rows.programExercises)
         if (peError) throw peError
+      }
+
+      if (rows.exerciseProgress.length > 0) {
+        const { error: progressError } = await supabase
+          .from('exercise_progress')
+          .insert(rows.exerciseProgress.map(ep => ({ ...ep, user_id: userId })))
+        if (progressError) throw progressError
       }
 
       if (rows.trainingMaxes.length > 0) {

@@ -12,6 +12,12 @@ export interface PresetMeta {
   daysPerWeek: number
   requiresTrainingMaxes: boolean
   tmKeys: string[]
+  /** True for presets driven by AMRAP-based linear progression (`Scheme` type `linear`) —
+   *  these need a starting working weight per main lift instead of training maxes. */
+  requiresStartingWeights: boolean
+  /** The main lifts (by exercise name) that need a starting weight, with a display label.
+   *  Empty for percentage/fixed presets. */
+  startingWeightLifts: { exerciseName: string; label: string }[]
   program: Program
 }
 
@@ -24,6 +30,8 @@ export const PRESETS: PresetMeta[] = [
     daysPerWeek: fiveThreeOne.days.length,
     requiresTrainingMaxes: true,
     tmKeys: ['squat', 'benchPress', 'barbellDeadlift', 'overheadPress'],
+    requiresStartingWeights: false,
+    startingWeightLifts: [],
     program: fiveThreeOne,
   },
   {
@@ -34,6 +42,8 @@ export const PRESETS: PresetMeta[] = [
     daysPerWeek: strongLifts5x5.days.length,
     requiresTrainingMaxes: false,
     tmKeys: [],
+    requiresStartingWeights: false,
+    startingWeightLifts: [],
     program: strongLifts5x5,
   },
   {
@@ -44,6 +54,8 @@ export const PRESETS: PresetMeta[] = [
     daysPerWeek: pushPullLegs.days.length,
     requiresTrainingMaxes: false,
     tmKeys: [],
+    requiresStartingWeights: false,
+    startingWeightLifts: [],
     program: pushPullLegs,
   },
   {
@@ -54,6 +66,8 @@ export const PRESETS: PresetMeta[] = [
     daysPerWeek: beginnerLinear.days.length,
     requiresTrainingMaxes: false,
     tmKeys: [],
+    requiresStartingWeights: false,
+    startingWeightLifts: [],
     program: beginnerLinear,
   },
 ]

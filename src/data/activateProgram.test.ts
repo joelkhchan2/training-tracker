@@ -17,6 +17,8 @@ const TEST_PRESET: PresetMeta = {
   daysPerWeek: 2,
   requiresTrainingMaxes: true,
   tmKeys: ['squat', 'benchPress'],
+  requiresStartingWeights: false,
+  startingWeightLifts: [],
   program: {
     name: 'Test Preset',
     discipline: 'strength',
@@ -133,6 +135,8 @@ describe('linear progression config round-trip', () => {
     daysPerWeek: 1,
     requiresTrainingMaxes: false,
     tmKeys: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: [{ exerciseName: 'Squat', label: 'Squat' }],
     program: {
       name: 'LP Test',
       discipline: 'strength',
@@ -188,6 +192,90 @@ describe('linear progression config round-trip', () => {
     if (squat.scheme.type === 'linear') {
       expect(squat.scheme.progression).toEqual(LP_CONFIG)
     }
+  })
+})
+
+// ----- exercise_progress seeding (starting weights for linear-scheme exercises) -----
+
+describe('buildActivationRows - exercise_progress seeding', () => {
+  const LP_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
+
+  const linearScheme = { type: 'linear' as const, sets: [{ reps: 5 }], progression: LP_CONFIG }
+  const fixedScheme = { type: 'fixed' as const, sets: [{ reps: 8 }] }
+
+  const LP_PRESET: PresetMeta = {
+    id: 'lp-progress-test',
+    name: 'LP Progress Test',
+    description: 'A 2-day preset for testing exercise_progress seeding.',
+    discipline: 'strength',
+    daysPerWeek: 2,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    requiresStartingWeights: true,
+    startingWeightLifts: [
+      { exerciseName: 'Squat', label: 'Squat' },
+      { exerciseName: 'Bench Press', label: 'Bench Press' },
+    ],
+    program: {
+      name: 'LP Progress Test',
+      discipline: 'strength',
+      days: [
+        {
+          name: 'Day A',
+          exercises: [
+            { exerciseName: 'Squat', order: 0, scheme: linearScheme },
+            { exerciseName: 'Pull-ups', order: 1, scheme: fixedScheme },
+          ],
+        },
+        {
+          name: 'Day B',
+          exercises: [
+            // Same lift as Day A — must dedupe to a single exercise_progress row.
+            { exerciseName: 'Squat', order: 0, scheme: linearScheme },
+            { exerciseName: 'Bench Press', order: 1, scheme: linearScheme },
+          ],
+        },
+      ],
+    },
+  }
+
+  const exerciseIdByName = new Map([
+    ['Squat', 'ex-squat'],
+    ['Pull-ups', 'ex-pullups'],
+    ['Bench Press', 'ex-bench'],
+  ])
+  const ids = { programId: 'prog-1', dayIds: ['day-a', 'day-b'] }
+
+  it('emits one exercise_progress row per distinct linear-scheme exercise with a starting weight, fails 0, program/exercise ids wired', () => {
+    const rows = buildActivationRows(LP_PRESET, {}, exerciseIdByName, ids, { Squat: 135, 'Bench Press': 95 })
+
+    expect(rows.exerciseProgress).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 135, consecutive_fails: 0 },
+      { program_id: 'prog-1', exercise_id: 'ex-bench', current_weight: 95, consecutive_fails: 0 },
+    ])
+  })
+
+  it('omits a fixed-scheme exercise even if a matching starting weight was supplied', () => {
+    const rows = buildActivationRows(LP_PRESET, {}, exerciseIdByName, ids, {
+      Squat: 135,
+      'Bench Press': 95,
+      'Pull-ups': 0,
+    })
+
+    expect(rows.exerciseProgress.some(row => row.exercise_id === 'ex-pullups')).toBe(false)
+  })
+
+  it('omits a linear-scheme exercise with no starting weight supplied', () => {
+    const rows = buildActivationRows(LP_PRESET, {}, exerciseIdByName, ids, { Squat: 135 })
+
+    expect(rows.exerciseProgress).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 135, consecutive_fails: 0 },
+    ])
+  })
+
+  it('defaults to no exercise_progress rows when startingWeights is omitted (back-compat)', () => {
+    const rows = buildActivationRows(LP_PRESET, {}, exerciseIdByName, ids)
+    expect(rows.exerciseProgress).toEqual([])
   })
 })
 
@@ -289,6 +377,66 @@ describe('useActivateProgram', () => {
     expect(calls[4].opts).toEqual({ onConflict: 'user_id' })
 
     expect(result.current.data).toBe(programId)
+  })
+
+  it('seeds exercise_progress (after program_exercises, before training_maxes) from startingWeights for a linear-scheme preset', async () => {
+    const LP_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
+    const LP_MUTATION_PRESET: PresetMeta = {
+      id: 'lp-mutation-test',
+      name: 'LP Mutation Test',
+      description: 'A 1-day preset for testing exercise_progress seeding via the mutation.',
+      discipline: 'strength',
+      daysPerWeek: 1,
+      requiresTrainingMaxes: false,
+      tmKeys: [],
+      requiresStartingWeights: true,
+      startingWeightLifts: [{ exerciseName: 'Squat', label: 'Squat' }],
+      program: {
+        name: 'LP Mutation Test',
+        discipline: 'strength',
+        days: [
+          {
+            name: 'Day A',
+            exercises: [
+              { exerciseName: 'Squat', order: 0, scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LP_CONFIG } },
+            ],
+          },
+        ],
+      },
+    }
+
+    const calls = trackTables()
+    const { result } = renderHook(() => useActivateProgram(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({
+        preset: LP_MUTATION_PRESET,
+        trainingMaxes: {},
+        startingWeights: { Squat: 135 },
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(calls.map(c => `${c.table}:${c.method}`)).toEqual([
+      'programs:insert',
+      'program_days:insert',
+      'program_exercises:insert',
+      'exercise_progress:insert',
+      'program_state:upsert',
+    ])
+
+    const programId = result.current.data
+    const progressRows = calls[3].payload as {
+      user_id: string
+      program_id: string
+      exercise_id: string
+      current_weight: number
+      consecutive_fails: number
+    }[]
+    expect(progressRows).toEqual([
+      { user_id: 'user-1', program_id: programId, exercise_id: 'ex-squat', current_weight: 135, consecutive_fails: 0 },
+    ])
   })
 
   it('resolves exercise ids for every distinct exercise name in the preset before inserting', async () => {
