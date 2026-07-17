@@ -118,8 +118,11 @@ const squatExercise: ProgressionExerciseInput = {
   exerciseId: 'ex-squat',
   exerciseName: 'Squat',
   tmKey: 'squat',
-  scheme: { type: 'linear', sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }] },
-  progression: SQUAT_LINEAR_CONFIG,
+  scheme: {
+    type: 'linear',
+    sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }],
+    progression: SQUAT_LINEAR_CONFIG,
+  },
 }
 // Same session's other exercise: a percentage scheme, which never contributes to p_progress.
 const benchPercentageExercise: ProgressionExerciseInput = {
@@ -186,15 +189,6 @@ describe('buildProgressionUpdates', () => {
       { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 105, consecutive_fails: 0 },
     ])
     expect(plan.updates.some(u => u.exercise_id === 'ex-bench')).toBe(false)
-  })
-
-  it('skips a linear exercise with no progression config', () => {
-    const noConfigExercise: ProgressionExerciseInput = { ...squatExercise, progression: undefined }
-    const loggedSets = [{ exercise_id: 'ex-squat', set_number: 3, reps: 5 }]
-
-    expect(buildProgressionUpdates('prog-1', [noConfigExercise], loggedSets, squatWorkingWeights)).toEqual({
-      updates: [], outcomes: [],
-    })
   })
 
   it('skips an exercise with no logged sets in this session', () => {

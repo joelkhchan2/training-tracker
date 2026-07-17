@@ -10,17 +10,10 @@ export interface FixedSet { reps: number; rpe?: number; weight?: number }
 
 export interface LinearSet { reps: number; amrap?: boolean; targetReps?: number }
 
-export type Scheme =
-  | { type: 'percentage'; tmKey: string; weeks: { sets: PercentageSet[] }[] }
-  | { type: 'fixed'; sets: FixedSet[] }
-  | { type: 'linear'; sets: LinearSet[] }
-
-export type ProgressionRule =
-  | { type: 'cycle_tm_bump'; bumps: Record<string, number> }
-  | { type: 'linear'; add: number; unit: Units; on: 'session' | 'week' }
-  | { type: 'amrap_linear' }
-
-/** Per-exercise params for AMRAP-driven linear progression (used with ProgressionRule.amrap_linear). */
+/** Per-exercise params for AMRAP-driven linear progression (used with ProgressionRule.amrap_linear).
+ *  Lives on the `linear` Scheme variant (not on ProgramExercise) so it rides along with `scheme`
+ *  through the jsonb column with no separate persistence path — see `buildActivationRows` /
+ *  `buildDomainProgram` in `src/data`. */
 export interface LinearProgressionConfig {
   increment: number
   deloadPercent: number
@@ -29,12 +22,21 @@ export interface LinearProgressionConfig {
   doubleIncrement?: number
 }
 
+export type Scheme =
+  | { type: 'percentage'; tmKey: string; weeks: { sets: PercentageSet[] }[] }
+  | { type: 'fixed'; sets: FixedSet[] }
+  | { type: 'linear'; sets: LinearSet[]; progression: LinearProgressionConfig }
+
+export type ProgressionRule =
+  | { type: 'cycle_tm_bump'; bumps: Record<string, number> }
+  | { type: 'linear'; add: number; unit: Units; on: 'session' | 'week' }
+  | { type: 'amrap_linear' }
+
 export interface ProgramExercise {
   exerciseName: string
   tmKey?: string
   scheme: Scheme
   order: number
-  progression?: LinearProgressionConfig
 }
 export interface ProgramDay { name: string; exercises: ProgramExercise[] }
 export interface Program {

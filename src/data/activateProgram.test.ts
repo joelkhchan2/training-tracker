@@ -4,7 +4,10 @@ import { createElement } from 'react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { PresetMeta } from '../domain/presets'
+import type { LinearProgressionConfig } from '../domain'
 import { buildActivationRows, useActivateProgram } from './activateProgram'
+import { buildDomainProgram } from './queries'
+import type { ProgramDayRow, ProgramExerciseRow, ProgramRow } from './types'
 
 const TEST_PRESET: PresetMeta = {
   id: 'test-preset',
@@ -107,6 +110,84 @@ describe('buildActivationRows', () => {
       cursor: { dayIndex: 0, week: 1, cycle: 1 },
       last_advance_key: null,
     })
+  })
+})
+
+// ----- linear progression round-trip (activate -> read-back) -----
+//
+// The linear-progression config lives on the `linear` scheme itself
+// (Scheme's `linear` variant carries `progression`) specifically so it rides
+// along with `scheme` through the jsonb column with no separate handling —
+// `buildActivationRows` only ever serializes `scheme` verbatim, and
+// `buildDomainProgram` only ever reads `scheme` back. This test simulates
+// that full round trip (build activation rows -> simulated jsonb row ->
+// buildDomainProgram) and asserts the config survives intact.
+describe('linear progression config round-trip', () => {
+  const LP_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
+
+  const LP_PRESET: PresetMeta = {
+    id: 'lp-test',
+    name: 'LP Test',
+    description: 'A minimal 1-day preset for testing linear-progression round-tripping.',
+    discipline: 'strength',
+    daysPerWeek: 1,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    program: {
+      name: 'LP Test',
+      discipline: 'strength',
+      days: [
+        {
+          name: 'Day A',
+          exercises: [
+            {
+              exerciseName: 'Squat',
+              tmKey: 'squat',
+              order: 0,
+              scheme: {
+                type: 'linear',
+                sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }],
+                progression: LP_CONFIG,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  it('survives buildActivationRows -> (simulated jsonb) -> buildDomainProgram intact', () => {
+    const exerciseIdByName = new Map([['Squat', 'ex-squat']])
+    const ids = { programId: 'prog-1', dayIds: ['day-a'] }
+
+    const rows = buildActivationRows(LP_PRESET, {}, exerciseIdByName, ids)
+
+    // `buildActivationRows` writes `scheme` verbatim, so the progression config
+    // rides along automatically — no separate `progression` column/field exists.
+    expect(rows.programExercises[0].scheme).toEqual(LP_PRESET.program.days[0].exercises[0].scheme)
+
+    // Simulate storing + reading back the jsonb `scheme` column as DB rows.
+    const programRow: ProgramRow = {
+      id: 'prog-1', user_id: 'u1', name: LP_PRESET.program.name, description: null,
+      discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
+    }
+    const dayRow: ProgramDayRow = { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 }
+    const programExerciseRow: ProgramExerciseRow = {
+      id: 'pe-1',
+      program_day_id: rows.programExercises[0].program_day_id,
+      exercise_id: rows.programExercises[0].exercise_id,
+      role_key: rows.programExercises[0].role_key,
+      order_index: rows.programExercises[0].order_index,
+      scheme: rows.programExercises[0].scheme,
+    }
+
+    const program = buildDomainProgram(programRow, [dayRow], [programExerciseRow], {})
+    const squat = program.days[0].exercises[0]
+
+    expect(squat.scheme.type).toBe('linear')
+    if (squat.scheme.type === 'linear') {
+      expect(squat.scheme.progression).toEqual(LP_CONFIG)
+    }
   })
 })
 

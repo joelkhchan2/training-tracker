@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Cursor, Discipline, LinearProgressionAction, LinearProgressionConfig, Program, Scheme } from '../domain'
+import type { Cursor, Discipline, LinearProgressionAction, Program, Scheme } from '../domain'
 import { advanceCursor, applyLinearProgression } from '../domain'
 import { getSupabase } from './supabase'
 import type { StrengthSetRow } from './types'
@@ -44,15 +44,14 @@ export type WorkingWeights = Record<string, { weight: number; fails: number }>
 
 /** The subset of a program exercise `buildProgressionUpdates` needs: enough to find its
  *  logged sets (`exerciseId`), look up its working weight (`tmKey`/`exerciseName`), read
- *  its prescribed reps/AMRAP target off `scheme`, and apply `progression` if it's a linear
- *  scheme with a config. Exercises with no `progression` (or a non-linear scheme) are
- *  skipped — they contribute nothing to `p_progress`. */
+ *  its prescribed reps/AMRAP target off `scheme`, and apply the `linear` scheme's
+ *  `progression` config. Exercises with a non-linear scheme are skipped — they
+ *  contribute nothing to `p_progress`. */
 export interface ProgressionExerciseInput {
   exerciseId: string
   exerciseName: string
   tmKey?: string
   scheme: Scheme
-  progression?: LinearProgressionConfig
 }
 
 /** One element of the `p_progress` array passed to the `log_workout` RPC. */
@@ -78,14 +77,14 @@ export interface ProgressionPlan {
 
 /**
  * Pure progression-plan building, split out of the mutation so it's testable without a
- * mocked Supabase client. For each `linear`-scheme exercise with a `progression` config:
- * matches its logged sets (by `set_number`, 1-indexed against `scheme.sets`' order) to
- * find whether every non-AMRAP prescribed set met its reps (`allWorkingSetsMet`) and what
- * the AMRAP set's logged reps were (`amrapReps`, against `targetReps`), then feeds that
- * plus the exercise's current working weight/fails into `applyLinearProgression`.
+ * mocked Supabase client. For each `linear`-scheme exercise: matches its logged sets (by
+ * `set_number`, 1-indexed against `scheme.sets`' order) to find whether every non-AMRAP
+ * prescribed set met its reps (`allWorkingSetsMet`) and what the AMRAP set's logged reps
+ * were (`amrapReps`, against `targetReps`), then feeds that plus the exercise's current
+ * working weight/fails into `applyLinearProgression` using the scheme's `progression` config.
  *
- * Exercises with a non-linear scheme, no `progression` config, or no logged sets at all
- * (not part of this session) are skipped entirely — they contribute nothing to `updates`.
+ * Exercises with a non-linear scheme, or no logged sets at all (not part of this session),
+ * are skipped entirely — they contribute nothing to `updates`.
  */
 export function buildProgressionUpdates(
   programId: string,
@@ -97,7 +96,7 @@ export function buildProgressionUpdates(
   const outcomes: ProgressionOutcomeSummary[] = []
 
   for (const ex of exercises) {
-    if (ex.scheme.type !== 'linear' || !ex.progression) continue
+    if (ex.scheme.type !== 'linear') continue
 
     const setsForExercise = loggedSets.filter(s => s.exercise_id === ex.exerciseId)
     if (setsForExercise.length === 0) continue
@@ -121,7 +120,7 @@ export function buildProgressionUpdates(
     const key = ex.tmKey ?? ex.exerciseName
     const current = workingWeights[key] ?? { weight: 0, fails: 0 }
 
-    const outcome = applyLinearProgression(ex.progression, {
+    const outcome = applyLinearProgression(ex.scheme.progression, {
       currentWeight: current.weight,
       fails: current.fails,
       allWorkingSetsMet,

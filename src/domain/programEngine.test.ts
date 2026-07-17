@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { r5, programWeekCount, advanceCursor, applyProgression, getPrescription } from './programEngine'
-import type { Program } from './types'
+import type { LinearProgressionConfig, Program } from './types'
 import { fiveThreeOne } from './presets/fiveThreeOne'
+
+// Shared fixture: the `linear` Scheme variant requires a `progression` config
+// (it lives on the scheme so it round-trips through the jsonb `scheme` column —
+// see buildActivationRows/buildDomainProgram). These getPrescription tests don't
+// exercise progression logic themselves, so a single fixture config suffices.
+const LINEAR_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
 
 // Minimal 2-day, 4-week percentage program (structure only; sets filled in Task 4 tests)
 const P4: Program = {
@@ -138,7 +144,7 @@ describe('getPrescription (linear scheme)', () => {
     name: 'linear-test', discipline: 'strength',
     days: [
       { name: 'A', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0,
-        scheme: { type: 'linear', sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }] } }] },
+        scheme: { type: 'linear', sets: [{ reps: 5 }, { reps: 5 }, { reps: 5, amrap: true, targetReps: 5 }], progression: LINEAR_CONFIG } }] },
     ],
   }
 
@@ -168,7 +174,7 @@ describe('getPrescription (linear scheme)', () => {
     const noTargetProgram: Program = {
       ...linearProgram,
       days: [{ name: 'A', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0,
-        scheme: { type: 'linear', sets: [{ reps: 5, amrap: true }] } }] }],
+        scheme: { type: 'linear', sets: [{ reps: 5, amrap: true }], progression: LINEAR_CONFIG } }] }],
     }
     const day = getPrescription(noTargetProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { squat: 100 })
     const squat = day.find(e => e.exerciseName === 'Squat')!
@@ -179,7 +185,7 @@ describe('getPrescription (linear scheme)', () => {
     const noTmKeyProgram: Program = {
       ...linearProgram,
       days: [{ name: 'A', exercises: [{ exerciseName: 'Squat', order: 0,
-        scheme: { type: 'linear', sets: [{ reps: 5 }] } }] }],
+        scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG } }] }],
     }
     const day = getPrescription(noTmKeyProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { Squat: 135 })
     const squat = day.find(e => e.exerciseName === 'Squat')!

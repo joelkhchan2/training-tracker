@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { LinearProgressionConfig } from '../domain'
 import { buildWorkingWeights, fetchActiveWorkout } from './queries'
 import type {
   ExerciseProgressRow,
@@ -124,13 +125,14 @@ describe('fetchActiveWorkout', () => {
 })
 
 describe('buildWorkingWeights', () => {
+  const LINEAR_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
   const exercisesById: Record<string, ExerciseRow> = {
     'ex-squat': { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
       movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
   }
   const programExercises: ProgramExerciseRow[] = [
     { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
-      scheme: { type: 'linear', sets: [{ reps: 5 }] } },
+      scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG } },
   ]
 
   it('keys by role_key (tmKey) when present', () => {
@@ -146,7 +148,7 @@ describe('buildWorkingWeights', () => {
   it('falls back to the resolved exercise name when there is no role_key', () => {
     const noRoleKeyExercises: ProgramExerciseRow[] = [
       { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: null, order_index: 0,
-        scheme: { type: 'linear', sets: [{ reps: 5 }] } },
+        scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG } },
     ]
     const progressRows: ExerciseProgressRow[] = [
       { id: 'p1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-squat',
