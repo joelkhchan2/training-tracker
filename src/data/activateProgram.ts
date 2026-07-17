@@ -1,8 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Cursor, Discipline, ProgressionRule, Scheme } from '../domain'
 import type { PresetMeta } from '../domain/presets'
+import type { ProgramRowsLike } from '../domain/programDraft'
+import { programRowsToDraft } from '../domain/programDraft'
 import { getSupabase } from './supabase'
 import { resolveExerciseIds } from './resolveExerciseIds'
+import { resolveDraftExerciseIds } from './resolveDraftExercises'
+import { buildProgramRows } from './saveProgram'
+import type { ProgramDayRow, ProgramExerciseRow, ProgramRow } from './types'
 
 /** Row shapes below deliberately omit `user_id` — per the brief, `buildActivationRows`
  *  stays a pure function of (preset, maxes, resolved exercise ids, generated ids); the
@@ -218,6 +223,170 @@ export function useActivateProgram() {
       if (stateError) throw stateError
 
       return programId
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })
+    },
+  })
+}
+
+// ----- useActivateDbProgram: activate a program that already lives in `programs` -----
+//
+// Unlike `useActivateProgram` (which clones a hardcoded `PresetMeta`), this activates a
+// DB-authored program by id — either the current user's own (point at it in place) or
+// someone else's public one (clone it into the activator's own rows first, then point
+// at the clone). Detecting which branch applies is a single fetch of the target
+// `programs` row: its `user_id` tells us whether it's ours.
+
+/** Reshapes the flat fetched rows (`programs` + `program_days` + `program_exercises`)
+ *  into the nested `ProgramRowsLike` shape `programRowsToDraft` expects — the same
+ *  denormalized `exercise_name`/`exercise_type` columns `fetchPublicPrograms` and
+ *  `fetchActiveWorkout` already read, just grouped by day instead of flattened. */
+function toProgramRowsLike(
+  program: ProgramRow,
+  days: ProgramDayRow[],
+  exercises: ProgramExerciseRow[],
+): ProgramRowsLike {
+  const exercisesByDay = new Map<string, ProgramExerciseRow[]>()
+  for (const ex of exercises) {
+    const list = exercisesByDay.get(ex.program_day_id)
+    if (list) list.push(ex)
+    else exercisesByDay.set(ex.program_day_id, [ex])
+  }
+
+  return {
+    name: program.name,
+    description: program.description,
+    is_public: program.is_public,
+    days: days.map(day => ({
+      name: day.name,
+      order_index: day.order_index,
+      exercises: (exercisesByDay.get(day.id) ?? []).map(ex => ({
+        exercise_name: ex.exercise_name,
+        exercise_type: ex.exercise_type,
+        role_key: ex.role_key,
+        order_index: ex.order_index,
+        scheme: ex.scheme,
+      })),
+    })),
+  }
+}
+
+function resetCursorState(activeProgramId: string): ProgramStateInsert {
+  return {
+    active_program_id: activeProgramId,
+    cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    last_advance_key: null,
+  }
+}
+
+export interface ActivateDbProgramInput {
+  programId: string
+}
+
+/**
+ * Activates a program that already lives in `programs`, branching on whether the
+ * activator (`auth.uid()`) already owns it:
+ *
+ * - **Own program:** just repoints `program_state` at `programId` with a reset cursor.
+ *   No new `programs`/`program_days`/`program_exercises` rows — the activator already
+ *   has them.
+ * - **Another user's public program:** clones it into the activator's own rows first.
+ *   The fetched tree is reshaped into a `ProgramDraft` via `programRowsToDraft` (whose
+ *   fixed-scheme guard means a non-fixed source program throws rather than being
+ *   silently mangled — v1 only authors/clones fixed-scheme programs), with
+ *   `isPublic` forced to `false` regardless of the source's own flag: a clone is a
+ *   private snapshot, never re-published on the activator's behalf. Exercise names are
+ *   then re-resolved via `resolveDraftExerciseIds` *in the activator's own catalog* —
+ *   the clone's `program_exercises` rows point at ids the activator can actually read
+ *   under RLS, minting new custom exercises as needed, never reusing the source
+ *   author's `exercise_id`. `program_state` then points at the new clone with a reset
+ *   cursor, exactly as for the own-program branch.
+ *
+ * Returns the id the activator's `program_state` now points at: `programId` itself for
+ * the own-program branch, or the new clone's id for the community branch.
+ */
+export function useActivateDbProgram() {
+  const queryClient = useQueryClient()
+
+  return useMutation<string, Error, ActivateDbProgramInput>({
+    mutationFn: async ({ programId }) => {
+      const supabase = getSupabase()
+
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      const userId = userData?.user?.id
+      if (!userId) throw new Error('Not authenticated')
+
+      const { data: programData, error: programError } = await supabase
+        .from('programs')
+        .select('*')
+        .eq('id', programId)
+        .single()
+      if (programError) throw programError
+      const programRow = programData as ProgramRow
+
+      const { data: daysData, error: daysError } = await supabase
+        .from('program_days')
+        .select('*')
+        .eq('program_id', programId)
+        .order('order_index')
+      if (daysError) throw daysError
+      const days = (daysData ?? []) as ProgramDayRow[]
+      const dayIds = days.map(d => d.id)
+
+      let exercises: ProgramExerciseRow[] = []
+      if (dayIds.length > 0) {
+        const { data: exData, error: exError } = await supabase
+          .from('program_exercises')
+          .select('*')
+          .in('program_day_id', dayIds)
+          .order('order_index')
+        if (exError) throw exError
+        exercises = (exData ?? []) as ProgramExerciseRow[]
+      }
+
+      if (programRow.user_id === userId) {
+        const { error: stateError } = await supabase
+          .from('program_state')
+          .upsert({ ...resetCursorState(programId), user_id: userId }, { onConflict: 'user_id' })
+        if (stateError) throw stateError
+
+        return programId
+      }
+
+      // Another user's public program: clone into the activator's own rows as a
+      // private snapshot, re-resolving exercise names in the activator's own catalog.
+      const draft = programRowsToDraft(toProgramRowsLike(programRow, days, exercises))
+      draft.isPublic = false
+
+      const exerciseIdByName = await resolveDraftExerciseIds(draft, userId)
+
+      const newProgramId = crypto.randomUUID()
+      const newDayIds = draft.days.map(() => crypto.randomUUID())
+      const rows = buildProgramRows(draft, exerciseIdByName, { programId: newProgramId, dayIds: newDayIds })
+
+      const { error: insertProgramError } = await supabase
+        .from('programs')
+        .insert({ ...rows.program, user_id: userId })
+      if (insertProgramError) throw insertProgramError
+
+      if (rows.days.length > 0) {
+        const { error: insertDaysError } = await supabase.from('program_days').insert(rows.days)
+        if (insertDaysError) throw insertDaysError
+      }
+
+      if (rows.exercises.length > 0) {
+        const { error: insertExercisesError } = await supabase.from('program_exercises').insert(rows.exercises)
+        if (insertExercisesError) throw insertExercisesError
+      }
+
+      const { error: stateError } = await supabase
+        .from('program_state')
+        .upsert({ ...resetCursorState(newProgramId), user_id: userId }, { onConflict: 'user_id' })
+      if (stateError) throw stateError
+
+      return newProgramId
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })
