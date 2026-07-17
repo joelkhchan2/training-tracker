@@ -68,9 +68,9 @@ describe('fetchActiveWorkout', () => {
     ]
     const programExercises: ProgramExerciseRow[] = [
       { id: 'pe-2', program_day_id: 'day-a', exercise_id: 'ex-bench', role_key: 'benchPress', order_index: 1,
-        scheme: { type: 'fixed', sets: [{ reps: 5 }] } },
+        scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
       { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
-        scheme: { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 0.7, reps: 5 }] }] } },
+        scheme: { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 0.7, reps: 5 }] }] }, exercise_name: null, exercise_type: null },
     ]
     const exercises: ExerciseRow[] = [
       { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
@@ -132,7 +132,7 @@ describe('buildWorkingWeights', () => {
   }
   const programExercises: ProgramExerciseRow[] = [
     { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
-      scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG } },
+      scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG }, exercise_name: null, exercise_type: null },
   ]
 
   it('keys by role_key (tmKey) when present', () => {
@@ -148,7 +148,7 @@ describe('buildWorkingWeights', () => {
   it('falls back to the resolved exercise name when there is no role_key', () => {
     const noRoleKeyExercises: ProgramExerciseRow[] = [
       { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: null, order_index: 0,
-        scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG } },
+        scheme: { type: 'linear', sets: [{ reps: 5 }], progression: LINEAR_CONFIG }, exercise_name: null, exercise_type: null },
     ]
     const progressRows: ExerciseProgressRow[] = [
       { id: 'p1', user_id: 'u1', program_id: 'prog-1', exercise_id: 'ex-squat',

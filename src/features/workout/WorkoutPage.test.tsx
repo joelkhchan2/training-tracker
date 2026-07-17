@@ -73,6 +73,8 @@ const bundle: ActiveWorkoutBundle = {
       role_key: null,
       order_index: 0,
       scheme: { type: 'fixed', sets: [{ reps: 5 }] },
+      exercise_name: null,
+      exercise_type: null,
     },
   ],
   exercisesById: {
@@ -323,7 +325,7 @@ const linearBundle: ActiveWorkoutBundle = {
   },
   days: [{ id: 'day-1', program_id: 'prog-1', name: 'Squat Day', order_index: 0 }],
   programExercises: [
-    { id: 'pe-1', program_day_id: 'day-1', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0, scheme: linearScheme },
+    { id: 'pe-1', program_day_id: 'day-1', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0, scheme: linearScheme, exercise_name: null, exercise_type: null },
   ],
   exercisesById: {
     'ex-squat': {

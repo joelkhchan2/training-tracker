@@ -183,6 +183,8 @@ describe('linear progression config round-trip', () => {
       role_key: rows.programExercises[0].role_key,
       order_index: rows.programExercises[0].order_index,
       scheme: rows.programExercises[0].scheme,
+      exercise_name: null,
+      exercise_type: null,
     }
 
     const program = buildDomainProgram(programRow, [dayRow], [programExerciseRow], {})

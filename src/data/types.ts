@@ -39,6 +39,11 @@ export interface ProgramExerciseRow {
   role_key: string | null
   order_index: number
   scheme: Scheme
+  // Denormalized copy of the referenced exercise's name/kind, so a program
+  // stays portable across users even though the exercises catalog is
+  // global-or-own by RLS. Nullable: not backfilled for existing rows.
+  exercise_name: string | null
+  exercise_type: string | null
 }
 
 export interface ExerciseRow {
