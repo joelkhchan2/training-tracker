@@ -1,11 +1,25 @@
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import type { PresetMeta } from '../../domain/presets'
-import type { Scheme } from '../../domain/types'
+import type { Discipline, Program, Scheme } from '../../domain/types'
+
+/** Common view-model `ProgramPreview` renders from: the fields shared by a built-in
+ *  `PresetMeta` and a DB-authored `LibraryProgram` (see `src/domain/presets` and
+ *  `src/data/programLibrary.ts`). Both already have every field this shape needs, so
+ *  either can be passed straight through as `program` — no explicit mapping required. */
+export interface PreviewProgram {
+  name: string
+  description: string
+  discipline: Discipline
+  daysPerWeek: number
+  program: Program
+}
 
 export interface ProgramPreviewProps {
-  preset: PresetMeta
-  onUse: (preset: PresetMeta) => void
+  program: PreviewProgram
+  onUse: () => void
+  /** Shown only when the viewer owns this program (a preset or someone else's
+   *  community program has no edit action). */
+  onEdit?: () => void
 }
 
 /** Compact scheme summary for the library preview, e.g. "3×5, 1×5" for a fixed
@@ -24,13 +38,14 @@ function formatScheme(scheme: Scheme): string {
   return groups.map(g => `${g.count}×${g.reps}`).join(', ')
 }
 
-/** Read-only preview of a preset: every day with its exercises and a compact
- *  scheme summary per exercise, plus a primary CTA to advance to activation. */
-export function ProgramPreview({ preset, onUse }: ProgramPreviewProps) {
+/** Read-only preview of a preset or DB program: every day with its exercises and a
+ *  compact scheme summary per exercise, plus a primary CTA to advance to activation
+ *  and (for owned programs) a secondary Edit action. */
+export function ProgramPreview({ program, onUse, onEdit }: ProgramPreviewProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        {preset.program.days.map((day, dayIdx) => (
+        {program.program.days.map((day, dayIdx) => (
           <Card key={`${day.name}-${dayIdx}`} className="space-y-2">
             <h3 className="text-base font-semibold text-text">{day.name}</h3>
             <ul className="space-y-1.5">
@@ -48,9 +63,20 @@ export function ProgramPreview({ preset, onUse }: ProgramPreviewProps) {
         ))}
       </div>
 
-      <Button fullWidth onClick={() => onUse(preset)}>
-        Use this program
-      </Button>
+      {onEdit ? (
+        <div className="flex gap-3">
+          <Button variant="secondary" fullWidth onClick={onEdit}>
+            Edit
+          </Button>
+          <Button fullWidth onClick={onUse}>
+            Use this program
+          </Button>
+        </div>
+      ) : (
+        <Button fullWidth onClick={onUse}>
+          Use this program
+        </Button>
+      )}
     </div>
   )
 }
