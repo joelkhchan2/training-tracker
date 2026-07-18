@@ -308,6 +308,16 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(QueryClientProvider, { client: queryClient }, children)
 }
 
+/** Like `wrapper` above, but exposes the `QueryClient` so a test can spy on
+ *  `invalidateQueries` (mirrors `saveProgram.test.ts`'s `createWrapper`). */
+function createWrapper() {
+  const queryClient = new QueryClient()
+  function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+  return { Wrapper, queryClient }
+}
+
 /** Records every from(table).insert/upsert call, in call order, and resolves each with no error. */
 function trackTables() {
   const calls: { table: string; method: 'insert' | 'upsert'; payload: unknown; opts?: unknown }[] = []
@@ -606,7 +616,9 @@ describe('useActivateDbProgram', () => {
 
     resolveDraftExerciseIdsMock.mockResolvedValue({ Squat: 'activator-ex-squat' })
 
-    const { result } = renderHook(() => useActivateDbProgram(), { wrapper })
+    const { Wrapper, queryClient } = createWrapper()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => useActivateDbProgram(), { wrapper: Wrapper })
 
     await act(async () => {
       result.current.mutate({ programId: 'prog-community' })
@@ -656,6 +668,11 @@ describe('useActivateDbProgram', () => {
     expect(stateUpsert?.args[1]).toEqual({ onConflict: 'user_id' })
 
     expect(result.current.data).toBe(newProgramId)
+
+    // The clone lands in the activator's own "My programs" list, so that list must be
+    // invalidated too — not just ['activeWorkout'].
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['activeWorkout'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['publicPrograms', 'user-1'] })
   })
 
   it('throws if there is no authenticated user, without fetching or inserting anything', async () => {

@@ -306,10 +306,20 @@ export interface ActivateDbProgramInput {
  * Returns the id the activator's `program_state` now points at: `programId` itself for
  * the own-program branch, or the new clone's id for the community branch.
  */
+/** `mutationFn`'s internal result: the resolved `auth.uid()` rides along so `onSuccess`
+ *  can build the `['publicPrograms', userId]` key without a second auth round-trip (see
+ *  the same pattern in `saveProgram.ts`'s `useSaveProgram`). The public `data` the hook
+ *  exposes is narrowed back down to just the id the activator's `program_state` now
+ *  points at, per this function's own doc comment. */
+interface ActivateDbProgramResult {
+  programId: string
+  userId: string
+}
+
 export function useActivateDbProgram() {
   const queryClient = useQueryClient()
 
-  return useMutation<string, Error, ActivateDbProgramInput>({
+  const mutation = useMutation<ActivateDbProgramResult, Error, ActivateDbProgramInput>({
     mutationFn: async ({ programId }) => {
       const supabase = getSupabase()
 
@@ -352,7 +362,7 @@ export function useActivateDbProgram() {
           .upsert({ ...resetCursorState(programId), user_id: userId }, { onConflict: 'user_id' })
         if (stateError) throw stateError
 
-        return programId
+        return { programId, userId }
       }
 
       // Another user's public program: clone into the activator's own rows as a
@@ -386,10 +396,13 @@ export function useActivateDbProgram() {
         .upsert({ ...resetCursorState(newProgramId), user_id: userId }, { onConflict: 'user_id' })
       if (stateError) throw stateError
 
-      return newProgramId
+      return { programId: newProgramId, userId }
     },
-    onSuccess: () => {
+    onSuccess: ({ userId }) => {
       queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })
+      queryClient.invalidateQueries({ queryKey: ['publicPrograms', userId] })
     },
   })
+
+  return { ...mutation, data: mutation.data?.programId }
 }
