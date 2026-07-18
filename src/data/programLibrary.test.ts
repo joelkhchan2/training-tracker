@@ -55,6 +55,16 @@ const OWN_DAYS: ProgramDayRow[] = [
 const COMMUNITY_DAYS: ProgramDayRow[] = [
   { id: 'day-comm-1', program_id: 'prog-community', name: 'Day 1', order_index: 0 },
 ]
+// An owned `programs` row produced by preset activation (`buildActivationRows` in
+// activateProgram.ts), NOT the builder — its `program_exercises` rows never get
+// `exercise_name` set, unlike a builder-authored/cloned program's.
+const PRESET_SNAPSHOT_PROGRAM: ProgramRow = {
+  id: 'prog-preset', user_id: 'me', name: '5/3/1 for Beginners', description: null,
+  discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
+}
+const PRESET_DAYS: ProgramDayRow[] = [
+  { id: 'day-preset-1', program_id: 'prog-preset', name: 'Day 1', order_index: 0 },
+]
 const SQUAT_EXERCISE: ExerciseRow = {
   id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
   movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
@@ -65,8 +75,11 @@ function baseTables(): Record<string, unknown[]> {
     programs: [OWN_PROGRAM, COMMUNITY_PROGRAM],
     program_days: [...OWN_DAYS, ...COMMUNITY_DAYS],
     program_exercises: [
+      // Builder-authored/cloned rows always set `exercise_name` (see the discriminator
+      // comment in `fetchPublicPrograms`) — set it here so this fixture still qualifies
+      // as authored and lands in `own`.
       { id: 'pe-own-1', program_day_id: 'day-own-1', exercise_id: 'ex-squat', role_key: 'squat',
-        order_index: 0, scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
+        order_index: 0, scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: 'Squat', exercise_type: 'weighted' },
       // This program_exercise's exercise_id points at a row the viewer can't read (belongs
       // to the community program's author, RLS filters it out of the `exercises` fetch), so
       // the assembled program must fall back to the denormalized exercise_name.
@@ -75,6 +88,23 @@ function baseTables(): Record<string, unknown[]> {
     ] as ProgramExerciseRow[],
     // Only the squat exercise is readable; ex-unreadable is deliberately absent.
     exercises: [SQUAT_EXERCISE],
+  }
+}
+
+/** `baseTables()` plus an owned preset-activation snapshot: a `programs` row with
+ *  `user_id: 'me'` whose `program_exercises` rows all have `exercise_name: null`,
+ *  mirroring what `buildActivationRows` inserts when a preset is activated. */
+function tablesWithPresetSnapshot(): Record<string, unknown[]> {
+  const tables = baseTables()
+  return {
+    ...tables,
+    programs: [...(tables.programs as ProgramRow[]), PRESET_SNAPSHOT_PROGRAM],
+    program_days: [...(tables.program_days as ProgramDayRow[]), ...PRESET_DAYS],
+    program_exercises: [
+      ...(tables.program_exercises as ProgramExerciseRow[]),
+      { id: 'pe-preset-1', program_day_id: 'day-preset-1', exercise_id: 'ex-squat', role_key: 'squat',
+        order_index: 0, scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
+    ] as ProgramExerciseRow[],
   }
 }
 
@@ -145,6 +175,30 @@ describe('fetchPublicPrograms', () => {
     const bundle = await fetchPublicPrograms('me')
 
     expect(bundle).toEqual({ own: [], community: [] })
+  })
+
+  it('includes a builder-authored own program (exercise_name set on every exercise row) in own', async () => {
+    __setSupabase(makeSupabase(tablesWithPresetSnapshot()))
+
+    const bundle = await fetchPublicPrograms('me')
+
+    expect(bundle.own.map(p => p.id)).toContain('prog-own')
+  })
+
+  it('excludes an owned preset-activation snapshot (exercise_name null on every exercise row) from own', async () => {
+    __setSupabase(makeSupabase(tablesWithPresetSnapshot()))
+
+    const bundle = await fetchPublicPrograms('me')
+
+    expect(bundle.own.map(p => p.id)).not.toContain('prog-preset')
+  })
+
+  it('excludes an owned preset-activation snapshot from community too (it is not public)', async () => {
+    __setSupabase(makeSupabase(tablesWithPresetSnapshot()))
+
+    const bundle = await fetchPublicPrograms('me')
+
+    expect(bundle.community.map(p => p.id)).not.toContain('prog-preset')
   })
 })
 

@@ -19,7 +19,9 @@ export interface LibraryProgram {
 }
 
 export interface PublicProgramsBundle {
-  /** Authored by the viewer, public or not. */
+  /** Authored (via the builder, or cloned from a community program) by the viewer,
+   *  public or not. Deliberately excludes the viewer's own preset-activation
+   *  snapshots — see the discriminator comment in `fetchPublicPrograms` below. */
   own: LibraryProgram[]
   /** Public and authored by someone else. */
   community: LibraryProgram[]
@@ -35,7 +37,12 @@ export interface PublicProgramsBundle {
  *  authored by someone else is silently absent from `exercisesById` here.
  *  `buildDomainProgram`'s exercise-name resolution falls back to the
  *  denormalized `program_exercises.exercise_name` in that case, so the
- *  community program still renders its real exercise names. */
+ *  community program still renders its real exercise names.
+ *
+ *  Among the viewer's own `programs` rows, only builder-authored/cloned ones land
+ *  in `own` — preset-activation snapshots are excluded via the `exercise_name`
+ *  discriminator (see the comment at the classification loop below) since "My
+ *  programs" means authored programs, not every owned row. */
 export async function fetchPublicPrograms(userId: string): Promise<PublicProgramsBundle> {
   const supabase = getSupabase()
 
@@ -103,18 +110,43 @@ export async function fetchPublicPrograms(userId: string): Promise<PublicProgram
     const dayIdSet = new Set(programDays.map(d => d.id))
     const ownProgramExercises = programExercises.filter(pe => dayIdSet.has(pe.program_day_id))
 
+    const isOwn = programRow.user_id === userId
+
     const libraryProgram: LibraryProgram = {
       id: programRow.id,
       name: programRow.name,
       description: programRow.description ?? '',
       discipline: programRow.discipline,
       daysPerWeek: programDays.length,
-      isOwn: programRow.user_id === userId,
+      isOwn,
       program: buildDomainProgram(programRow, programDays, ownProgramExercises, exercisesById),
     }
 
-    if (libraryProgram.isOwn) own.push(libraryProgram)
-    else community.push(libraryProgram)
+    if (!isOwn) {
+      // Every non-own row here is already known `is_public = true` (it only passed
+      // the `programs` query's `.or(is_public.eq.true, user_id.eq.<me>)` filter above
+      // because of that), so no further check is needed.
+      community.push(libraryProgram)
+      continue
+    }
+
+    // Discriminate "authored" from "preset-activation snapshot" among the viewer's
+    // OWN `programs` rows. Both the Custom Program Builder's save path
+    // (`buildProgramRows` in saveProgram.ts) and community-clone path
+    // (`useActivateDbProgram` in activateProgram.ts, which also calls
+    // `buildProgramRows`) always write a non-null `program_exercises.exercise_name`.
+    // Preset activation (`buildActivationRows`, also in activateProgram.ts) never
+    // writes `exercise_name` at all — every exercise row of an activated-preset
+    // snapshot has it NULL. So an owned program only belongs in "My programs" when
+    // it has at least one exercise and NONE of them have a null `exercise_name`.
+    // Preset snapshots that fail this check are excluded from both `own` and
+    // `community` (they're `is_public = false`, so they were never candidates for
+    // `community` anyway) — they're surfaced via the Presets/active-workout flow,
+    // not the library, so simply not appearing here is correct.
+    const isBuilderAuthored = ownProgramExercises.length > 0 &&
+      ownProgramExercises.every(pe => pe.exercise_name != null)
+
+    if (isBuilderAuthored) own.push(libraryProgram)
   }
 
   return { own, community }
