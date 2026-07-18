@@ -9,6 +9,7 @@ import { HomePage } from './features/home/HomePage'
 import { OnboardingPage } from './features/onboarding/OnboardingPage'
 import { WorkoutPage } from './features/workout/WorkoutPage'
 import { ProgramsPage } from './features/programs/ProgramsPage'
+import { BuilderPage } from './features/programs/BuilderPage'
 
 function Protected({ children }: { children: ReactNode }) {
   const { session, loading, user } = useAuth()
@@ -45,6 +46,8 @@ export function AppRoutes() {
       <Route path="/" element={<Protected><HomePage /></Protected>} />
       <Route path="/workout" element={<Protected><WorkoutPage /></Protected>} />
       <Route path="/programs" element={<Protected><ProgramsPage /></Protected>} />
+      <Route path="/programs/new" element={<Protected><BuilderPage /></Protected>} />
+      <Route path="/programs/:id/edit" element={<Protected><BuilderPage /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
