@@ -17,6 +17,40 @@ function exerciseTypeFor(kind: DraftExerciseKind): 'weighted' | 'bodyweight' {
   return kind === 'bodyweight' ? 'bodyweight' : 'weighted'
 }
 
+/** PostgREST caps any single response at `max_rows` (1000, see supabase/config.toml)
+ *  regardless of how many rows match the filter — so a catalog with more than this
+ *  many active rows silently truncates a plain `.select()`, and any exercise whose
+ *  row falls past the cap reads as unmatched and gets minted as a duplicate. Paginate
+ *  with `.range()` until a page comes back short (the exhaustion signal), accumulating
+ *  every page into one array before running the normal in-memory matching below. */
+const CATALOG_PAGE_SIZE = 1000
+
+interface CatalogRow { id: string; name: string }
+
+async function fetchActiveCatalog(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+): Promise<CatalogRow[]> {
+  const rows: CatalogRow[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('exercises')
+      .select('id, name')
+      .eq('is_active', true)
+      .or(`user_id.is.null,user_id.eq.${userId}`)
+      .order('id')
+      .range(from, from + CATALOG_PAGE_SIZE - 1)
+    if (error) throw error
+
+    const page = (data ?? []) as CatalogRow[]
+    rows.push(...page)
+    if (page.length < CATALOG_PAGE_SIZE) break
+    from += CATALOG_PAGE_SIZE
+  }
+  return rows
+}
+
 /**
  * Resolves every distinct exercise name referenced in a `ProgramDraft` to a
  * catalog `exercises.id` for `userId`, minting a new user-owned custom
@@ -49,15 +83,10 @@ export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: strin
 
   const supabase = getSupabase()
 
-  const { data, error } = await supabase
-    .from('exercises')
-    .select('id, name')
-    .eq('is_active', true)
-    .or(`user_id.is.null,user_id.eq.${userId}`)
-  if (error) throw error
+  const catalogRows = await fetchActiveCatalog(supabase, userId)
 
   const idByNormalized = new Map<string, string>()
-  for (const row of (data ?? []) as { id: string; name: string }[]) {
+  for (const row of catalogRows) {
     idByNormalized.set(normalizeName(row.name), row.id)
   }
 

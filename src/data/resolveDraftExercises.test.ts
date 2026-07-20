@@ -15,13 +15,18 @@ const { getSupabase, __setSupabase } = vi.hoisted(() => {
 
 vi.mock('./supabase', () => ({ getSupabase }))
 
-interface QueryCalls { select?: string; eq?: [string, unknown]; or?: string }
+interface PageCall { eq: [string, unknown]; or: string; order: string; range: [number, number] }
+interface QueryCalls { select?: string; calls?: PageCall[] }
 
 /** Mirrors the subset of the supabase-js query builder resolveDraftExerciseIds
- *  touches: select(...).eq('is_active', true).or(...) for the catalog read,
- *  insert(...).select(...).single() for minting a custom row. Records the
- *  select/eq/or args so tests can assert the exact catalog-read filters. */
-function makeSupabase(existingRows: FakeExerciseRow[], insert: Mock<(row: unknown) => void>, queryCalls: QueryCalls) {
+ *  touches: select(...).eq('is_active', true).or(...).order(...).range(...) for
+ *  each page of the catalog read, insert(...).select(...).single() for minting a
+ *  custom row. `pages` is one entry per expected `.range()` call, in order — a
+ *  single-page test just passes a one-element array. Records the select/eq/or/
+ *  order/range args for every page so tests can assert the exact catalog-read
+ *  filters are preserved across pagination. */
+function makeSupabase(pages: FakeExerciseRow[][], insert: Mock<(row: unknown) => void>, queryCalls: QueryCalls) {
+  let pageIndex = 0
   return {
     from: (table: string) => {
       if (table !== 'exercises') throw new Error(`unexpected table: ${table}`)
@@ -29,15 +34,19 @@ function makeSupabase(existingRows: FakeExerciseRow[], insert: Mock<(row: unknow
         select: (cols: string) => {
           queryCalls.select = cols
           return {
-            eq: (col: string, val: unknown) => {
-              queryCalls.eq = [col, val]
-              return {
-                or: (filter: string) => {
-                  queryCalls.or = filter
-                  return Promise.resolve({ data: existingRows, error: null })
-                },
-              }
-            },
+            eq: (col: string, val: unknown) => ({
+              or: (filter: string) => ({
+                order: (orderCol: string) => ({
+                  range: (from: number, to: number) => {
+                    const data = pages[pageIndex] ?? []
+                    queryCalls.calls = queryCalls.calls ?? []
+                    queryCalls.calls.push({ eq: [col, val], or: filter, order: orderCol, range: [from, to] })
+                    pageIndex += 1
+                    return Promise.resolve({ data, error: null })
+                  },
+                }),
+              }),
+            }),
           }
         },
         insert: (row: unknown) => {
@@ -61,7 +70,7 @@ describe('resolveDraftExerciseIds', () => {
   it('queries the exercises catalog scoped to global rows + the user, and only active rows', async () => {
     const insert = vi.fn()
     const queryCalls: QueryCalls = {}
-    __setSupabase(makeSupabase([{ id: 'ex-squat', name: 'Squat' }], insert, queryCalls))
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat' }]], insert, queryCalls))
 
     const draft = draftWith([
       { name: 'Day A', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
@@ -69,13 +78,14 @@ describe('resolveDraftExerciseIds', () => {
 
     await resolveDraftExerciseIds(draft, 'user-1')
 
-    expect(queryCalls.eq).toEqual(['is_active', true])
-    expect(queryCalls.or).toBe('user_id.is.null,user_id.eq.user-1')
+    expect(queryCalls.calls).toHaveLength(1)
+    expect(queryCalls.calls![0].eq).toEqual(['is_active', true])
+    expect(queryCalls.calls![0].or).toBe('user_id.is.null,user_id.eq.user-1')
   })
 
   it('matches an existing catalog exercise by normalized name (case/whitespace-insensitive)', async () => {
     const insert = vi.fn()
-    __setSupabase(makeSupabase([{ id: 'ex-squat', name: 'Squat' }], insert, {}))
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat' }]], insert, {}))
 
     const draft = draftWith([
       { name: 'Day A', exercises: [{ exerciseName: '  SQUAT ', kind: 'strength', sets: [{ reps: 5 }] }] },
@@ -89,7 +99,7 @@ describe('resolveDraftExerciseIds', () => {
 
   it('mints a user-owned strength exercise as exercise_type "weighted" for an unmatched strength draft exercise', async () => {
     const insert = vi.fn()
-    __setSupabase(makeSupabase([], insert, {}))
+    __setSupabase(makeSupabase([[]], insert, {}))
 
     const draft = draftWith([
       { name: 'Day A', exercises: [{ exerciseName: 'Zercher Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
@@ -109,7 +119,7 @@ describe('resolveDraftExerciseIds', () => {
 
   it('mints a user-owned bodyweight exercise as exercise_type "bodyweight" for an unmatched bodyweight draft exercise, not "weighted"', async () => {
     const insert = vi.fn()
-    __setSupabase(makeSupabase([], insert, {}))
+    __setSupabase(makeSupabase([[]], insert, {}))
 
     const draft = draftWith([
       { name: 'Day A', exercises: [{ exerciseName: 'My Machine Row', kind: 'bodyweight', sets: [{ reps: 10 }] }] },
@@ -129,7 +139,7 @@ describe('resolveDraftExerciseIds', () => {
 
   it('resolves a matched and an unmatched name together, returning both keyed by their original exerciseName', async () => {
     const insert = vi.fn()
-    __setSupabase(makeSupabase([{ id: 'ex-squat', name: 'Squat' }], insert, {}))
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat' }]], insert, {}))
 
     const draft = draftWith([
       {
@@ -148,7 +158,7 @@ describe('resolveDraftExerciseIds', () => {
 
   it('dedupes by normalized name: the same lift repeated (with case/whitespace differences) across days resolves once', async () => {
     const insert = vi.fn()
-    __setSupabase(makeSupabase([], insert, {}))
+    __setSupabase(makeSupabase([[]], insert, {}))
 
     const draft = draftWith([
       { name: 'Day A', exercises: [{ exerciseName: 'Nordic Curl', kind: 'bodyweight', sets: [{ reps: 8 }] }] },
@@ -172,5 +182,33 @@ describe('resolveDraftExerciseIds', () => {
 
     expect(result).toEqual({})
     expect(from).not.toHaveBeenCalled()
+  })
+
+  it('paginates the catalog read past the PostgREST 1000-row cap, resolving a draft exercise whose catalog row only appears on the second page instead of minting a duplicate', async () => {
+    const PAGE = 1000
+    const page1: FakeExerciseRow[] = Array.from({ length: PAGE }, (_, i) => ({ id: `filler-${i}`, name: `Filler Exercise ${i}` }))
+    const page2: FakeExerciseRow[] = [{ id: 'ex-late-squat', name: 'Late Page Squat' }]
+
+    const insert = vi.fn()
+    const queryCalls: QueryCalls = {}
+    __setSupabase(makeSupabase([page1, page2], insert, queryCalls))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Late Page Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    // Resolves to the existing catalog row from page 2 — must NOT mint a duplicate.
+    expect(result['Late Page Squat']).toBe('ex-late-squat')
+    expect(insert).not.toHaveBeenCalled()
+
+    // Fetched exactly two pages, and every page still carries the is_active +
+    // null-or-own filters.
+    expect(queryCalls.calls).toHaveLength(2)
+    for (const call of queryCalls.calls!) {
+      expect(call.eq).toEqual(['is_active', true])
+      expect(call.or).toBe('user_id.is.null,user_id.eq.user-1')
+    }
   })
 })
