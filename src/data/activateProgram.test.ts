@@ -688,4 +688,47 @@ describe('useActivateDbProgram', () => {
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(calls).toHaveLength(0)
   })
+
+  it("rejects activating a community program with a non-fixed scheme with a friendly error, inserting no program/day/exercise rows and never touching program_state", async () => {
+    const advancedProgramRow: ProgramRow = {
+      id: 'prog-advanced', user_id: 'other-user', name: 'Advanced Program', description: 'A shared program',
+      discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
+    }
+    const advancedDays: ProgramDayRow[] = [
+      { id: 'src-day-a', program_id: 'prog-advanced', name: 'Day A', order_index: 0 },
+    ]
+    const advancedExercises: ProgramExerciseRow[] = [
+      {
+        id: 'src-pe-1', program_day_id: 'src-day-a', exercise_id: 'author-ex-squat', role_key: 'squat', order_index: 0,
+        // A non-fixed scheme — builder-authored community programs are always 'fixed'
+        // today, but a manually-seeded/future public program might not be.
+        scheme: { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 80, reps: 5 }] }] },
+        exercise_name: 'Squat', exercise_type: 'weighted',
+      },
+    ]
+
+    const calls = trackDbQueries({
+      programs: () => ({ data: advancedProgramRow, error: null }),
+      program_days: () => ({ data: advancedDays, error: null }),
+      program_exercises: () => ({ data: advancedExercises, error: null }),
+    })
+
+    const { result } = renderHook(() => useActivateDbProgram(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({ programId: 'prog-advanced' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    expect(result.current.error?.message).toBe(
+      "This program can't be activated yet — it uses an advanced scheme the builder doesn't support.",
+    )
+
+    expect(calls.some(c => c.table === 'programs' && c.method === 'insert')).toBe(false)
+    expect(calls.some(c => c.table === 'program_days' && c.method === 'insert')).toBe(false)
+    expect(calls.some(c => c.table === 'program_exercises' && c.method === 'insert')).toBe(false)
+    expect(calls.some(c => c.table === 'program_state')).toBe(false)
+    expect(resolveDraftExerciseIdsMock).not.toHaveBeenCalled()
+  })
 })

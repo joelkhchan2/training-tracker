@@ -367,6 +367,17 @@ export function useActivateDbProgram() {
 
       // Another user's public program: clone into the activator's own rows as a
       // private snapshot, re-resolving exercise names in the activator's own catalog.
+      //
+      // Guard up front: `programRowsToDraft` throws a developer-facing message for any
+      // non-fixed-scheme exercise (builder-authored community programs are always
+      // 'fixed' today, but a manually-seeded or future public program might not be).
+      // Catching that internal string is brittle, so check the condition directly and
+      // fail with a clean, user-facing message before touching anything else — no
+      // program/day/exercise rows get inserted and `program_state` is never upserted.
+      if (exercises.some(ex => ex.scheme.type !== 'fixed')) {
+        throw new Error("This program can't be activated yet — it uses an advanced scheme the builder doesn't support.")
+      }
+
       const draft = programRowsToDraft(toProgramRowsLike(programRow, days, exercises))
       draft.isPublic = false
 
