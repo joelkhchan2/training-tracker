@@ -16,6 +16,13 @@ export interface SessionSet {
    *  Used by the save flow to match logged sets to prescribed sets by a stable key rather
    *  than by recomputed array position, which shifts when a set is added/removed. */
   prescriptionIndex?: number
+  /** The original prescribed target for this set, captured at prescription time and
+   *  never mutated by editing. Used by `updateSet`'s smart carry-forward to decide
+   *  whether a later set shares the same target (straight sets) or has its own
+   *  distinct target (e.g. an ascending 5/3/1 scheme), independently for weight and
+   *  reps. Undefined for sets the user adds mid-session via `addSet`. */
+  prescribedWeight?: number
+  prescribedReps?: number
 }
 
 export interface SessionExercise {
@@ -82,6 +89,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             isAmrap: s.isAmrap,
             targetReps: s.targetReps,
             prescriptionIndex: i,
+            prescribedWeight: s.weight,
+            prescribedReps: s.reps,
           })),
         }))
         set({
@@ -99,9 +108,28 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set((state) => ({
           exercises: state.exercises.map((ex, i) => {
             if (i !== exIdx) return ex
+            const target = ex.sets[setIdx]
+            if (!target) return ex
+            const edited: SessionSet = { ...target, ...patch }
             return {
               ...ex,
-              sets: ex.sets.map((s, j) => (j === setIdx ? { ...s, ...patch } : s)),
+              sets: ex.sets.map((s, j) => {
+                if (j === setIdx) return edited
+                // Smart carry-forward: only later, not-yet-done sets, and only for
+                // fields present in this patch, and only when that field's
+                // prescribed target matches the edited set's — this lets straight
+                // sets (same target every set) prefill forward while leaving
+                // ascending schemes (e.g. 5/3/1's distinct per-set weights) alone.
+                if (j <= setIdx || s.done) return s
+                let next = s
+                if ('weight' in patch && s.prescribedWeight === edited.prescribedWeight) {
+                  next = { ...next, weight: edited.weight }
+                }
+                if ('reps' in patch && s.prescribedReps === edited.prescribedReps) {
+                  next = { ...next, reps: edited.reps }
+                }
+                return next
+              }),
             }
           }),
         }))

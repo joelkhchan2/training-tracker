@@ -51,18 +51,40 @@ describe('startFromPrescription', () => {
     expect(squat.exerciseName).toBe('Squat')
     expect(squat.tmKey).toBe('squat')
     expect(squat.sets).toEqual([
-      { weight: 135, reps: 5, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0 },
-      { weight: 155, reps: 5, done: false, isFsl: true, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1 },
-      { weight: 175, reps: 3, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 2 },
+      { weight: 135, reps: 5, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: 135, prescribedReps: 5 },
+      { weight: 155, reps: 5, done: false, isFsl: true, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: 155, prescribedReps: 5 },
+      { weight: 175, reps: 3, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 2, prescribedWeight: 175, prescribedReps: 3 },
     ])
 
     const pushup = state.exercises[1]
     expect(pushup.exerciseName).toBe('Push-up')
     expect(pushup.tmKey).toBeUndefined()
     expect(pushup.sets).toEqual([
-      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0 },
-      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1 },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: undefined, prescribedReps: 10 },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: undefined, prescribedReps: 10 },
     ])
+  })
+})
+
+describe('startFromPrescription seeding prescribedWeight/prescribedReps', () => {
+  it('records the original prescribed target for each seeded set', () => {
+    const ascendingPrescription: PrescribedExercise[] = [
+      {
+        exerciseName: 'Squat',
+        tmKey: 'squat',
+        sets: [
+          { weight: 275, reps: 3 },
+          { weight: 315, reps: 3 },
+          { weight: 355, reps: 3 },
+        ],
+      },
+    ]
+    useSessionStore.getState().startFromPrescription(ascendingPrescription, meta)
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0]).toMatchObject({ prescribedWeight: 275, prescribedReps: 3 })
+    expect(sets[1]).toMatchObject({ prescribedWeight: 315, prescribedReps: 3 })
+    expect(sets[2]).toMatchObject({ prescribedWeight: 355, prescribedReps: 3 })
   })
 })
 
@@ -96,6 +118,92 @@ describe('updateSet', () => {
     // sibling sets unaffected
     expect(state.exercises[0].sets[0]).toMatchObject({ weight: 135, reps: 5 })
     expect(state.exercises[1].sets[0]).toMatchObject({ weight: null, reps: 10 })
+  })
+})
+
+describe('updateSet smart carry-forward', () => {
+  const straightSetPrescription: PrescribedExercise[] = [
+    {
+      exerciseName: 'Bench Press',
+      sets: [
+        { weight: 100, reps: 8 },
+        { weight: 100, reps: 8 },
+        { weight: 100, reps: 8 },
+      ],
+    },
+  ]
+
+  const ascendingPrescription: PrescribedExercise[] = [
+    {
+      exerciseName: 'Squat',
+      tmKey: 'squat',
+      sets: [
+        { weight: 275, reps: 3 },
+        { weight: 315, reps: 3 },
+        { weight: 355, reps: 3 },
+      ],
+    },
+  ]
+
+  it('propagates a weight edit forward to later not-done sets sharing the same prescribed weight (straight sets)', () => {
+    useSessionStore.getState().startFromPrescription(straightSetPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { weight: 95 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].weight).toBe(95)
+    expect(sets[1].weight).toBe(95)
+    expect(sets[2].weight).toBe(95)
+  })
+
+  it('propagates a reps edit forward to later not-done sets sharing the same prescribed reps (straight sets)', () => {
+    useSessionStore.getState().startFromPrescription(straightSetPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { reps: 7 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].reps).toBe(7)
+    expect(sets[1].reps).toBe(7)
+    expect(sets[2].reps).toBe(7)
+  })
+
+  it('does NOT propagate a weight edit across sets with different prescribed weights (ascending 5/3/1 scheme)', () => {
+    useSessionStore.getState().startFromPrescription(ascendingPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { weight: 270 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].weight).toBe(270)
+    expect(sets[1].weight).toBe(315)
+    expect(sets[2].weight).toBe(355)
+  })
+
+  it('DOES propagate a reps edit across ascending-weight sets that share the same prescribed reps', () => {
+    useSessionStore.getState().startFromPrescription(ascendingPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { reps: 2 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].reps).toBe(2)
+    expect(sets[1].reps).toBe(2)
+    expect(sets[2].reps).toBe(2)
+  })
+
+  it('does not overwrite a later set that is already marked done', () => {
+    useSessionStore.getState().startFromPrescription(straightSetPrescription, meta)
+    useSessionStore.getState().toggleDone(0, 1)
+    useSessionStore.getState().updateSet(0, 0, { weight: 95 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].weight).toBe(95)
+    expect(sets[1].weight).toBe(100) // done set untouched
+    expect(sets[2].weight).toBe(95)
+  })
+
+  it('only propagates forward — editing a later set does not affect earlier sets', () => {
+    useSessionStore.getState().startFromPrescription(straightSetPrescription, meta)
+    useSessionStore.getState().updateSet(0, 2, { weight: 95 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].weight).toBe(100)
+    expect(sets[1].weight).toBe(100)
+    expect(sets[2].weight).toBe(95)
   })
 })
 
