@@ -122,31 +122,38 @@ export async function fetchPublicPrograms(userId: string): Promise<PublicProgram
       program: buildDomainProgram(programRow, programDays, ownProgramExercises, exercisesById),
     }
 
-    if (!isOwn) {
-      // Every non-own row here is already known `is_public = true` (it only passed
-      // the `programs` query's `.or(is_public.eq.true, user_id.eq.<me>)` filter above
-      // because of that), so no further check is needed.
-      community.push(libraryProgram)
+    if (isOwn) {
+      // Discriminate "authored" from "preset-activation snapshot" among the viewer's
+      // OWN `programs` rows. Both the Custom Program Builder's save path
+      // (`buildProgramRows` in saveProgram.ts) and community-clone path
+      // (`useActivateDbProgram` in activateProgram.ts, which also calls
+      // `buildProgramRows`) always write a non-null `program_exercises.exercise_name`.
+      // Preset activation (`buildActivationRows`, also in activateProgram.ts) never
+      // writes `exercise_name` at all — every exercise row of an activated-preset
+      // snapshot has it NULL. So an owned program only belongs in "My programs" when
+      // it has at least one exercise and NONE of them have a null `exercise_name`.
+      // Preset snapshots that fail this check are excluded from both `own` and
+      // `community` — regardless of `is_public`, a viewer's own program must never
+      // render as "Shared by the community" — they're surfaced via the
+      // Presets/active-workout flow, not the library, so simply not appearing here
+      // is correct.
+      const isBuilderAuthored = ownProgramExercises.length > 0 &&
+        ownProgramExercises.every(pe => pe.exercise_name != null)
+
+      if (isBuilderAuthored) own.push(libraryProgram)
       continue
     }
 
-    // Discriminate "authored" from "preset-activation snapshot" among the viewer's
-    // OWN `programs` rows. Both the Custom Program Builder's save path
-    // (`buildProgramRows` in saveProgram.ts) and community-clone path
-    // (`useActivateDbProgram` in activateProgram.ts, which also calls
-    // `buildProgramRows`) always write a non-null `program_exercises.exercise_name`.
-    // Preset activation (`buildActivationRows`, also in activateProgram.ts) never
-    // writes `exercise_name` at all — every exercise row of an activated-preset
-    // snapshot has it NULL. So an owned program only belongs in "My programs" when
-    // it has at least one exercise and NONE of them have a null `exercise_name`.
-    // Preset snapshots that fail this check are excluded from both `own` and
-    // `community` (they're `is_public = false`, so they were never candidates for
-    // `community` anyway) — they're surfaced via the Presets/active-workout flow,
-    // not the library, so simply not appearing here is correct.
-    const isBuilderAuthored = ownProgramExercises.length > 0 &&
-      ownProgramExercises.every(pe => pe.exercise_name != null)
-
-    if (isBuilderAuthored) own.push(libraryProgram)
+    // Not owned by the viewer. `community` is specifically "public AND owned by
+    // ANOTHER user" — every row here already passed the `programs` query's
+    // `.or(is_public.eq.true, user_id.eq.<me>)` filter, so a non-own row is
+    // guaranteed `is_public = true`. But a null `user_id` (e.g. a pre-builder
+    // migrated program: `assemble()` in scripts/migration/load.ts never overrides
+    // `programSeed.program.user_id`, so it stays the `user_id: null` hardcoded by
+    // `toProgramSeed()`) has no confirmed owner at all — it doesn't qualify as
+    // "owned by another user" just because it isn't owned by me, so it's excluded
+    // from `community` too, landing in neither list.
+    if (programRow.user_id != null) community.push(libraryProgram)
   }
 
   return { own, community }

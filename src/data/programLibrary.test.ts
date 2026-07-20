@@ -57,10 +57,14 @@ const COMMUNITY_DAYS: ProgramDayRow[] = [
 ]
 // An owned `programs` row produced by preset activation (`buildActivationRows` in
 // activateProgram.ts), NOT the builder — its `program_exercises` rows never get
-// `exercise_name` set, unlike a builder-authored/cloned program's.
+// `exercise_name` set, unlike a builder-authored/cloned program's. `is_public: true`
+// here deliberately mirrors a pre-builder migrated program: even though it's public,
+// it's still owned by the viewer, so it must never appear under "Shared by the
+// community" — the classification is "public AND owned by someone else", not just
+// "public".
 const PRESET_SNAPSHOT_PROGRAM: ProgramRow = {
   id: 'prog-preset', user_id: 'me', name: '5/3/1 for Beginners', description: null,
-  discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
+  discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
 }
 const PRESET_DAYS: ProgramDayRow[] = [
   { id: 'day-preset-1', program_id: 'prog-preset', name: 'Day 1', order_index: 0 },
@@ -69,6 +73,20 @@ const SQUAT_EXERCISE: ExerciseRow = {
   id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
   movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
 }
+// The actual shape a pre-builder migrated program lands in the DB with: `assemble()`
+// in scripts/migration/load.ts never overrides `programSeed.program.user_id` (it
+// stays the `user_id: null` hardcoded by `toProgramSeed()` in
+// scripts/migration/transform/programs.ts), so this row is functionally the
+// viewer's own active program but has NO real owner on the `programs` row itself.
+// It must not render as "Shared by the community" (nobody actually shared it) or
+// "My programs" (it's not builder-authored and has no confirmed owner).
+const MIGRATED_NULL_OWNER_PROGRAM: ProgramRow = {
+  id: 'prog-migrated', user_id: null, name: '5/3/1 for Beginners (migrated)', description: null,
+  discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
+}
+const MIGRATED_DAYS: ProgramDayRow[] = [
+  { id: 'day-migrated-1', program_id: 'prog-migrated', name: 'Day 1', order_index: 0 },
+]
 
 function baseTables(): Record<string, unknown[]> {
   return {
@@ -103,6 +121,22 @@ function tablesWithPresetSnapshot(): Record<string, unknown[]> {
     program_exercises: [
       ...(tables.program_exercises as ProgramExerciseRow[]),
       { id: 'pe-preset-1', program_day_id: 'day-preset-1', exercise_id: 'ex-squat', role_key: 'squat',
+        order_index: 0, scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
+    ] as ProgramExerciseRow[],
+  }
+}
+
+/** `baseTables()` plus a null-owner migrated program — the real shape produced by
+ *  scripts/migration/load.ts today (see `MIGRATED_NULL_OWNER_PROGRAM` above). */
+function tablesWithMigratedNullOwnerProgram(): Record<string, unknown[]> {
+  const tables = baseTables()
+  return {
+    ...tables,
+    programs: [...(tables.programs as ProgramRow[]), MIGRATED_NULL_OWNER_PROGRAM],
+    program_days: [...(tables.program_days as ProgramDayRow[]), ...MIGRATED_DAYS],
+    program_exercises: [
+      ...(tables.program_exercises as ProgramExerciseRow[]),
+      { id: 'pe-migrated-1', program_day_id: 'day-migrated-1', exercise_id: 'ex-squat', role_key: 'squat',
         order_index: 0, scheme: { type: 'fixed', sets: [{ reps: 5 }] }, exercise_name: null, exercise_type: null },
     ] as ProgramExerciseRow[],
   }
@@ -193,12 +227,41 @@ describe('fetchPublicPrograms', () => {
     expect(bundle.own.map(p => p.id)).not.toContain('prog-preset')
   })
 
-  it('excludes an owned preset-activation snapshot from community too (it is not public)', async () => {
+  it('excludes an owned preset-activation snapshot from community too, even though it is public (own programs never render as community)', async () => {
     __setSupabase(makeSupabase(tablesWithPresetSnapshot()))
 
     const bundle = await fetchPublicPrograms('me')
 
     expect(bundle.community.map(p => p.id)).not.toContain('prog-preset')
+    expect(bundle.own.map(p => p.id)).not.toContain('prog-preset')
+  })
+
+  it('classifies a builder-authored own program, a migrated/preset-snapshot own program, and another user\'s public program correctly in one fetch', async () => {
+    __setSupabase(makeSupabase(tablesWithPresetSnapshot()))
+
+    const bundle = await fetchPublicPrograms('me')
+
+    // (a) my builder-authored program -> own only.
+    expect(bundle.own.map(p => p.id)).toContain('prog-own')
+    expect(bundle.community.map(p => p.id)).not.toContain('prog-own')
+
+    // (b) my migrated/preset-snapshot program (owned by me, exercise_name null,
+    // is_public: true) -> neither own nor community.
+    expect(bundle.own.map(p => p.id)).not.toContain('prog-preset')
+    expect(bundle.community.map(p => p.id)).not.toContain('prog-preset')
+
+    // (c) another user's public program -> community only.
+    expect(bundle.community.map(p => p.id)).toContain('prog-community')
+    expect(bundle.own.map(p => p.id)).not.toContain('prog-community')
+  })
+
+  it('excludes a null-owner migrated program from community even though is_public is true (own is not the same as "not mine")', async () => {
+    __setSupabase(makeSupabase(tablesWithMigratedNullOwnerProgram()))
+
+    const bundle = await fetchPublicPrograms('me')
+
+    expect(bundle.community.map(p => p.id)).not.toContain('prog-migrated')
+    expect(bundle.own.map(p => p.id)).not.toContain('prog-migrated')
   })
 })
 
