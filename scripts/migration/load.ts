@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import type { RawExport } from './exportSchema.ts'
@@ -86,7 +87,7 @@ interface ResolvedProgramState {
   last_advance_key: ProgramStateRow['last_advance_key']
 }
 
-interface Assembly {
+export interface Assembly {
   userId: string
   exercises: ExerciseRow[]
   createdFromLog: string[]
@@ -114,7 +115,7 @@ interface Assembly {
  * (deduping "created from log" exercises against what's already in the
  * hosted DB) happens separately, after this, in `reconcileExtraExercises`.
  */
-function assemble(raw: RawExport, userId: string): Assembly {
+export function assemble(raw: RawExport, userId: string): Assembly {
   const catalog = toExerciseCatalog(raw)
   const nameToIdResult = buildNameToId(catalog, raw)
   const exercises = [...catalog, ...nameToIdResult.extraRows]
@@ -143,7 +144,13 @@ function assemble(raw: RawExport, userId: string): Assembly {
     }
   })
 
-  const program: ResolvedProgram = { ...programSeed.program, id: programId }
+  // Migrated program must be personally owned + private: overrides
+  // `toProgramSeed()`'s ownerless-library-preset defaults (user_id: null,
+  // is_public: true) with this run's resolved seed user, same convention
+  // as every other user-scoped row assembled below. Without this override
+  // the row is world-readable (RLS: `is_public or auth.uid() = user_id`)
+  // and absent from the seed user's own "My programs" list.
+  const program: ResolvedProgram = { ...programSeed.program, id: programId, user_id: userId, is_public: false }
 
   const trainingMaxes = toTrainingMaxes(raw).map(tm => ({ ...tm, user_id: userId }))
 
@@ -434,11 +441,14 @@ async function runReal(xlsxPath: string): Promise<void> {
 
   // 2-4. programs / program_days / program_exercises: this schema has no
   // natural-key unique constraint on any of the three, so idempotency is
-  // achieved by delete-then-insert scoped to this program's name (cascades
-  // remove the old days/exercises automatically per their FK definitions),
-  // then a fresh insert with the ids generated above.
+  // achieved by delete-then-insert scoped to this program's name AND the
+  // resolved seed user (cascades remove the old days/exercises automatically
+  // per their FK definitions), then a fresh insert with the ids generated
+  // above. Scoping by user_id too (not just name) ensures a re-run only ever
+  // replaces this seed user's own migrated copy, never a same-named program
+  // some other user authored.
   {
-    const { error: delErr } = await supabase.from('programs').delete().eq('name', assembly.program.name).is('user_id', null)
+    const { error: delErr } = await supabase.from('programs').delete().eq('name', assembly.program.name).eq('user_id', userId)
     if (delErr) throw new Error(`programs delete (pre-insert) failed: ${delErr.message}`)
 
     const { error } = await supabase.from('programs').insert([assembly.program])
@@ -610,7 +620,14 @@ async function main(): Promise<void> {
   await runReal(resolvedPath)
 }
 
-main().catch(err => {
-  console.error(err instanceof Error ? err.message : String(err))
-  process.exit(1)
-})
+// Only run the CLI when this file is executed directly (e.g. `npx tsx
+// scripts/migration/load.ts ...`) — not when imported for its exports (e.g.
+// `assemble` from load.test.ts), which would otherwise call `parseArgs` with
+// no xlsx path and `process.exit(1)` as a side effect of the import.
+const isDirectRun = process.argv[1] != null && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+if (isDirectRun) {
+  main().catch(err => {
+    console.error(err instanceof Error ? err.message : String(err))
+    process.exit(1)
+  })
+}

@@ -16,6 +16,13 @@ import type { ProgressionRule, Scheme } from '../../../src/domain/types'
  * The loader is expected to insert the program, then insert days in
  * `order_index` order capturing the returned ids, then insert exercises
  * by mapping `dayIndex` -> that day's real program_day_id.
+ *
+ * `program.user_id: null` / `is_public: true` below are ownerless-library-
+ * preset defaults (this transform has no user in scope). This migration is
+ * NOT seeding a shared library preset, though: it's importing one specific
+ * person's own historical program, so `load.ts`'s `assemble()` overrides
+ * both to the resolved seed user's id / `false` before insert — this row
+ * must always end up personally owned and private, never public.
  */
 
 export interface ProgramRow {
@@ -24,7 +31,7 @@ export interface ProgramRow {
   discipline: string
   progression_rule: ProgressionRule | null
   is_public: boolean
-  user_id: null
+  user_id: string | null
 }
 
 export interface ProgramDayRow {
