@@ -57,6 +57,9 @@ export interface ExerciseRow {
   popularity: number | null
   is_active: boolean
   created_at: string
+  // null = this row is canonical; set = this row is an alias pointing at its
+  // canonical exercise. Nullable: not backfilled for existing rows.
+  canonical_id: string | null
 }
 
 export interface TrainingMaxRow {

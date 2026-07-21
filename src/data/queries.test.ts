@@ -74,9 +74,11 @@ describe('fetchActiveWorkout', () => {
     ]
     const exercises: ExerciseRow[] = [
       { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
-        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
+        canonical_id: null },
       { id: 'ex-bench', user_id: null, name: 'Bench Press', primary_muscles: null, equipment: null,
-        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
+        canonical_id: null },
     ]
     const trainingMaxes: TrainingMaxRow[] = [
       { id: 'tm-1', user_id: 'u1', key: 'squat', value: 275, prev_value: 265, updated_at: '2026-01-01T00:00:00Z' },
@@ -128,7 +130,8 @@ describe('buildWorkingWeights', () => {
   const LINEAR_CONFIG: LinearProgressionConfig = { increment: 5, deloadPercent: 0.1, failsBeforeDeload: 3 }
   const exercisesById: Record<string, ExerciseRow> = {
     'ex-squat': { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
-      movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+      movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
+      canonical_id: null },
   }
   const programExercises: ProgramExerciseRow[] = [
     { id: 'pe-1', program_day_id: 'day-a', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0,
@@ -184,7 +187,8 @@ describe('buildDomainProgram', () => {
     ]
     const exercisesById: Record<string, ExerciseRow> = {
       'ex-squat': { id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
-        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z' },
+        movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
+        canonical_id: null },
     }
 
     const program = buildDomainProgram(programRow, days, programExercises, exercisesById)

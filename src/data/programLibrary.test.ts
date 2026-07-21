@@ -72,6 +72,7 @@ const PRESET_DAYS: ProgramDayRow[] = [
 const SQUAT_EXERCISE: ExerciseRow = {
   id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
   movement_pattern: null, exercise_type: 'weighted', popularity: null, is_active: true, created_at: '2026-01-01T00:00:00Z',
+  canonical_id: null,
 }
 // The actual shape a pre-builder migrated program lands in the DB with: `assemble()`
 // in scripts/migration/load.ts never overrides `programSeed.program.user_id` (it
