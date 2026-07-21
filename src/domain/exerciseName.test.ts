@@ -39,4 +39,24 @@ describe('hardNormalizeExerciseName', () => {
       hardNormalizeExerciseName('Barbell Back Squat')
     )
   })
+
+  it('treats -es plural (silent-e base) as equal: Lateral Raises == Lateral Raise', () => {
+    expect(hardNormalizeExerciseName('Lateral Raises')).toBe(
+      hardNormalizeExerciseName('Lateral Raise')
+    )
+  })
+
+  it('treats plural as equal: Barbell Curls == Barbell Curl', () => {
+    expect(hardNormalizeExerciseName('Barbell Curls')).toBe(hardNormalizeExerciseName('Barbell Curl'))
+  })
+
+  it('does not strip double-s: Bench Press does not corrupt to Bench Pres', () => {
+    expect(hardNormalizeExerciseName('Bench Press')).not.toBe(
+      hardNormalizeExerciseName('Bench Pres')
+    )
+  })
+
+  it('is insensitive to token order with -ss word intact: Bench Press == Press Bench', () => {
+    expect(hardNormalizeExerciseName('Bench Press')).toBe(hardNormalizeExerciseName('Press Bench'))
+  })
 })
