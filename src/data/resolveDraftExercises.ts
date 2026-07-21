@@ -1,5 +1,7 @@
 import { getSupabase } from './supabase'
 import type { DraftExerciseKind, ProgramDraft } from '../domain/programDraft'
+import { hardNormalizeExerciseName } from '../domain'
+import { buildHardKeyMap, followCanonical, type CanonicalizableRow } from './canonical'
 
 /** trim + collapse internal whitespace + lowercase, for use as a map key.
  *  Replicated (not imported) from resolveExerciseIds.ts's normalizeName, which
@@ -25,7 +27,7 @@ function exerciseTypeFor(kind: DraftExerciseKind): 'weighted' | 'bodyweight' {
  *  every page into one array before running the normal in-memory matching below. */
 const CATALOG_PAGE_SIZE = 1000
 
-interface CatalogRow { id: string; name: string }
+type CatalogRow = CanonicalizableRow
 
 async function fetchActiveCatalog(
   supabase: ReturnType<typeof getSupabase>,
@@ -36,7 +38,13 @@ async function fetchActiveCatalog(
   while (true) {
     const { data, error } = await supabase
       .from('exercises')
-      .select('id, name')
+      // canonical_id is required here, not just id/name: followCanonical()
+      // below reads it to map an alias row to its canonical id. Omitting it
+      // from this select is a silent bug — every row comes back with
+      // canonical_id undefined, followCanonical() falls back to the alias's
+      // own id every time, and no mocked test catches it unless the mock
+      // itself is asked to honor the requested columns.
+      .select('id, name, canonical_id')
       .eq('is_active', true)
       .or(`user_id.is.null,user_id.eq.${userId}`)
       .order('id')
@@ -58,11 +66,17 @@ async function fetchActiveCatalog(
  *
  * Reads the global catalog (`user_id is null`) plus the user's own custom
  * rows in one query (RLS enforces that scope regardless), restricted to
- * `is_active` rows, matching by normalized name. An unmatched name gets a
- * brand-new user-owned custom exercise row (`is_active: true`), with
- * `exercise_type` taken from the draft exercise's own `kind` — `'weighted'`
- * for `'strength'`, `'bodyweight'` for `'bodyweight'` — rather than
- * hardcoded, since the builder (unlike today's presets) supports both kinds.
+ * `is_active` rows (aliases are active, so this resolver sees them),
+ * matching first by normalized name and, failing that, by
+ * `hardNormalizeExerciseName` (catches wording variants like
+ * hyphenation/casing/plurals/word-order that the weak normalizer misses).
+ * Any match — weak or hard — is followed through `followCanonical()`, so an
+ * alias row resolves to its canonical exercise's id rather than the alias's
+ * own id. An unmatched name gets a brand-new user-owned custom exercise row
+ * (`is_active: true`), with `exercise_type` taken from the draft exercise's
+ * own `kind` — `'weighted'` for `'strength'`, `'bodyweight'` for
+ * `'bodyweight'` — rather than hardcoded, since the builder (unlike today's
+ * presets) supports both kinds.
  *
  * Every draft exercise is resolved/minted against a single in-memory
  * normalized-name -> id map: the first occurrence of a given normalized name
@@ -85,14 +99,15 @@ export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: strin
 
   const catalogRows = await fetchActiveCatalog(supabase, userId)
 
-  const idByNormalized = new Map<string, string>()
+  const byWeak = new Map<string, string>()
   for (const row of catalogRows) {
-    idByNormalized.set(normalizeName(row.name), row.id)
+    byWeak.set(normalizeName(row.name), followCanonical(row))
   }
+  const byHard = buildHardKeyMap(catalogRows, hardNormalizeExerciseName)
 
   for (const { originalName, kind } of draftExercises) {
-    const key = normalizeName(originalName)
-    const existingId = idByNormalized.get(key)
+    const weakKey = normalizeName(originalName)
+    const existingId = byWeak.get(weakKey) ?? byHard.get(hardNormalizeExerciseName(originalName))
     if (existingId) {
       result[originalName] = existingId
       continue
@@ -106,7 +121,7 @@ export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: strin
     if (insertError) throw insertError
 
     const newId = (inserted as { id: string }).id
-    idByNormalized.set(key, newId)
+    byWeak.set(weakKey, newId)
     result[originalName] = newId
   }
 

@@ -3,7 +3,7 @@ import type { Mock } from 'vitest'
 import { resolveDraftExerciseIds } from './resolveDraftExercises'
 import type { ProgramDraft } from '../domain/programDraft'
 
-interface FakeExerciseRow { id: string; name: string }
+interface FakeExerciseRow { id: string; name: string; canonical_id?: string | null }
 
 const { getSupabase, __setSupabase } = vi.hoisted(() => {
   let current: unknown
@@ -210,5 +210,107 @@ describe('resolveDraftExerciseIds', () => {
       expect(call.eq).toEqual(['is_active', true])
       expect(call.or).toBe('user_id.is.null,user_id.eq.user-1')
     }
+  })
+
+  it('requests canonical_id in the catalog select (without it, followCanonical silently no-ops)', async () => {
+    const insert = vi.fn()
+    const queryCalls: QueryCalls = {}
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat', canonical_id: null }]], insert, queryCalls))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
+    ])
+
+    await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(queryCalls.select).toContain('canonical_id')
+  })
+
+  it('follows an alias row to its canonical id instead of returning the alias id (weak match); aliases stay active so this resolver sees them', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[{ id: 'alias', name: 'Barbell Back Squat', canonical_id: 'sq' }]], insert, {}))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Barbell Back Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(result['Barbell Back Squat']).toBe('sq')
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('follows a weak-matched canonical row (canonical_id null) to itself', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat', canonical_id: null }]], insert, {}))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: '  SQUAT ', kind: 'strength', sets: [{ reps: 5 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(result['  SQUAT ']).toBe('ex-squat')
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('hardened second-pass: a wording variant with no weak match still resolves via hardNormalizeExerciseName, not a mint', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[{ id: 'ex-pullup', name: 'Pull-ups', canonical_id: null }]], insert, {}))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Pull Ups', kind: 'bodyweight', sets: [{ reps: 8 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(result['Pull Ups']).toBe('ex-pullup')
+    expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('an ambiguous hard-key (two distinct canonicals colliding on hardNormalizeExerciseName) mints rather than mis-resolving', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[
+      { id: 'face-pull', name: 'Face Pull', canonical_id: null },
+      { id: 'face-pulls', name: 'Face Pulls', canonical_id: null },
+    ]], insert, {}))
+
+    // Hyphenated so the weak normalizer does not match either catalog name
+    // verbatim — only the hard normalizer (strips punctuation, singularizes)
+    // would match both, and it must NOT pick either one.
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Face-Pulls', kind: 'strength', sets: [{ reps: 12 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(insert).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      name: 'Face-Pulls',
+      is_active: true,
+      exercise_type: 'weighted',
+    })
+    const resolvedId = result['Face-Pulls']
+    expect(resolvedId).toBe('new-1')
+    expect(resolvedId).not.toBe('face-pull')
+    expect(resolvedId).not.toBe('face-pulls')
+  })
+
+  it('still mints a user-owned row for a genuinely unmatched name (unchanged behavior; asserts user_id is the caller, not null)', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat', canonical_id: null }]], insert, {}))
+
+    const draft = draftWith([
+      { name: 'Day A', exercises: [{ exerciseName: 'Zercher Squat', kind: 'strength', sets: [{ reps: 5 }] }] },
+    ])
+
+    const result = await resolveDraftExerciseIds(draft, 'user-1')
+
+    expect(insert).toHaveBeenCalledTimes(1)
+    const mintedRow = insert.mock.calls[0][0] as { user_id: string | null }
+    expect(mintedRow.user_id).toBe('user-1')
+    expect(mintedRow.user_id).not.toBeNull()
+    expect(result['Zercher Squat']).toBe('new-1')
   })
 })
