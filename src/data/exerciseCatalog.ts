@@ -13,6 +13,7 @@ async function searchExercises(term: string, userId: string): Promise<ExerciseSe
     .from('exercises')
     .select('id, name, exercise_type')
     .eq('is_active', true)
+    .is('canonical_id', null)
     .or(`user_id.is.null,user_id.eq.${userId}`)
     .ilike('name', `%${term}%`)
     .limit(25)
@@ -22,11 +23,13 @@ async function searchExercises(term: string, userId: string): Promise<ExerciseSe
 }
 
 /**
- * Catalog search backing the exercise picker (Task 9): active exercises that are
- * either global (`user_id is null`) or owned by `userId`, whose name contains
- * `term` (case-insensitive), capped at 25 rows — mirrors the same
- * `is_active` + global-or-own scoping `resolveDraftExerciseIds`/`resolveExerciseIds`
- * use for the catalog read, plus an `ilike` name filter and a result cap since this
+ * Catalog search backing the exercise picker (Task 9): active, canonical exercises
+ * (`canonical_id is null` excludes alias rows, which redirect to a canonical
+ * exercise instead of being distinct search results) that are either global
+ * (`user_id is null`) or owned by `userId`, whose name contains `term`
+ * (case-insensitive), capped at 25 rows — mirrors the same `is_active` +
+ * global-or-own scoping `resolveDraftExerciseIds`/`resolveExerciseIds` use for
+ * the catalog read, plus an `ilike` name filter and a result cap since this
  * is an interactive search rather than a full-catalog fetch.
  *
  * Stays disabled (no fetch) for a blank/whitespace-only `term` or an unknown
