@@ -60,43 +60,21 @@ async function fetchActiveCatalog(
 }
 
 /**
- * Resolves every distinct exercise name referenced in a `ProgramDraft` to a
- * catalog `exercises.id` for `userId`, minting a new user-owned custom
- * exercise for any name with no existing match.
- *
- * Reads the global catalog (`user_id is null`) plus the user's own custom
- * rows in one query (RLS enforces that scope regardless), restricted to
- * `is_active` rows (aliases are active, so this resolver sees them),
- * matching first by normalized name and, failing that, by
- * `hardNormalizeExerciseName` (catches wording variants like
- * hyphenation/casing/plurals/word-order that the weak normalizer misses).
- * Any match — weak or hard — is followed through `followCanonical()`, so an
- * alias row resolves to its canonical exercise's id rather than the alias's
- * own id. An unmatched name gets a brand-new user-owned custom exercise row
- * (`is_active: true`), with `exercise_type` taken from the draft exercise's
- * own `kind` — `'weighted'` for `'strength'`, `'bodyweight'` for
- * `'bodyweight'` — rather than hardcoded, since the builder (unlike today's
- * presets) supports both kinds.
- *
- * Every draft exercise is resolved/minted against a single in-memory
- * normalized-name -> id map: the first occurrence of a given normalized name
- * either matches the catalog read or mints exactly one new row (and its kind
- * decides that row's `exercise_type` if a later occurrence varies); every
- * subsequent occurrence of that same normalized name — even under a
- * differently-cased/spaced original string — reuses the id with no extra
- * query. The result is keyed by each exercise's original (non-normalized)
- * `exerciseName`, since callers look up by the draft's own names.
+ * Resolves a flat list of `{ name, kind }` to catalog `exercises.id`s for `userId`, minting a
+ * user-owned custom exercise for any name with no existing match. Matching is weak-normalized
+ * name first, then `hardNormalizeExerciseName`; any match is followed through `followCanonical`
+ * (an alias resolves to its canonical id). Minted rows take `exercise_type` from `kind`. Dedups
+ * by normalized name across the list (first occurrence matches-or-mints; later occurrences of the
+ * same normalized name reuse the id). Result is keyed by each input `name`.
  */
-export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: string): Promise<Record<string, string>> {
+export async function resolveExercisesByName(
+  items: { name: string; kind: DraftExerciseKind }[],
+  userId: string,
+): Promise<Record<string, string>> {
   const result: Record<string, string> = {}
-
-  const draftExercises: { originalName: string; kind: DraftExerciseKind }[] = draft.days.flatMap(day =>
-    day.exercises.map(exercise => ({ originalName: exercise.exerciseName, kind: exercise.kind })),
-  )
-  if (draftExercises.length === 0) return result
+  if (items.length === 0) return result
 
   const supabase = getSupabase()
-
   const catalogRows = await fetchActiveCatalog(supabase, userId)
 
   const byWeak = new Map<string, string>()
@@ -105,25 +83,35 @@ export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: strin
   }
   const byHard = buildHardKeyMap(catalogRows, hardNormalizeExerciseName)
 
-  for (const { originalName, kind } of draftExercises) {
-    const weakKey = normalizeName(originalName)
-    const existingId = byWeak.get(weakKey) ?? byHard.get(hardNormalizeExerciseName(originalName))
+  for (const { name, kind } of items) {
+    const weakKey = normalizeName(name)
+    const existingId = byWeak.get(weakKey) ?? byHard.get(hardNormalizeExerciseName(name))
     if (existingId) {
-      result[originalName] = existingId
+      result[name] = existingId
       continue
     }
 
     const { data: inserted, error: insertError } = await supabase
       .from('exercises')
-      .insert({ user_id: userId, name: originalName, is_active: true, exercise_type: exerciseTypeFor(kind) })
+      .insert({ user_id: userId, name, is_active: true, exercise_type: exerciseTypeFor(kind) })
       .select('id')
       .single()
     if (insertError) throw insertError
 
     const newId = (inserted as { id: string }).id
     byWeak.set(weakKey, newId)
-    result[originalName] = newId
+    result[name] = newId
   }
 
   return result
+}
+
+/** Resolves every distinct exercise name in a `ProgramDraft` to a catalog id (see
+ *  `resolveExercisesByName`). Thin wrapper: flattens the draft's exercises to a `{name, kind}`
+ *  list and delegates. Result keyed by the draft's own `exerciseName`s. */
+export async function resolveDraftExerciseIds(draft: ProgramDraft, userId: string): Promise<Record<string, string>> {
+  const items = draft.days.flatMap((day) =>
+    day.exercises.map((exercise) => ({ name: exercise.exerciseName, kind: exercise.kind })),
+  )
+  return resolveExercisesByName(items, userId)
 }

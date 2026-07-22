@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
-import { resolveDraftExerciseIds } from './resolveDraftExercises'
+import { resolveDraftExerciseIds, resolveExercisesByName } from './resolveDraftExercises'
 import type { ProgramDraft } from '../domain/programDraft'
 
 interface FakeExerciseRow { id: string; name: string; canonical_id?: string | null }
@@ -312,5 +312,46 @@ describe('resolveDraftExerciseIds', () => {
     expect(mintedRow.user_id).toBe('user-1')
     expect(mintedRow.user_id).not.toBeNull()
     expect(result['Zercher Squat']).toBe('new-1')
+  })
+})
+
+describe('resolveExercisesByName', () => {
+  it('returns {} without querying when given no items', async () => {
+    const from = vi.fn(() => { throw new Error('should not query') })
+    __setSupabase({ from })
+
+    const result = await resolveExercisesByName([], 'user-1')
+
+    expect(result).toEqual({})
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('matches an existing catalog row by name and mints for an unmatched name', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[{ id: 'ex-squat', name: 'Squat', canonical_id: null }]], insert, {}))
+
+    const result = await resolveExercisesByName(
+      [{ name: 'Squat', kind: 'strength' }, { name: 'Zercher Squat', kind: 'strength' }],
+      'user-1',
+    )
+
+    expect(result['Squat']).toBe('ex-squat')
+    expect(result['Zercher Squat']).toBe('new-1')
+    expect(insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('mints a bodyweight exercise_type from the kind', async () => {
+    const insert = vi.fn()
+    __setSupabase(makeSupabase([[]], insert, {}))
+
+    await resolveExercisesByName([{ name: 'Pistol Squat', kind: 'bodyweight' }], 'user-1')
+
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(insert).toHaveBeenCalledWith({
+      user_id: 'user-1',
+      name: 'Pistol Squat',
+      is_active: true,
+      exercise_type: 'bodyweight',
+    })
   })
 })
