@@ -26,11 +26,11 @@ export function AppShell({ title, right, children, className }: AppShellProps) {
       </header>
       <main
         className={cn('flex-1 px-4 py-4', className)}
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
       >
         {children}
       </main>
-      {/* Reserved space for a future sticky bottom nav; not implemented yet. */}
+      {/* Bottom space cleared by the main padding above for AppLayout's fixed BottomNav. */}
     </div>
   )
 }

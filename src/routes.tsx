@@ -10,6 +10,10 @@ import { OnboardingPage } from './features/onboarding/OnboardingPage'
 import { WorkoutPage } from './features/workout/WorkoutPage'
 import { ProgramsPage } from './features/programs/ProgramsPage'
 import { BuilderPage } from './features/programs/BuilderPage'
+import { AppLayout } from './features/shell/AppLayout'
+import { HistoryPage } from './features/history/HistoryPage'
+import { SettingsPage } from './features/settings/SettingsPage'
+import { CardioLogPage } from './features/cardio/CardioLogPage'
 
 function Protected({ children }: { children: ReactNode }) {
   const { session, loading, user } = useAuth()
@@ -40,14 +44,25 @@ function Protected({ children }: { children: ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Unauthenticated */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+
+      {/* Authenticated, full-screen (NO tab bar) */}
       <Route path="/onboarding" element={<Protected><OnboardingPage /></Protected>} />
-      <Route path="/" element={<Protected><HomePage /></Protected>} />
       <Route path="/workout" element={<Protected><WorkoutPage /></Protected>} />
-      <Route path="/programs" element={<Protected><ProgramsPage /></Protected>} />
       <Route path="/programs/new" element={<Protected><BuilderPage /></Protected>} />
       <Route path="/programs/:id/edit" element={<Protected><BuilderPage /></Protected>} />
+      <Route path="/cardio/new" element={<Protected><CardioLogPage /></Protected>} />
+
+      {/* Authenticated, in-shell (tab bar) — one Protected gate wrapping the layout */}
+      <Route element={<Protected><AppLayout /></Protected>}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/programs" element={<ProgramsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
