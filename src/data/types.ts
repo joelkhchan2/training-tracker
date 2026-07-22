@@ -112,6 +112,17 @@ export interface StrengthSetRow {
   created_at: string
 }
 
+export interface CardioActivityRow {
+  id: string
+  user_id: string
+  session_id: string
+  activity: string
+  duration_minutes: number | null
+  distance_km: number | null
+  notes: string | null
+  created_at: string
+}
+
 /** Per-(user, program, exercise) linear-progression state (0006_exercise_progress.sql). */
 export interface ExerciseProgressRow {
   id: string
