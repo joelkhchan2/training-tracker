@@ -1,3 +1,5 @@
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { SetRow } from './SetRow'
@@ -26,40 +28,53 @@ function doneVolume(exercise: SessionExercise): number {
 export function ExerciseCard({ exIdx, exercise, onReplace, onRemove }: ExerciseCardProps) {
   const addSet = useSessionStore((s) => s.addSet)
   const volume = doneVolume(exercise)
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: exercise.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <Card data-testid={`exercise-card-${exIdx}`} className="space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <button
-          type="button"
-          onClick={onReplace}
-          aria-label={`Replace ${exercise.exerciseName}`}
-          className="text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
-        >
-          {exercise.exerciseName}
-        </button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+    <div ref={setNodeRef} style={style}>
+      <Card data-testid={`exercise-card-${exIdx}`} className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
           <button
             type="button"
-            onClick={onRemove}
-            aria-label={`Remove ${exercise.exerciseName}`}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-danger hover:bg-surface-hover"
+            aria-label={`Reorder ${exercise.exerciseName}`}
+            className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted"
+            {...attributes}
+            {...listeners}
           >
-            ✕
+            ⠿
           </button>
+          <button
+            type="button"
+            onClick={onReplace}
+            aria-label={`Replace ${exercise.exerciseName}`}
+            className="text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
+          >
+            {exercise.exerciseName}
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`Remove ${exercise.exerciseName}`}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-danger hover:bg-surface-hover"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="space-y-2">
-        {exercise.sets.map((set, setIdx) => (
-          <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} hideWeight={exercise.kind === 'bodyweight'} />
-        ))}
-      </div>
+        <div className="space-y-2">
+          {exercise.sets.map((set, setIdx) => (
+            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} hideWeight={exercise.kind === 'bodyweight'} />
+          ))}
+        </div>
 
-      <Button variant="secondary" size="sm" fullWidth onClick={() => addSet(exIdx)}>
-        + Add set
-      </Button>
-    </Card>
+        <Button variant="secondary" size="sm" fullWidth onClick={() => addSet(exIdx)}>
+          + Add set
+        </Button>
+      </Card>
+    </div>
   )
 }

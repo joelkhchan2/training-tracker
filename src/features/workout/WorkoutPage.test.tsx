@@ -225,6 +225,17 @@ describe('WorkoutPage', () => {
     expect(useSessionStore.getState().exercises[1].sets).toHaveLength(2)
   })
 
+  it('renders with an empty exercise list (all removed): + Add exercise + Finish still present', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().removeExercise(1)
+    useSessionStore.getState().removeExercise(0)
+    renderAtWorkout()
+
+    expect(useSessionStore.getState().exercises).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '+ Add exercise' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Finish workout/i })).toBeInTheDocument()
+  })
+
   it('redirects Home when there is no active session (deep link without starting)', () => {
     // store is idle after reset — no startFromPrescription call
     renderAtWorkout()

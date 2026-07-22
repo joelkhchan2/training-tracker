@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AppShell } from '../../components/ui/AppShell'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../lib/useAuth'
@@ -15,6 +18,7 @@ import { ExercisePickerSheet } from './ExercisePickerSheet'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
+import { reorderFromDragEnd } from './dragReorder'
 
 /** Formats a Date as a local-calendar YYYY-MM-DD string. Using
  *  `toISOString().slice(0, 10)` would report the UTC date, which flips to
@@ -127,14 +131,25 @@ export function WorkoutPage() {
   const addExercise = useSessionStore((s) => s.addExercise)
   const removeExercise = useSessionStore((s) => s.removeExercise)
   const replaceExercise = useSessionStore((s) => s.replaceExercise)
+  const reorderExercises = useSessionStore((s) => s.reorderExercises)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isResolving, setIsResolving] = useState(false)
   const [sheet, setSheet] = useState<{ mode: 'add' } | { mode: 'replace'; exIdx: number } | null>(null)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   if (status !== 'active') {
     return <Navigate to="/" replace />
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const move = reorderFromDragEnd(exercises.map((e) => e.id), event.active.id, event.over?.id ?? null)
+    if (move) reorderExercises(move.from, move.to)
   }
 
   async function handleFinish() {
@@ -238,15 +253,19 @@ export function WorkoutPage() {
     <>
       <AppShell title={dayName ?? 'Workout'}>
         <div className="space-y-4 pb-24">
-          {exercises.map((exercise, exIdx) => (
-            <ExerciseCard
-              key={exercise.id}
-              exIdx={exIdx}
-              exercise={exercise}
-              onRemove={() => removeExercise(exIdx)}
-              onReplace={() => setSheet({ mode: 'replace', exIdx })}
-            />
-          ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+              {exercises.map((exercise, exIdx) => (
+                <ExerciseCard
+                  key={exercise.id}
+                  exIdx={exIdx}
+                  exercise={exercise}
+                  onRemove={() => removeExercise(exIdx)}
+                  onReplace={() => setSheet({ mode: 'replace', exIdx })}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
           <Button variant="secondary" fullWidth onClick={() => setSheet({ mode: 'add' })}>
             + Add exercise
           </Button>
