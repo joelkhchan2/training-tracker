@@ -16,7 +16,7 @@ const mutate = vi.fn()
 beforeEach(() => {
   mutate.mockReset()
   signOut.mockReset()
-  useUpdateDisciplines.mockReturnValue({ mutate })
+  useUpdateDisciplines.mockReturnValue({ mutate, isPending: false })
   useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing'] }, isLoading: false })
 })
 
@@ -44,5 +44,11 @@ describe('SettingsPage', () => {
     render(<SettingsPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(signOut).toHaveBeenCalled()
+  })
+
+  it('disables discipline checkboxes while a write is in flight', () => {
+    useUpdateDisciplines.mockReturnValue({ mutate, isPending: true })
+    render(<SettingsPage />)
+    expect(screen.getByLabelText('Cardio')).toBeDisabled()
   })
 })

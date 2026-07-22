@@ -41,6 +41,7 @@ export function SettingsPage() {
                   aria-label={d.label}
                   checked={enabled.includes(d.key)}
                   onChange={e => toggle(d.key, e.target.checked)}
+                  disabled={updateDisciplines.isPending}
                 />
               </label>
             ))

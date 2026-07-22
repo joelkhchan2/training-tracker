@@ -100,7 +100,7 @@ export function CardioLogPage() {
             />
           </div>
           <Textarea label="Notes (optional)" value={notes} onChange={setNotes} rows={3} />
-          {pace ? <p className="text-sm text-muted">Pace: {pace} /km</p> : null}
+          {valid && pace ? <p className="text-sm text-muted">Pace: {pace} /km</p> : null}
         </Card>
         {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
         <Button fullWidth onClick={handleSave} disabled={logCardio.isPending}>

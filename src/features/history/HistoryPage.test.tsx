@@ -47,6 +47,27 @@ describe('HistoryPage', () => {
     })
     render(<HistoryPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Delete Run' }))
-    expect(deleteMutate).toHaveBeenCalledWith('s1')
+    expect(deleteMutate.mock.calls[0][0]).toBe('s1')
+  })
+
+  it('shows an inline error when a delete fails', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    useSessionHistory.mockReturnValue({
+      isLoading: false,
+      data: [{ kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.2, pace: '6:09' }],
+    })
+    deleteMutate.mockImplementation((_id, { onError }) => onError())
+    render(<HistoryPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Run' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not delete. Please try again.')
+  })
+
+  it('rounds a long-decimal distance to at most 2 places', () => {
+    useSessionHistory.mockReturnValue({
+      isLoading: false,
+      data: [{ kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.234567, pace: '6:09' }],
+    })
+    render(<HistoryPage />)
+    expect(screen.getByText(/5\.23 km/)).toBeInTheDocument()
   })
 })

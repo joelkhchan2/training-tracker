@@ -72,4 +72,20 @@ describe('CardioLogPage', () => {
     expect(mutate).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
+
+  it('blocks save and shows an error when duration is set to 0', () => {
+    render(<CardioLogPage />)
+    fireEvent.change(screen.getByLabelText('Duration (min)'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('sends distanceKm: null when the distance is left at its default of 0', () => {
+    render(<CardioLogPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(mutate).toHaveBeenCalledTimes(1)
+    const [payload] = mutate.mock.calls[0]
+    expect(payload).toMatchObject({ distanceKm: null })
+  })
 })

@@ -73,6 +73,7 @@ export function useSessionHistory(userId: string | undefined) {
       const { data, error } = await supabase
         .from('sessions')
         .select('id, discipline, date, session_type, duration_minutes, start_time')
+        .eq('user_id', userId as string)
         .in('discipline', ['strength', 'cardio'])
         .order('date', { ascending: false })
         .order('start_time', { ascending: false })

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -7,7 +8,7 @@ import type { CardioHistoryRow, StrengthHistoryRow } from '../../data/sessionHis
 
 function CardioRow({ row, onDelete }: { row: CardioHistoryRow; onDelete: () => void }) {
   const detail = [
-    row.distanceKm != null ? `${row.distanceKm} km` : null,
+    row.distanceKm != null ? `${Number(row.distanceKm.toFixed(2))} km` : null,
     row.durationMinutes != null ? `${row.durationMinutes} min` : null,
     row.pace ? `${row.pace} /km` : null,
   ].filter(Boolean).join(' · ')
@@ -39,13 +40,19 @@ export function HistoryPage() {
   const { user } = useAuth()
   const { data: rows, isLoading } = useSessionHistory(user?.id)
   const deleteSession = useDeleteSession()
+  const [error, setError] = useState<string | null>(null)
 
   function handleDelete(id: string, activity: string) {
-    if (window.confirm(`Delete this ${activity} entry?`)) deleteSession.mutate(id)
+    if (!window.confirm(`Delete this ${activity} entry?`)) return
+    setError(null)
+    deleteSession.mutate(id, {
+      onError: () => setError('Could not delete. Please try again.'),
+    })
   }
 
   return (
     <AppShell title="History">
+      {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
       {isLoading ? (
         <p className="text-muted">Loading…</p>
       ) : !rows || rows.length === 0 ? (
