@@ -7,12 +7,14 @@ export interface SetRowProps {
   exIdx: number
   setIdx: number
   set: SessionSet
+  /** Hides the Weight field, e.g. for a bodyweight exercise where a weight entry is meaningless. */
+  hideWeight?: boolean
 }
 
 /** One editable set within an exercise: weight + reps entry, a done toggle,
  *  and a remove action. Sized for mid-workout, sweaty-hands tapping — every
  *  interactive control here is at least 48px. */
-export function SetRow({ exIdx, setIdx, set }: SetRowProps) {
+export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
   const updateSet = useSessionStore((s) => s.updateSet)
   const toggleDone = useSessionStore((s) => s.toggleDone)
   const removeSet = useSessionStore((s) => s.removeSet)
@@ -40,13 +42,15 @@ export function SetRow({ exIdx, setIdx, set }: SetRowProps) {
           ) : null}
         </div>
 
-        <NumberField
-          label="Weight"
-          value={set.weight ?? 0}
-          onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
-          step={5}
-          className="flex-1"
-        />
+        {hideWeight ? null : (
+          <NumberField
+            label="Weight"
+            value={set.weight ?? 0}
+            onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
+            step={5}
+            className="flex-1"
+          />
+        )}
         <NumberField
           label="Reps"
           value={set.reps ?? 0}

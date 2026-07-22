@@ -7,6 +7,8 @@ import type { SessionExercise } from './sessionStore'
 export interface ExerciseCardProps {
   exIdx: number
   exercise: SessionExercise
+  onReplace: () => void
+  onRemove: () => void
 }
 
 /** Running volume (Σ weight × reps) across this exercise's completed sets —
@@ -21,20 +23,37 @@ function doneVolume(exercise: SessionExercise): number {
 
 /** One exercise within the active session: header, a running volume hint,
  *  its editable SetRows, and a control to add another set. */
-export function ExerciseCard({ exIdx, exercise }: ExerciseCardProps) {
+export function ExerciseCard({ exIdx, exercise, onReplace, onRemove }: ExerciseCardProps) {
   const addSet = useSessionStore((s) => s.addSet)
   const volume = doneVolume(exercise)
 
   return (
     <Card data-testid={`exercise-card-${exIdx}`} className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold text-text">{exercise.exerciseName}</h2>
-        <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+        <button
+          type="button"
+          onClick={onReplace}
+          aria-label={`Replace ${exercise.exerciseName}`}
+          className="text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
+        >
+          {exercise.exerciseName}
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Remove ${exercise.exerciseName}`}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-danger hover:bg-surface-hover"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2">
         {exercise.sets.map((set, setIdx) => (
-          <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} />
+          <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} hideWeight={exercise.kind === 'bodyweight'} />
         ))}
       </div>
 

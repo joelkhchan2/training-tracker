@@ -11,6 +11,7 @@ import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
+import { ExercisePickerSheet } from './ExercisePickerSheet'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
@@ -123,10 +124,14 @@ export function WorkoutPage() {
   const dayName = useSessionStore((s) => s.dayName)
   const exercises = useSessionStore((s) => s.exercises)
   const reset = useSessionStore((s) => s.reset)
+  const addExercise = useSessionStore((s) => s.addExercise)
+  const removeExercise = useSessionStore((s) => s.removeExercise)
+  const replaceExercise = useSessionStore((s) => s.replaceExercise)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isResolving, setIsResolving] = useState(false)
+  const [sheet, setSheet] = useState<{ mode: 'add' } | { mode: 'replace'; exIdx: number } | null>(null)
 
   if (status !== 'active') {
     return <Navigate to="/" replace />
@@ -234,8 +239,17 @@ export function WorkoutPage() {
       <AppShell title={dayName ?? 'Workout'}>
         <div className="space-y-4 pb-24">
           {exercises.map((exercise, exIdx) => (
-            <ExerciseCard key={exIdx} exIdx={exIdx} exercise={exercise} />
+            <ExerciseCard
+              key={exercise.id}
+              exIdx={exIdx}
+              exercise={exercise}
+              onRemove={() => removeExercise(exIdx)}
+              onReplace={() => setSheet({ mode: 'replace', exIdx })}
+            />
           ))}
+          <Button variant="secondary" fullWidth onClick={() => setSheet({ mode: 'add' })}>
+            + Add exercise
+          </Button>
         </div>
 
         <div
@@ -254,6 +268,17 @@ export function WorkoutPage() {
       </AppShell>
 
       {summary ? <SummarySheet {...summary} onClose={handleSummaryClose} /> : null}
+
+      {sheet ? (
+        <ExercisePickerSheet
+          onPick={(pick) => {
+            if (sheet.mode === 'add') addExercise(pick)
+            else replaceExercise(sheet.exIdx, pick)
+            setSheet(null)
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
     </>
   )
 }
