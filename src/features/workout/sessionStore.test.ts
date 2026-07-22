@@ -268,3 +268,80 @@ describe('persistence config', () => {
     expect(options.name).toBe('tt-active-session')
   })
 })
+
+const exMgmtMeta = { sessionType: 'Gym A', dayName: 'Gym A', dayIndex: 0, clientId: 'c1', startedAt: '2026-07-22T00:00:00Z' }
+
+describe('sessionStore — exercise management', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('startFromPrescription assigns a unique id and default kind to each exercise', () => {
+    useSessionStore.getState().startFromPrescription(
+      [
+        { exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] },
+        { exerciseName: 'Bench Press', tmKey: 'benchPress', sets: [{ weight: 80, reps: 5 }] },
+      ] as never,
+      exMgmtMeta,
+    )
+    const ex = useSessionStore.getState().exercises
+    expect(ex[0].id).toBeTruthy()
+    expect(ex[1].id).toBeTruthy()
+    expect(ex[0].id).not.toBe(ex[1].id)
+    expect(ex[0].kind).toBe('strength')
+    expect(ex[0].adhoc).toBeFalsy()
+  })
+
+  it('addExercise appends an adhoc exercise with 3 empty sets, its kind, an id, and no tmKey', () => {
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Face Pulls', kind: 'strength' })
+    const ex = useSessionStore.getState().exercises
+    expect(ex).toHaveLength(2)
+    const added = ex[1]
+    expect(added).toMatchObject({ exerciseName: 'Face Pulls', kind: 'strength', adhoc: true, exerciseId: null, tmKey: undefined })
+    expect(added.id).toBeTruthy()
+    expect(added.sets).toHaveLength(3)
+    expect(added.sets.every((s) => s.weight === null && s.reps === null && s.done === false)).toBe(true)
+  })
+
+  it('removeExercise drops the exercise at the index', () => {
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Curl', kind: 'strength' })
+    useSessionStore.getState().removeExercise(0)
+    const ex = useSessionStore.getState().exercises
+    expect(ex).toHaveLength(1)
+    expect(ex[0].exerciseName).toBe('Curl')
+  })
+
+  it('replaceExercise keeps the id and set count, clears values + prescription metadata, sets adhoc + new name/kind', () => {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5, isAmrap: true, targetReps: 5 }, { weight: 100, reps: 5 }] }] as never,
+      exMgmtMeta,
+    )
+    const originalId = useSessionStore.getState().exercises[0].id
+    useSessionStore.getState().replaceExercise(0, { exerciseName: 'Leg Press', kind: 'strength' })
+    const ex = useSessionStore.getState().exercises[0]
+    expect(ex.id).toBe(originalId)
+    expect(ex.exerciseName).toBe('Leg Press')
+    expect(ex.kind).toBe('strength')
+    expect(ex.adhoc).toBe(true)
+    expect(ex.exerciseId).toBeNull()
+    expect(ex.tmKey).toBeUndefined()
+    expect(ex.sets).toHaveLength(2)
+    expect(ex.sets.every((s) => s.weight === null && s.reps === null && !s.done && s.prescriptionIndex === undefined && s.isAmrap === undefined && s.targetReps === undefined)).toBe(true)
+  })
+
+  it('reorderExercises moves an item (down, up, no-op, out-of-range)', () => {
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'A', sets: [] }] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'B', kind: 'strength' })
+    useSessionStore.getState().addExercise({ exerciseName: 'C', kind: 'strength' })
+    const names = () => useSessionStore.getState().exercises.map((e) => e.exerciseName)
+
+    useSessionStore.getState().reorderExercises(0, 2)
+    expect(names()).toEqual(['B', 'C', 'A'])
+    useSessionStore.getState().reorderExercises(2, 0)
+    expect(names()).toEqual(['A', 'B', 'C'])
+    useSessionStore.getState().reorderExercises(1, 1)
+    expect(names()).toEqual(['A', 'B', 'C'])
+    useSessionStore.getState().reorderExercises(0, 9)
+    expect(names()).toEqual(['A', 'B', 'C']) // out-of-range is a no-op
+  })
+})

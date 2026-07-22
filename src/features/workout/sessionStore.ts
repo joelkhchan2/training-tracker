@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PrescribedExercise } from '../../domain/types'
+import type { DraftExerciseKind } from '../../domain/programDraft'
 
 export interface SessionSet {
   weight: number | null
@@ -26,9 +27,20 @@ export interface SessionSet {
 }
 
 export interface SessionExercise {
+  /** Stable client-generated id, assigned at creation and preserved across edits/reorder.
+   *  The React list key and @dnd-kit sortable id — never the array index (positions shift)
+   *  and never exerciseName (duplicates are allowed) or exerciseId (null in-session). */
+  id: string
   exerciseId: string | null
   exerciseName: string
+  /** 'strength' | 'bodyweight'. Prescribed exercises default to 'strength'; added/swapped
+   *  exercises carry the picked kind. Drives the mint exercise_type and hiding the weight
+   *  field for bodyweight. */
+  kind: DraftExerciseKind
   tmKey?: string
+  /** True for an added or replaced/swapped exercise (no longer the programmed lift). Drives
+   *  save-path mint resolution and exclusion from progression. */
+  adhoc?: boolean
   sets: SessionSet[]
 }
 
@@ -52,12 +64,24 @@ export interface StartSessionMeta {
   startedAt: string
 }
 
+/** Structurally the `PickedExercise` type from ExercisePicker; kept local so the store
+ *  doesn't import a component module. */
+export type ExercisePick = { exerciseName: string; kind: DraftExerciseKind }
+
+function emptySet(): SessionSet {
+  return { weight: null, reps: null, done: false }
+}
+
 export interface SessionActions {
   startFromPrescription: (prescription: PrescribedExercise[], meta: StartSessionMeta) => void
   updateSet: (exIdx: number, setIdx: number, patch: Partial<SessionSet>) => void
   toggleDone: (exIdx: number, setIdx: number) => void
   addSet: (exIdx: number) => void
   removeSet: (exIdx: number, setIdx: number) => void
+  addExercise: (pick: ExercisePick) => void
+  removeExercise: (exIdx: number) => void
+  replaceExercise: (exIdx: number, pick: ExercisePick) => void
+  reorderExercises: (fromIdx: number, toIdx: number) => void
   reset: () => void
 }
 
@@ -78,8 +102,10 @@ export const useSessionStore = create<SessionState & SessionActions>()(
 
       startFromPrescription: (prescription, meta) => {
         const exercises: SessionExercise[] = prescription.map((ex) => ({
+          id: crypto.randomUUID(),
           exerciseId: null,
           exerciseName: ex.exerciseName,
+          kind: 'strength',
           tmKey: ex.tmKey,
           sets: ex.sets.map((s, i) => ({
             weight: s.weight ?? null,
@@ -169,6 +195,57 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             return { ...ex, sets: ex.sets.filter((_, j) => j !== setIdx) }
           }),
         }))
+      },
+
+      addExercise: (pick) => {
+        set((state) => ({
+          exercises: [
+            ...state.exercises,
+            {
+              id: crypto.randomUUID(),
+              exerciseId: null,
+              exerciseName: pick.exerciseName,
+              kind: pick.kind,
+              tmKey: undefined,
+              adhoc: true,
+              sets: [emptySet(), emptySet(), emptySet()],
+            },
+          ],
+        }))
+      },
+
+      removeExercise: (exIdx) => {
+        set((state) => ({ exercises: state.exercises.filter((_, i) => i !== exIdx) }))
+      },
+
+      replaceExercise: (exIdx, pick) => {
+        set((state) => ({
+          exercises: state.exercises.map((ex, i) => {
+            if (i !== exIdx) return ex
+            return {
+              id: ex.id,
+              exerciseId: null,
+              exerciseName: pick.exerciseName,
+              kind: pick.kind,
+              tmKey: undefined,
+              adhoc: true,
+              // Keep the set count, drop every value + prescription field by
+              // building fresh empty sets.
+              sets: ex.sets.map(() => emptySet()),
+            }
+          }),
+        }))
+      },
+
+      reorderExercises: (fromIdx, toIdx) => {
+        set((state) => {
+          const n = state.exercises.length
+          if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= n || toIdx >= n) return {}
+          const next = [...state.exercises]
+          const [moved] = next.splice(fromIdx, 1)
+          next.splice(toIdx, 0, moved)
+          return { exercises: next }
+        })
       },
 
       reset: () => set({ ...initialState }),
