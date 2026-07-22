@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { WorkoutPage } from './WorkoutPage'
 import { useSessionStore } from './sessionStore'
+import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import type { PrescribedExercise } from '../../domain/types'
 import type { LinearProgressionConfig } from '../../domain/types'
 import type { ActiveWorkoutBundle } from '../../data/queries'
@@ -34,6 +35,9 @@ vi.mock('../../lib/useAuth', () => ({
 
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/mutations', () => ({ useSaveWorkout }))
+vi.mock('../../data/resolveDraftExercises', () => ({
+  resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
+}))
 
 const prescription: PrescribedExercise[] = [
   {
@@ -76,6 +80,16 @@ const bundle: ActiveWorkoutBundle = {
       exercise_name: null,
       exercise_type: null,
     },
+    {
+      id: 'pe-2',
+      program_day_id: 'day-1',
+      exercise_id: 'ex-pushup',
+      role_key: null,
+      order_index: 1,
+      scheme: { type: 'fixed', sets: [{ reps: 10 }] },
+      exercise_name: null,
+      exercise_type: null,
+    },
   ],
   exercisesById: {
     'ex-squat': {
@@ -86,6 +100,19 @@ const bundle: ActiveWorkoutBundle = {
       equipment: null,
       movement_pattern: null,
       exercise_type: 'weighted',
+      popularity: null,
+      is_active: true,
+      created_at: '',
+      canonical_id: null,
+    },
+    'ex-pushup': {
+      id: 'ex-pushup',
+      user_id: null,
+      name: 'Push-up',
+      primary_muscles: null,
+      equipment: null,
+      movement_pattern: null,
+      exercise_type: 'bodyweight',
       popularity: null,
       is_active: true,
       created_at: '',
@@ -131,6 +158,8 @@ beforeEach(() => {
   useActiveWorkout.mockReturnValue({ data: bundle, isLoading: false })
   useSaveWorkout.mockReset()
   useSaveWorkout.mockReturnValue({ mutate: mockMutate, isPending: false })
+  vi.mocked(resolveExercisesByName).mockClear()
+  vi.mocked(resolveExercisesByName).mockImplementation(async () => ({ 'Face Pulls': 'ex-facepulls' }))
 })
 
 describe('WorkoutPage', () => {
@@ -231,14 +260,18 @@ describe('WorkoutPage', () => {
     expect(payload.session.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 
     // The three squat sets carry their logged weight; the two weightless-but-repped
-    // push-up sets are still included (bodyweight accessories), persisted with weight 0.
+    // push-up sets are still included (bodyweight accessories), persisted with weight 0 and
+    // resolved to the real push-up exercise_id from the bundle (never null — see the
+    // no-null-exercise_id guard in handleFinish).
     expect(payload.sets).toEqual([
       { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
       { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, rpe: null, is_warmup: false, order_index: 1, prescription_index: 1 },
       { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, rpe: null, is_warmup: false, order_index: 2, prescription_index: 2 },
-      { exercise_id: null, set_number: 1, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 3, prescription_index: 0 },
-      { exercise_id: null, set_number: 2, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 4, prescription_index: 1 },
+      { exercise_id: 'ex-pushup', set_number: 1, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 3, prescription_index: 0 },
+      { exercise_id: 'ex-pushup', set_number: 2, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 4, prescription_index: 1 },
     ])
+    // progressionSets excludes nothing here (neither exercise is adhoc) — it should equal sets.
+    expect(payload.progressionSets).toEqual(payload.sets)
   })
 
   it('shows the SummarySheet with tonnage and a detected PR on save success', () => {
@@ -285,6 +318,67 @@ describe('WorkoutPage', () => {
     expect(useSessionStore.getState().clientId).toBe('client-123')
     expect(useSessionStore.getState().exercises[0].sets).toHaveLength(3)
     expect(screen.queryByRole('dialog', { name: 'Workout summary' })).not.toBeInTheDocument()
+  })
+})
+
+/** Seeds an adhoc "Face Pulls" exercise (as `addExercise` would from the exercise picker) with
+ *  one logged set, appended after the given prescription's exercises. */
+function addAdhocFacePulls() {
+  useSessionStore.getState().addExercise({ exerciseName: 'Face Pulls', kind: 'bodyweight' })
+  const adhocIdx = useSessionStore.getState().exercises.length - 1
+  useSessionStore.getState().updateSet(adhocIdx, 0, { reps: 12, weight: 20 })
+}
+
+describe('WorkoutPage — save-path resolution of added exercises', () => {
+  it('resolves an added exercise to a minted id and excludes it from progressionSets', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    addAdhocFacePulls()
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: /Finish workout/i }))
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled())
+
+    expect(resolveExercisesByName).toHaveBeenCalledWith([{ name: 'Face Pulls', kind: 'bodyweight' }], 'user-1')
+
+    const [payload] = mockMutate.mock.calls[0]
+    const faceIds = payload.sets.filter((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')
+    expect(faceIds.length).toBeGreaterThan(0) // adhoc saved with the minted id (not null)
+    expect(payload.progressionSets.some((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')).toBe(false) // excluded from progression matching
+    expect(payload.sets.every((s: { exercise_id: string | null }) => s.exercise_id != null)).toBe(true) // no null ids
+  })
+
+  it('drops sets whose exercise cannot be resolved rather than saving a null id', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    addAdhocFacePulls()
+    vi.mocked(resolveExercisesByName).mockResolvedValueOnce({})
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: /Finish workout/i }))
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled())
+
+    const [payload] = mockMutate.mock.calls[0]
+    expect(payload.sets.every((s: { exercise_id: string | null }) => s.exercise_id != null)).toBe(true)
+    // The unresolved Face Pulls set is dropped entirely, not saved with a null/placeholder id.
+    expect(payload.sets.some((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')).toBe(false)
+    expect(payload.sets).toHaveLength(5) // 3 squat + 2 push-up; the face-pulls set is gone
+  })
+
+  it('disables Finish while resolving and does not double-submit on a second click', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    addAdhocFacePulls()
+    let release!: (v: Record<string, string>) => void
+    vi.mocked(resolveExercisesByName).mockReturnValueOnce(new Promise((r) => { release = r }))
+    renderAtWorkout()
+
+    const btn = screen.getByRole('button', { name: /Finish workout/i })
+    fireEvent.click(btn)
+
+    expect(btn).toBeDisabled() // isResolving guard
+    fireEvent.click(btn) // second tap while resolving
+    expect(resolveExercisesByName).toHaveBeenCalledTimes(1) // no double resolve/mint
+
+    release({ 'Face Pulls': 'ex-facepulls' })
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1))
   })
 })
 

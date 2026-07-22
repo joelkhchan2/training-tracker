@@ -162,6 +162,10 @@ export interface SaveWorkoutInput {
   clientId: string
   session: WorkoutSessionInput
   sets: WorkoutSetInput[]
+  /** Sets to consider for linear-progression matching — defaults to `sets`. WorkoutPage passes
+   *  a prescribed-only subset (excludes adhoc/added exercises) so an added exercise whose
+   *  exercise_id coincidentally matches a programmed linear lift can't trigger a spurious deload. */
+  progressionSets?: WorkoutSetInput[]
   program: Program
   cursor: Cursor
   /** Needed to build `p_progress` rows; omit (along with `progressionExercises` /
@@ -186,13 +190,13 @@ export function useSaveWorkout() {
   const queryClient = useQueryClient()
 
   return useMutation<SaveWorkoutResult, Error, SaveWorkoutInput>({
-    mutationFn: async ({ clientId, session, sets, program, cursor, programId, progressionExercises, workingWeights }) => {
+    mutationFn: async ({ clientId, session, sets, progressionSets, program, cursor, programId, progressionExercises, workingWeights }) => {
       const supabase = getSupabase()
 
       const { nextCursor, cycleComplete, lastAdvanceKey } = buildSavePlan(program, cursor)
 
       const { updates, outcomes } = programId && progressionExercises && workingWeights
-        ? buildProgressionUpdates(programId, progressionExercises, sets, workingWeights)
+        ? buildProgressionUpdates(programId, progressionExercises, progressionSets ?? sets, workingWeights)
         : { updates: [] as ProgressUpdate[], outcomes: [] as ProgressionOutcomeSummary[] }
 
       const rpcParams: Record<string, unknown> = {

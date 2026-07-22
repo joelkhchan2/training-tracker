@@ -332,4 +332,87 @@ describe('useSaveWorkout progression wiring', () => {
     const [, params] = rpc.mock.calls[0]
     expect(params).not.toHaveProperty('p_progress')
   })
+
+  it('uses progressionSets (not sets) for buildProgressionUpdates so an adhoc set with a coincidental linear exercise_id cannot deload', async () => {
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    const session = { discipline: 'strength' as const, status: 'active' as const }
+    // The real prescribed Squat sets: all working sets met, AMRAP hits its target of 5 — a
+    // clean 'increase'.
+    const prescribedSets = [
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, weight: 100, reps: 5 },
+    ]
+    // An adhoc/added exercise set that happens to resolve to the SAME catalog exercise_id as
+    // the programmed linear Squat, carrying a colliding prescription_index (2 — the AMRAP
+    // slot) with 0 reps. If this were included in progression matching, `buildProgressionUpdates`'s
+    // `new Map(...)` construction would let it win the AMRAP slot over the real, met AMRAP set
+    // (later entries overwrite earlier ones for the same key), reading amrapReps as 0 instead
+    // of 5.
+    const adhocCollidingSet = { exercise_id: 'ex-squat', set_number: 4, prescription_index: 2, weight: 0, reps: 0 }
+    const sets = [...prescribedSets, adhocCollidingSet]
+    // Start two fails in (one below failsBeforeDeload: 3) so a spurious miss would tip into
+    // an actual 'deload', not just a 'hold' — making the wrong-vs-right outcomes unmistakably
+    // different.
+    const workingWeightsNearDeload: WorkingWeights = { squat: { weight: 100, fails: 2 } }
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-adhoc-collision',
+        session,
+        sets,
+        progressionSets: prescribedSets,
+        program: TWO_DAY_PROGRAM,
+        cursor: { dayIndex: 0, week: 1, cycle: 1 },
+        programId: 'prog-1',
+        progressionExercises: [squatExercise],
+        workingWeights: workingWeightsNearDeload,
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    // p_sets still saves everything the user logged, including the adhoc set.
+    expect(params.p_sets).toEqual(sets)
+    // p_progress reflects the real AMRAP (met) — an increase, not the deload that would
+    // result from the adhoc set's 0 reps winning the AMRAP slot.
+    expect(params.p_progress).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 105, consecutive_fails: 0 },
+    ])
+    expect(result.current.data?.progressionOutcomes).toEqual([
+      { exerciseName: 'Squat', action: 'increase', nextWeight: 105 },
+    ])
+  })
+
+  it('falls back to sets for progression matching when progressionSets is omitted', async () => {
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    const sets = [
+      { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 2, prescription_index: 1, weight: 100, reps: 5 },
+      { exercise_id: 'ex-squat', set_number: 3, prescription_index: 2, weight: 100, reps: 5 },
+    ]
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-fallback',
+        session: { discipline: 'strength' as const, status: 'active' as const },
+        sets, // progressionSets intentionally omitted
+        program: TWO_DAY_PROGRAM,
+        cursor: { dayIndex: 0, week: 1, cycle: 1 },
+        programId: 'prog-1',
+        progressionExercises: [squatExercise],
+        workingWeights: squatWorkingWeights,
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    expect(params.p_progress).toEqual([
+      { program_id: 'prog-1', exercise_id: 'ex-squat', current_weight: 105, consecutive_fails: 0 },
+    ])
+  })
 })

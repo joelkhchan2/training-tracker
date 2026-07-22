@@ -7,6 +7,7 @@ import { useActiveWorkout } from '../../data/queries'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import { useSaveWorkout } from '../../data/mutations'
 import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
+import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
@@ -125,79 +126,101 @@ export function WorkoutPage() {
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isResolving, setIsResolving] = useState(false)
 
   if (status !== 'active') {
     return <Navigate to="/" replace />
   }
 
-  function handleFinish() {
-    if (!bundle || !clientId) {
+  async function handleFinish() {
+    if (!bundle || !clientId || !user) {
       setErrorMsg('Still loading your program — please wait a moment and try again.')
       return
     }
     setErrorMsg(null)
+    setIsResolving(true)
+    try {
+      const exerciseIdByName = buildExerciseIdMap(bundle)
+      const adhocItems = exercises
+        .filter((ex) => ex.adhoc)
+        .map((ex) => ({ name: ex.exerciseName, kind: ex.kind }))
+      const adhocIdByName = adhocItems.length > 0 ? await resolveExercisesByName(adhocItems, user.id) : {}
 
-    const exerciseIdByName = buildExerciseIdMap(bundle)
+      const loggedSets: LoggedSet[] = []
+      const sets: WorkoutSetInput[] = []
+      const progressionSets: WorkoutSetInput[] = []
+      let orderIndex = 0
 
-    const loggedSets: LoggedSet[] = []
-    const sets: WorkoutSetInput[] = []
-    let orderIndex = 0
-
-    for (const exercise of exercises) {
-      exercise.sets.forEach((set, setIdx) => {
-        if (set.reps == null) return
-        const weight = set.weight ?? 0
-        loggedSets.push({ exerciseName: exercise.exerciseName, weight, reps: set.reps })
-        sets.push({
-          exercise_id: exercise.exerciseId ?? exerciseIdByName[exercise.exerciseName] ?? null,
-          set_number: setIdx + 1,
-          weight,
-          reps: set.reps,
-          rpe: null,
-          is_warmup: false,
-          order_index: orderIndex++,
-          prescription_index: set.prescriptionIndex ?? null,
+      for (const exercise of exercises) {
+        const resolvedId = exercise.adhoc
+          ? (adhocIdByName[exercise.exerciseName] ?? null)
+          : (exercise.exerciseId ?? exerciseIdByName[exercise.exerciseName] ?? null)
+        // Spec safety net + Global Constraint "no null exercise_id saves": if an exercise
+        // still can't be resolved (shouldn't happen post-resolution), skip all its sets
+        // rather than writing rows with a null exercise_id.
+        if (resolvedId == null) continue
+        exercise.sets.forEach((set, setIdx) => {
+          if (set.reps == null) return
+          const weight = exercise.kind === 'bodyweight' ? null : (set.weight ?? 0)
+          loggedSets.push({ exerciseName: exercise.exerciseName, weight: weight ?? 0, reps: set.reps })
+          const row: WorkoutSetInput = {
+            exercise_id: resolvedId,
+            set_number: setIdx + 1,
+            weight,
+            reps: set.reps,
+            rpe: null,
+            is_warmup: false,
+            order_index: orderIndex++,
+            prescription_index: set.prescriptionIndex ?? null,
+          }
+          sets.push(row)
+          if (!exercise.adhoc) progressionSets.push(row)
         })
-      })
-    }
+      }
 
-    const tonnage = sessionTonnage(loggedSets)
-    const exerciseCount = new Set(loggedSets.map((s) => s.exerciseName)).size
-    const prs = detectStrengthPRs(loggedSets, mapExistingPRs(bundle))
+      const tonnage = sessionTonnage(loggedSets)
+      const exerciseCount = new Set(loggedSets.map((s) => s.exerciseName)).size
+      const prs = detectStrengthPRs(loggedSets, mapExistingPRs(bundle))
 
-    const session: WorkoutSessionInput = {
-      discipline: 'strength',
-      session_type: dayName ?? sessionType ?? undefined,
-      date: localDateString(new Date()),
-      program_variant: bundle.program.name,
-      program_week: bundle.cursor.week,
-      status: 'completed',
-    }
+      const session: WorkoutSessionInput = {
+        discipline: 'strength',
+        session_type: dayName ?? sessionType ?? undefined,
+        date: localDateString(new Date()),
+        program_variant: bundle.program.name,
+        program_week: bundle.cursor.week,
+        status: 'completed',
+      }
 
-    const programId = bundle.days[0]?.program_id
-    const progressionExercises = buildProgressionExercises(bundle, exerciseIdByName)
+      const programId = bundle.days[0]?.program_id
+      const progressionExercises = buildProgressionExercises(bundle, exerciseIdByName)
 
-    saveWorkout.mutate(
-      {
-        clientId,
-        session,
-        sets,
-        program: bundle.program,
-        cursor: bundle.cursor,
-        programId,
-        progressionExercises,
-        workingWeights: bundle.workingWeights,
-      },
-      {
-        onSuccess: (result) => {
-          const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
-          setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes })
+      saveWorkout.mutate(
+        {
+          clientId,
+          session,
+          sets,
+          progressionSets,
+          program: bundle.program,
+          cursor: bundle.cursor,
+          programId,
+          progressionExercises,
+          workingWeights: bundle.workingWeights,
         },
-        onError: (err) => {
-          setErrorMsg(err.message || 'Could not save your workout. Please try again.')
+        {
+          onSuccess: (result) => {
+            const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
+            setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes })
+          },
+          onError: (err) => {
+            setErrorMsg(err.message || 'Could not save your workout. Please try again.')
+          },
         },
-      },
-    )
+      )
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Could not save your workout. Please try again.')
+    } finally {
+      setIsResolving(false)
+    }
   }
 
   function handleSummaryClose() {
@@ -224,8 +247,8 @@ export function WorkoutPage() {
               {errorMsg}
             </p>
           ) : null}
-          <Button fullWidth onClick={handleFinish} disabled={saveWorkout.isPending}>
-            {saveWorkout.isPending ? 'Saving…' : 'Finish workout'}
+          <Button fullWidth onClick={handleFinish} disabled={isResolving || saveWorkout.isPending}>
+            {isResolving || saveWorkout.isPending ? 'Saving…' : 'Finish workout'}
           </Button>
         </div>
       </AppShell>
