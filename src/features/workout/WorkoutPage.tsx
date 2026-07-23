@@ -16,6 +16,7 @@ import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
 import { SessionMetaCard } from './SessionMetaCard'
+import { SessionTimer } from './SessionTimer'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
@@ -268,7 +269,7 @@ export function WorkoutPage() {
 
   return (
     <>
-      <AppShell title={dayName ?? 'Workout'}>
+      <AppShell title={dayName ?? 'Workout'} right={startedAt ? <SessionTimer startedAt={startedAt} /> : undefined}>
         <div className="space-y-4 pb-24">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
