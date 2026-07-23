@@ -35,6 +35,12 @@ vi.mock('../../lib/useAuth', () => ({
 
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/mutations', () => ({ useSaveWorkout }))
+vi.mock('../../data/exerciseHistory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/exerciseHistory')>()
+  // Real buildTodayExerciseIdMap (pure, used by WorkoutPage itself); useExerciseHistory
+  // stubbed with no data so ExerciseCard's hint/sheet don't need a QueryClientProvider here.
+  return { ...actual, useExerciseHistory: () => ({ data: undefined, isLoading: false }) }
+})
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))

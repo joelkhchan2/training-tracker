@@ -11,6 +11,7 @@ import type { ActiveWorkoutBundle } from '../../data/queries'
 import { useSaveWorkout } from '../../data/mutations'
 import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
+import { buildTodayExerciseIdMap } from '../../data/exerciseHistory'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
@@ -152,6 +153,8 @@ export function WorkoutPage() {
   )
 
   useEffect(() => () => useRestTimer.getState().skip(), []) // stop the rest timer on unmount
+
+  const todayIdByName = bundle ? buildTodayExerciseIdMap(bundle) : {}
 
   if (status !== 'active') {
     return <Navigate to="/" replace />
@@ -307,6 +310,7 @@ export function WorkoutPage() {
                   key={exercise.id}
                   exIdx={exIdx}
                   exercise={exercise}
+                  exerciseId={exercise.exerciseId ?? todayIdByName[exercise.exerciseName] ?? null}
                   onRemove={() => removeExercise(exIdx)}
                   onReplace={() => setSheet({ mode: 'replace', exIdx })}
                 />
