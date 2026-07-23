@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
@@ -15,10 +15,12 @@ import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
+import { RestTimerPill } from './RestTimerPill'
 import { SessionMetaCard } from './SessionMetaCard'
 import { SessionTimer } from './SessionTimer'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
+import { useRestTimer } from './restTimer'
 import { useSessionStore } from './sessionStore'
 import { reorderFromDragEnd } from './dragReorder'
 
@@ -137,6 +139,7 @@ export function WorkoutPage() {
   const startedAt = useSessionStore((s) => s.startedAt)
   const notes = useSessionStore((s) => s.notes)
   const bodyWeight = useSessionStore((s) => s.bodyWeight)
+  const startRest = useRestTimer((s) => s.start)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -147,6 +150,8 @@ export function WorkoutPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+
+  useEffect(() => () => useRestTimer.getState().skip(), []) // stop the rest timer on unmount
 
   if (status !== 'active') {
     return <Navigate to="/" replace />
@@ -246,6 +251,7 @@ export function WorkoutPage() {
         },
         {
           onSuccess: (result) => {
+            useRestTimer.getState().skip() // stop any running rest timer on finish
             const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
             setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes })
           },
@@ -269,7 +275,22 @@ export function WorkoutPage() {
 
   return (
     <>
-      <AppShell title={dayName ?? 'Workout'} right={startedAt ? <SessionTimer startedAt={startedAt} /> : undefined}>
+      <AppShell
+        title={dayName ?? 'Workout'}
+        right={
+          <div className="flex items-center gap-2">
+            {startedAt ? <SessionTimer startedAt={startedAt} /> : null}
+            <button
+              type="button"
+              onClick={() => startRest()}
+              aria-label="Start rest timer"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text"
+            >
+              ⏱
+            </button>
+          </div>
+        }
+      >
         <div className="space-y-4 pb-24">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
@@ -306,6 +327,8 @@ export function WorkoutPage() {
       </AppShell>
 
       {summary ? <SummarySheet {...summary} onClose={handleSummaryClose} /> : null}
+
+      <RestTimerPill />
 
       {sheet ? (
         <ExercisePickerSheet
