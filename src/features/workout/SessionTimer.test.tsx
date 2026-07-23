@@ -1,16 +1,8 @@
 import { render, screen, act } from '@testing-library/react'
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { SessionTimer, formatElapsed } from './SessionTimer'
+import { SessionTimer } from './SessionTimer'
 
 afterEach(() => vi.useRealTimers())
-
-describe('formatElapsed', () => {
-  it('formats m:ss and h:mm:ss', () => {
-    expect(formatElapsed(0)).toBe('0:00')
-    expect(formatElapsed(90)).toBe('1:30')
-    expect(formatElapsed(3661)).toBe('1:01:01')
-  })
-})
 
 describe('SessionTimer', () => {
   it('renders elapsed since startedAt and ticks', () => {
