@@ -24,6 +24,10 @@ export interface SessionSet {
    *  reps. Undefined for sets the user adds mid-session via `addSet`. */
   prescribedWeight?: number
   prescribedReps?: number
+  /** Optional per-set RPE (6–10, 0.5 steps), null/undefined when not logged. */
+  rpe?: number | null
+  /** Marks a warmup set: saved with is_warmup=true but excluded from tonnage/PR/progression. */
+  isWarmup?: boolean
 }
 
 export interface SessionExercise {
@@ -54,6 +58,8 @@ export interface SessionState {
   dayIndex: number | null
   startedAt: string | null
   exercises: SessionExercise[]
+  notes: string
+  bodyWeight: number | null
 }
 
 export interface StartSessionMeta {
@@ -82,6 +88,8 @@ export interface SessionActions {
   removeExercise: (exIdx: number) => void
   replaceExercise: (exIdx: number, pick: ExercisePick) => void
   reorderExercises: (fromIdx: number, toIdx: number) => void
+  setNotes: (notes: string) => void
+  setBodyWeight: (bodyWeight: number | null) => void
   reset: () => void
 }
 
@@ -93,6 +101,8 @@ const initialState: SessionState = {
   dayIndex: null,
   startedAt: null,
   exercises: [],
+  notes: '',
+  bodyWeight: null,
 }
 
 export const useSessionStore = create<SessionState & SessionActions>()(
@@ -127,6 +137,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           dayIndex: meta.dayIndex,
           startedAt: meta.startedAt,
           exercises,
+          notes: '',
+          bodyWeight: null,
         })
       },
 
@@ -248,6 +260,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         })
       },
 
+      setNotes: (notes) => set({ notes }),
+      setBodyWeight: (bodyWeight) => set({ bodyWeight }),
+
       reset: () => set({ ...initialState }),
     }),
     {
@@ -260,6 +275,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         dayIndex: state.dayIndex,
         startedAt: state.startedAt,
         exercises: state.exercises,
+        notes: state.notes,
+        bodyWeight: state.bodyWeight,
       }),
     },
   ),

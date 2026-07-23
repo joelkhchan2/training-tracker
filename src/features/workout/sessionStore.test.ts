@@ -345,3 +345,41 @@ describe('sessionStore — exercise management', () => {
     expect(names()).toEqual(['A', 'B', 'C']) // out-of-range is a no-op
   })
 })
+
+const capMeta = { sessionType: 'Gym A', dayName: 'Gym A', dayIndex: 0, clientId: 'c1', startedAt: '2026-07-23T00:00:00Z' }
+
+describe('sessionStore — capture fields', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('updateSet patches rpe and isWarmup without carry-forward', () => {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }, { weight: 100, reps: 5 }] }] as never,
+      capMeta,
+    )
+    useSessionStore.getState().updateSet(0, 0, { rpe: 8 })
+    useSessionStore.getState().updateSet(0, 0, { isWarmup: true })
+    const ex = useSessionStore.getState().exercises[0]
+    expect(ex.sets[0].rpe).toBe(8)
+    expect(ex.sets[0].isWarmup).toBe(true)
+    expect(ex.sets[1].rpe).toBeUndefined()   // rpe/isWarmup do NOT carry forward (not weight/reps)
+    expect(ex.sets[1].isWarmup).toBeUndefined()
+  })
+
+  it('setNotes / setBodyWeight update session-level state', () => {
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', sets: [] }] as never, capMeta)
+    useSessionStore.getState().setNotes('felt strong')
+    useSessionStore.getState().setBodyWeight(181.5)
+    expect(useSessionStore.getState().notes).toBe('felt strong')
+    expect(useSessionStore.getState().bodyWeight).toBe(181.5)
+  })
+
+  it('startFromPrescription resets notes/bodyWeight; reset clears them', () => {
+    useSessionStore.getState().setNotes('old'); useSessionStore.getState().setBodyWeight(200)
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', sets: [] }] as never, capMeta)
+    expect(useSessionStore.getState().notes).toBe('')
+    expect(useSessionStore.getState().bodyWeight).toBeNull()
+    useSessionStore.getState().setBodyWeight(210)
+    useSessionStore.getState().reset()
+    expect(useSessionStore.getState().bodyWeight).toBeNull()
+  })
+})
