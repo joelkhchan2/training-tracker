@@ -38,7 +38,7 @@ describe('ExercisePicker', () => {
     expect(screen.getByRole('button', { name: 'Squat' })).toBeInTheDocument()
   })
 
-  it('calls onPick with the exercise name and kind "strength" for a non-bodyweight catalog row', () => {
+  it('calls onPick with the exercise name, kind "strength", and the result id as exerciseId for a non-bodyweight catalog row', () => {
     stubSearch('squ', [{ id: 'ex-squat', name: 'Squat', exercise_type: 'weighted' }])
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
@@ -46,10 +46,10 @@ describe('ExercisePicker', () => {
     search('squ')
     fireEvent.click(screen.getByRole('button', { name: 'Squat' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength', exerciseId: 'ex-squat' })
   })
 
-  it('calls onPick with kind "bodyweight" for a bodyweight catalog row', () => {
+  it('calls onPick with kind "bodyweight" and the result id as exerciseId for a bodyweight catalog row', () => {
     stubSearch('pul', [{ id: 'ex-pullup', name: 'Pull-up', exercise_type: 'bodyweight' }])
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
@@ -57,7 +57,7 @@ describe('ExercisePicker', () => {
     search('pul')
     fireEvent.click(screen.getByRole('button', { name: 'Pull-up' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Pull-up', kind: 'bodyweight' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Pull-up', kind: 'bodyweight', exerciseId: 'ex-pullup' })
   })
 
   it('add-custom affordance calls onPick with the typed name and selected kind, without touching the catalog', () => {

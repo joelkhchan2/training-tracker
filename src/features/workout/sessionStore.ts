@@ -72,7 +72,7 @@ export interface StartSessionMeta {
 
 /** Structurally the `PickedExercise` type from ExercisePicker; kept local so the store
  *  doesn't import a component module. */
-export type ExercisePick = { exerciseName: string; kind: DraftExerciseKind }
+export type ExercisePick = { exerciseName: string; kind: DraftExerciseKind; exerciseId?: string }
 
 function emptySet(): SessionSet {
   return { weight: null, reps: null, done: false }
@@ -215,7 +215,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             ...state.exercises,
             {
               id: crypto.randomUUID(),
-              exerciseId: null,
+              exerciseId: pick.exerciseId ?? null,
               exerciseName: pick.exerciseName,
               kind: pick.kind,
               tmKey: undefined,
@@ -236,7 +236,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             if (i !== exIdx) return ex
             return {
               id: ex.id,
-              exerciseId: null,
+              exerciseId: pick.exerciseId ?? null,
               exerciseName: pick.exerciseName,
               kind: pick.kind,
               tmKey: undefined,

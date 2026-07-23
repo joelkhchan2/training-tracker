@@ -383,3 +383,24 @@ describe('sessionStore — capture fields', () => {
     expect(useSessionStore.getState().bodyWeight).toBeNull()
   })
 })
+
+const idMeta = { sessionType: 'A', dayName: 'A', dayIndex: 0, clientId: 'c1', startedAt: '2026-07-23T00:00:00Z' }
+
+describe('sessionStore — picker exerciseId', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('addExercise stores the pick exerciseId when present; null when absent', () => {
+    useSessionStore.getState().startFromPrescription([] as never, idMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Curl', kind: 'strength', exerciseId: 'ex-curl' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Made Up', kind: 'strength' })
+    const ex = useSessionStore.getState().exercises
+    expect(ex[0].exerciseId).toBe('ex-curl')
+    expect(ex[1].exerciseId).toBeNull()
+  })
+
+  it('replaceExercise stores the pick exerciseId', () => {
+    useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', sets: [{ weight: 100, reps: 5 }] }] as never, idMeta)
+    useSessionStore.getState().replaceExercise(0, { exerciseName: 'Leg Press', kind: 'strength', exerciseId: 'ex-legpress' })
+    expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-legpress')
+  })
+})
