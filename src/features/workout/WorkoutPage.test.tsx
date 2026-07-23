@@ -498,3 +498,30 @@ describe('WorkoutPage — AMRAP display and linear-progression wiring', () => {
     expect(screen.getByText('Squat 100 → 105 (+5)')).toBeInTheDocument()
   })
 })
+
+describe('WorkoutPage — rpe/warmup threading and session timer/notes/bodyweight', () => {
+  it('threads rpe + is_warmup, excludes warmup from loggedSets/progressionSets, and sets session timer/notes/bodyweight', () => {
+    const startedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString()
+    useSessionStore.getState().startFromPrescription(linearPrescription, { ...linearMeta, startedAt })
+    useSessionStore.getState().updateSet(0, 0, { isWarmup: true, rpe: 8 })
+    useSessionStore.getState().setNotes('note')
+    useSessionStore.getState().setBodyWeight(180)
+    useActiveWorkout.mockReturnValue({ data: linearBundle, isLoading: false })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    expect(mockMutate).toHaveBeenCalledTimes(1)
+    const [payload] = mockMutate.mock.calls[0]
+
+    const warmupRow = payload.sets.find((s: { is_warmup: boolean }) => s.is_warmup === true)
+    expect(warmupRow).toBeTruthy() // warmup saved to p_sets
+    expect(payload.sets.some((s: { rpe: number | null }) => s.rpe === 8)).toBe(true) // rpe threaded
+    expect(payload.progressionSets.some((s: { is_warmup?: boolean }) => s.is_warmup)).toBe(false) // warmup out of progression
+    expect(payload.session.notes).toBe('note')
+    expect(payload.session.body_weight).toBe(180)
+    expect(payload.session.duration_minutes).toBeGreaterThanOrEqual(19) // ~20 from startedAt (parsed)
+    expect(payload.session.start_time).toBeTruthy()
+    expect(payload.session.end_time).toBeTruthy()
+  })
+})

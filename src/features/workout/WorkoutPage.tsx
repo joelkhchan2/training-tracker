@@ -132,6 +132,9 @@ export function WorkoutPage() {
   const removeExercise = useSessionStore((s) => s.removeExercise)
   const replaceExercise = useSessionStore((s) => s.replaceExercise)
   const reorderExercises = useSessionStore((s) => s.reorderExercises)
+  const startedAt = useSessionStore((s) => s.startedAt)
+  const notes = useSessionStore((s) => s.notes)
+  const bodyWeight = useSessionStore((s) => s.bodyWeight)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -182,18 +185,19 @@ export function WorkoutPage() {
         exercise.sets.forEach((set, setIdx) => {
           if (set.reps == null) return
           const weight = exercise.kind === 'bodyweight' ? null : (set.weight ?? 0)
-          loggedSets.push({ exerciseName: exercise.exerciseName, weight: weight ?? 0, reps: set.reps })
           const row: WorkoutSetInput = {
             exercise_id: resolvedId,
             set_number: setIdx + 1,
             weight,
             reps: set.reps,
-            rpe: null,
-            is_warmup: false,
+            rpe: set.rpe ?? null,
+            is_warmup: set.isWarmup ?? false,
             order_index: orderIndex++,
             prescription_index: set.prescriptionIndex ?? null,
           }
           sets.push(row)
+          if (set.isWarmup) return // saved to p_sets, but excluded from tonnage/PR + progression
+          loggedSets.push({ exerciseName: exercise.exerciseName, weight: weight ?? 0, reps: set.reps })
           if (!exercise.adhoc) progressionSets.push(row)
         })
       }
@@ -202,13 +206,25 @@ export function WorkoutPage() {
       const exerciseCount = new Set(loggedSets.map((s) => s.exerciseName)).size
       const prs = detectStrengthPRs(loggedSets, mapExistingPRs(bundle))
 
+      const now = new Date()
+      const timerFields = startedAt
+        ? {
+            duration_minutes: Math.round((now.getTime() - new Date(startedAt).getTime()) / 60000),
+            start_time: startedAt,
+            end_time: now.toISOString(),
+          }
+        : {}
+
       const session: WorkoutSessionInput = {
         discipline: 'strength',
         session_type: dayName ?? sessionType ?? undefined,
-        date: localDateString(new Date()),
+        date: localDateString(now),
         program_variant: bundle.program.name,
         program_week: bundle.cursor.week,
         status: 'completed',
+        notes: notes.trim() || null,
+        body_weight: bodyWeight,
+        ...timerFields,
       }
 
       const programId = bundle.days[0]?.program_id

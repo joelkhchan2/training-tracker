@@ -18,7 +18,7 @@ export interface ExerciseCardProps {
  *  no weight (e.g. bodyweight) or not yet marked done don't count. */
 function doneVolume(exercise: SessionExercise): number {
   return exercise.sets.reduce((total, s) => {
-    if (!s.done || s.weight == null || s.reps == null) return total
+    if (!s.done || s.weight == null || s.reps == null || s.isWarmup) return total
     return total + s.weight * s.reps
   }, 0)
 }
