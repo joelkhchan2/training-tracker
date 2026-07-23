@@ -15,6 +15,7 @@ import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
+import { SessionMetaCard } from './SessionMetaCard'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useSessionStore } from './sessionStore'
@@ -285,6 +286,7 @@ export function WorkoutPage() {
           <Button variant="secondary" fullWidth onClick={() => setSheet({ mode: 'add' })}>
             + Add exercise
           </Button>
+          <SessionMetaCard />
         </div>
 
         <div
