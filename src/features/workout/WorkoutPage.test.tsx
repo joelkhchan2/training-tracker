@@ -518,6 +518,13 @@ describe('WorkoutPage — rpe/warmup threading and session timer/notes/bodyweigh
     expect(warmupRow).toBeTruthy() // warmup saved to p_sets
     expect(payload.sets.some((s: { rpe: number | null }) => s.rpe === 8)).toBe(true) // rpe threaded
     expect(payload.progressionSets.some((s: { is_warmup?: boolean }) => s.is_warmup)).toBe(false) // warmup out of progression
+    expect(payload.progressionSets.length).toBeGreaterThan(0)
+    expect(
+      payload.progressionSets.some(
+        (s: { set_number: number; reps: number; weight: number | null; is_warmup?: boolean }) =>
+          s.set_number === 2 && s.reps === 5 && s.weight === 100 && !s.is_warmup,
+      ),
+    ).toBe(true) // the prescribed working set (set 2, non-warmup) is present in progressionSets
     expect(payload.session.notes).toBe('note')
     expect(payload.session.body_weight).toBe(180)
     expect(payload.session.duration_minutes).toBeGreaterThanOrEqual(19) // ~20 from startedAt (parsed)

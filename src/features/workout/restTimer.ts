@@ -43,10 +43,14 @@ export const useRestTimer = create<RestTimerState>((set, get) => ({
     intervalId = setInterval(() => get().tick(), 250)
   },
   addThirty: () => {
-    const cur = get().endAt
-    if (cur == null) return
-    const endAt = cur + 30_000
+    if (get().endAt == null) return
+    const base = Math.max(get().endAt ?? Date.now(), Date.now())
+    const endAt = base + 30_000
     set({ endAt, remaining: computeRemaining(endAt, Date.now()) })
+    if (intervalId == null) {
+      clearTick()
+      intervalId = setInterval(() => get().tick(), 250)
+    }
   },
   skip: () => {
     clearTick()

@@ -33,4 +33,17 @@ describe('useRestTimer', () => {
     expect(useRestTimer.getState().endAt).toBeNull()
     expect(useRestTimer.getState().remaining).toBe(0)
   })
+  it('addThirty after expiry re-arms the tick interval instead of freezing', () => {
+    useRestTimer.getState().start(2)
+    vi.advanceTimersByTime(2_250) // past expiry: tick() fires, remaining hits 0, interval cleared
+    expect(useRestTimer.getState().remaining).toBe(0)
+
+    useRestTimer.getState().addThirty()
+    expect(useRestTimer.getState().remaining).toBeGreaterThan(0)
+    expect(useRestTimer.getState().remaining).toBeCloseTo(30, 0)
+
+    const afterAddThirty = useRestTimer.getState().remaining
+    vi.advanceTimersByTime(1_000) // interval must be running again for this to decrement
+    expect(useRestTimer.getState().remaining).toBeLessThan(afterAddThirty)
+  })
 })
