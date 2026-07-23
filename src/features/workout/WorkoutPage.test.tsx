@@ -7,14 +7,17 @@ import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import type { PrescribedExercise } from '../../domain/types'
 import type { LinearProgressionConfig } from '../../domain/types'
 import type { ActiveWorkoutBundle } from '../../data/queries'
+import type { ExerciseSearchResult } from '../../data/exerciseCatalog'
 
-const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate } = vi.hoisted(() => {
+const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate, fetchLastSetsByExercise, useExerciseSearch } = vi.hoisted(() => {
   const mockMutate = vi.fn()
   return {
     mockNavigate: vi.fn(),
     useActiveWorkout: vi.fn(),
     useSaveWorkout: vi.fn(() => ({ mutate: mockMutate, isPending: false })),
     mockMutate,
+    fetchLastSetsByExercise: vi.fn(),
+    useExerciseSearch: vi.fn((): { data: ExerciseSearchResult[] } => ({ data: [] })),
   }
 })
 
@@ -39,8 +42,10 @@ vi.mock('../../data/exerciseHistory', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/exerciseHistory')>()
   // Real buildTodayExerciseIdMap (pure, used by WorkoutPage itself); useExerciseHistory
   // stubbed with no data so ExerciseCard's hint/sheet don't need a QueryClientProvider here.
-  return { ...actual, useExerciseHistory: () => ({ data: undefined, isLoading: false }) }
+  // fetchLastSetsByExercise (swap re-prefill) is mocked so tests control its resolution timing.
+  return { ...actual, useExerciseHistory: () => ({ data: undefined, isLoading: false }), fetchLastSetsByExercise }
 })
+vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch }))
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))
@@ -166,6 +171,9 @@ beforeEach(() => {
   useSaveWorkout.mockReturnValue({ mutate: mockMutate, isPending: false })
   vi.mocked(resolveExercisesByName).mockClear()
   vi.mocked(resolveExercisesByName).mockImplementation(async () => ({ 'Face Pulls': 'ex-facepulls' }))
+  fetchLastSetsByExercise.mockReset()
+  useExerciseSearch.mockReset()
+  useExerciseSearch.mockReturnValue({ data: [] })
 })
 
 describe('WorkoutPage', () => {
@@ -538,5 +546,83 @@ describe('WorkoutPage — rpe/warmup threading and session timer/notes/bodyweigh
     expect(payload.session.duration_minutes).toBeGreaterThanOrEqual(19) // ~20 from startedAt (parsed)
     expect(payload.session.start_time).toBeTruthy()
     expect(payload.session.end_time).toBeTruthy()
+  })
+})
+
+const legPressResult = { id: 'ex-lp', name: 'Leg Press', exercise_type: 'weighted' as const }
+
+/** Opens the replace sheet for exercise 0 (Squat) and clicks the "Leg Press" search result,
+ *  which is how `ExercisePicker` invokes `onPick({ exerciseName, kind, exerciseId })` for a
+ *  catalog swap (as opposed to a typed custom-name pick, which has no exerciseId). */
+function replaceExercise0WithLegPress() {
+  fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Leg Press' }))
+}
+
+describe('WorkoutPage — swap re-prefill (with race guard)', () => {
+  it('prefills the swapped-in exercise from its last session once the fetch resolves', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [legPressResult] })
+    fetchLastSetsByExercise.mockResolvedValue({
+      'ex-lp': [
+        { weight: 200, reps: 10 },
+        { weight: 200, reps: 10 },
+      ],
+    })
+    renderAtWorkout()
+
+    replaceExercise0WithLegPress()
+
+    // Synchronous clear (Spec A) happens immediately, before the fetch resolves.
+    expect(useSessionStore.getState().exercises[0].exerciseName).toBe('Leg Press')
+    expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
+
+    await waitFor(() => expect(useSessionStore.getState().exercises[0].sets[0].weight).toBe(200))
+
+    expect(fetchLastSetsByExercise).toHaveBeenCalledWith(['ex-lp'], 'user-1')
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0]).toMatchObject({ weight: 200, reps: 10 })
+    expect(sets[1]).toMatchObject({ weight: 200, reps: 10 })
+    // Third set has no matching last-session index (only 2 last sets), but it still ends
+    // up at 200/10 via updateSet's own smart carry-forward from set[0] (all three fresh,
+    // post-replace sets share the same undefined prescribedWeight/prescribedReps target).
+    expect(sets[2]).toMatchObject({ weight: 200, reps: 10 })
+  })
+
+  it('drops the prefill if the user edits a set before the fetch resolves (race guard)', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [legPressResult] })
+    let resolveFetch!: (value: Record<string, { weight: number | null; reps: number | null }[]>) => void
+    fetchLastSetsByExercise.mockReturnValue(new Promise((resolve) => { resolveFetch = resolve }))
+    renderAtWorkout()
+
+    replaceExercise0WithLegPress()
+
+    // User edits the first set before the history fetch has resolved.
+    act(() => useSessionStore.getState().updateSet(0, 0, { weight: 999 }))
+
+    act(() => resolveFetch({ 'ex-lp': [{ weight: 200, reps: 10 }, { weight: 200, reps: 10 }] }))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // Prefill (200) never lands: the user's edit (which the store's own smart
+    // carry-forward propagates to the other untouched sets) is preserved as-is.
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].weight).toBe(999)
+    expect(sets[1].weight).toBe(999)
+    expect(sets[1].weight).not.toBe(200)
+  })
+
+  it('does not fetch or prefill when swapping in a custom-typed name (no exerciseId)', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+    fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Sled Push' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
+
+    expect(useSessionStore.getState().exercises[0].exerciseName).toBe('Sled Push')
+    expect(fetchLastSetsByExercise).not.toHaveBeenCalled()
+    expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
   })
 })

@@ -11,7 +11,7 @@ import type { ActiveWorkoutBundle } from '../../data/queries'
 import { useSaveWorkout } from '../../data/mutations'
 import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
-import { buildTodayExerciseIdMap } from '../../data/exerciseHistory'
+import { buildTodayExerciseIdMap, fetchLastSetsByExercise } from '../../data/exerciseHistory'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import { ExerciseCard } from './ExerciseCard'
@@ -345,8 +345,28 @@ export function WorkoutPage() {
       {sheet ? (
         <ExercisePickerSheet
           onPick={(pick) => {
-            if (sheet.mode === 'add') addExercise(pick)
-            else replaceExercise(sheet.exIdx, pick)
+            if (sheet.mode === 'add') {
+              addExercise(pick)
+            } else {
+              const exIdx = sheet.exIdx
+              replaceExercise(exIdx, pick) // clears synchronously (Spec A); preserves the slot id
+              if (pick.exerciseId && user) {
+                const slotId = useSessionStore.getState().exercises[exIdx]?.id
+                fetchLastSetsByExercise([pick.exerciseId], user.id)
+                  .then((byId) => {
+                    const lastSets = byId[pick.exerciseId!]
+                    if (!lastSets) return
+                    const ex = useSessionStore.getState().exercises[exIdx]
+                    // Race guard: same slot AND every set still untouched (the shape replaceExercise left).
+                    if (!ex || ex.id !== slotId) return
+                    if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
+                    lastSets.forEach((ls, i) => {
+                      if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
+                    })
+                  })
+                  .catch(() => {}) // no history / fetch error → leave blank
+              }
+            }
             setSheet(null)
           }}
           onClose={() => setSheet(null)}
