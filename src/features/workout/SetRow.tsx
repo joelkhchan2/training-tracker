@@ -87,6 +87,37 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
           &minus;
         </button>
       </div>
+
+      <div className="flex items-center gap-3 pl-14">
+        <button
+          type="button"
+          onClick={() => updateSet(exIdx, setIdx, { isWarmup: !set.isWarmup })}
+          aria-pressed={Boolean(set.isWarmup)}
+          aria-label={`Warmup set ${setNumber}`}
+          className={cn(
+            'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+            set.isWarmup ? 'border-accent bg-accent/20 text-accent' : 'border-border bg-surface text-muted',
+          )}
+        >
+          Warmup
+        </button>
+        <label className="flex items-center gap-1 text-xs text-muted">
+          RPE
+          <select
+            aria-label="RPE"
+            value={set.rpe ?? ''}
+            onChange={(e) => updateSet(exIdx, setIdx, { rpe: e.target.value === '' ? null : Number(e.target.value) })}
+            className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="">&mdash;</option>
+            {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </div>
   )
 }
