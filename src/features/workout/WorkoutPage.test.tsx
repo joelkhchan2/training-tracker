@@ -359,6 +359,7 @@ describe('WorkoutPage — save-path resolution of added exercises', () => {
   })
 
   it('drops sets whose exercise cannot be resolved rather than saving a null id', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {}) // suppress the expected dev-only drop warning
     useSessionStore.getState().startFromPrescription(prescription, meta)
     addAdhocFacePulls()
     vi.mocked(resolveExercisesByName).mockResolvedValueOnce({})
@@ -372,6 +373,7 @@ describe('WorkoutPage — save-path resolution of added exercises', () => {
     // The unresolved Face Pulls set is dropped entirely, not saved with a null/placeholder id.
     expect(payload.sets.some((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')).toBe(false)
     expect(payload.sets).toHaveLength(5) // 3 squat + 2 push-up; the face-pulls set is gone
+    warnSpy.mockRestore()
   })
 
   it('disables Finish while resolving and does not double-submit on a second click', async () => {

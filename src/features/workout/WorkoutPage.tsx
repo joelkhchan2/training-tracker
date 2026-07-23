@@ -188,7 +188,15 @@ export function WorkoutPage() {
         // Spec safety net + Global Constraint "no null exercise_id saves": if an exercise
         // still can't be resolved (shouldn't happen post-resolution), skip all its sets
         // rather than writing rows with a null exercise_id.
-        if (resolvedId == null) continue
+        if (resolvedId == null) {
+          // Unreachable in normal use (prescribed exercises are always in the program bundle;
+          // adhoc exercises always resolve-or-mint). This guard only fires on out-of-band data
+          // drift — surface it in dev so a silently-dropped set isn't invisible.
+          if (import.meta.env.DEV) {
+            console.warn(`[workout] dropping sets for unresolved exercise "${exercise.exerciseName}" (no exercise_id)`)
+          }
+          continue
+        }
         exercise.sets.forEach((set, setIdx) => {
           if (set.reps == null) return
           const weight = exercise.kind === 'bodyweight' ? null : (set.weight ?? 0)

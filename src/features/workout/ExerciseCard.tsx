@@ -48,7 +48,7 @@ export function ExerciseCard({ exIdx, exercise, onReplace, onRemove }: ExerciseC
             type="button"
             onClick={onReplace}
             aria-label={`Replace ${exercise.exerciseName}`}
-            className="text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
+            className="flex-1 truncate text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
           >
             {exercise.exerciseName}
           </button>
