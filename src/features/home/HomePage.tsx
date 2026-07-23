@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/useAuth'
+import { useActiveWorkout } from '../../data/queries'
+import { fetchLastSetsByExercise, applyAutofill, buildTodayExerciseIdMap } from '../../data/exerciseHistory'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -30,10 +33,12 @@ function formatSetsHint(sets: PrescribedSet[]): string {
 }
 
 export function HomePage() {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const nav = useNavigate()
   const startFromPrescription = useSessionStore(s => s.startFromPrescription)
   const { loading, hasProgram, dayName, dayIndex, label, prescription } = useTodaysPrescription()
+  const { data: bundle } = useActiveWorkout(user?.id)
+  const [starting, setStarting] = useState(false)
 
   const signOutLink = (
     <button onClick={signOut} className="text-sm text-muted underline">
@@ -41,17 +46,37 @@ export function HomePage() {
     </button>
   )
 
-  function handleStart() {
+  async function handleStart() {
+    setStarting(true)
     const clientId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
-    startFromPrescription(prescription, {
-      sessionType: dayName,
-      dayName,
-      dayIndex,
-      clientId,
-      startedAt,
-    })
-    nav('/workout')
+    const meta = { sessionType: dayName, dayName, dayIndex, clientId, startedAt }
+    try {
+      let toStart = prescription
+      if (bundle && user) {
+        const todayMap = buildTodayExerciseIdMap(bundle)
+        const ids = prescription
+          .map((ex) => todayMap[ex.exerciseName])
+          .filter((id): id is string => !!id)
+        if (ids.length > 0) {
+          const byId = await fetchLastSetsByExercise(ids, user.id)
+          const byName: Record<string, { weight: number | null; reps: number | null }[]> = {}
+          for (const ex of prescription) {
+            const id = todayMap[ex.exerciseName]
+            if (id && byId[id]) byName[ex.exerciseName] = byId[id]
+          }
+          toStart = applyAutofill(prescription, byName)
+        }
+      }
+      startFromPrescription(toStart, meta)
+      nav('/workout')
+    } catch {
+      // Autofill failed — don't block the workout, start with the un-autofilled prescription.
+      startFromPrescription(prescription, meta)
+      nav('/workout')
+    } finally {
+      setStarting(false)
+    }
   }
 
   if (loading) {
@@ -95,8 +120,8 @@ export function HomePage() {
           ))}
         </Card>
 
-        <Button fullWidth onClick={handleStart}>
-          Start workout
+        <Button fullWidth onClick={handleStart} disabled={starting}>
+          {starting ? 'Starting…' : 'Start workout'}
         </Button>
       </div>
     </AppShell>
