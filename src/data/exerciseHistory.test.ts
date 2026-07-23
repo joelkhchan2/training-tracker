@@ -45,6 +45,15 @@ describe('applyAutofill (per-set, weight-only, fallback)', () => {
     const rx = [{ exerciseName: 'Dip', sets: [{ weight: undefined, reps: 8 }] }] as never
     expect((applyAutofill(rx, {}) as never as { sets: { weight?: number }[] }[])[0].sets[0].weight).toBeUndefined()
   })
+  it('never overrides a real prescribed weight, but still fills a sibling no-weight set', () => {
+    const lastWithData = { Bench: [{ weight: 95, reps: 8 }, { weight: 95, reps: 8 }] }
+    const rx = [
+      { exerciseName: 'Bench', sets: [{ weight: 135, reps: 5 }, { weight: undefined, reps: 5 }] },
+    ] as never
+    const out = applyAutofill(rx, lastWithData) as never as { sets: { weight?: number }[] }[]
+    expect(out[0].sets[0].weight).toBe(135) // real prescribed weight — not overridden
+    expect(out[0].sets[1].weight).toBe(95) // sibling no-weight set — filled
+  })
 })
 
 describe('buildTodayExerciseIdMap', () => {

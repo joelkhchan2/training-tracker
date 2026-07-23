@@ -33,8 +33,14 @@ export interface SessionSet {
 export interface SessionExercise {
   /** Stable client-generated id, assigned at creation and preserved across edits/reorder.
    *  The React list key and @dnd-kit sortable id — never the array index (positions shift)
-   *  and never exerciseName (duplicates are allowed) or exerciseId (null in-session). */
+   *  or exerciseName (duplicates are allowed), and never exerciseId (still null for
+   *  prescription-sourced exercises, and even where populated below it's just a read-only
+   *  lookup key, not a stable identity to key off of). */
   id: string
+  /** Populated only for picker-sourced adhoc exercises (added or swapped in via
+   *  ExercisePicker); null for prescription-sourced exercises. Read-only — used for
+   *  history/hint lookups, never as identity. The save path resolves exercises by name,
+   *  not by this field. */
   exerciseId: string | null
   exerciseName: string
   /** 'strength' | 'bodyweight'. Prescribed exercises default to 'strength'; added/swapped

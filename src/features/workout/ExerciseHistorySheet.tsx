@@ -36,12 +36,18 @@ export function ExerciseHistorySheet({ exerciseId, exerciseName, onClose }: Exer
               <li key={s.sessionId} className="rounded-xl border border-border bg-bg p-3">
                 <div className="flex justify-between text-sm">
                   <span className="font-medium text-text">{s.date}</span>
-                  <span className="text-muted">e1RM {s.e1rm} · {s.volume} vol</span>
+                  <span className="text-muted">
+                    {s.e1rm > 0
+                      ? `e1RM ${s.e1rm} · ${s.volume} vol`
+                      : `${s.sets
+                          .filter((x) => !x.isWarmup && x.reps != null)
+                          .reduce((n, x) => n + (x.reps ?? 0), 0)} reps`}
+                  </span>
                 </div>
                 <div className="mt-1 text-sm text-muted">
                   {s.sets
-                    .filter((x) => x.weight != null && x.reps != null)
-                    .map((x) => `${x.weight}×${x.reps}`)
+                    .filter((x) => x.reps != null)
+                    .map((x) => (x.weight != null ? `${x.weight}×${x.reps}` : `BW×${x.reps}`))
                     .join(', ')}
                 </div>
               </li>

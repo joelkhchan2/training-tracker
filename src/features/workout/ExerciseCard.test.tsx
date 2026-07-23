@@ -75,5 +75,27 @@ describe('ExerciseCard', () => {
       fireEvent.click(historyButton)
       expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     })
+
+    it('shows a "BW×N" hint for a bodyweight last session with no weight on any set', () => {
+      useExerciseHistory.mockReturnValue({
+        data: [
+          {
+            sessionId: 's1',
+            date: '2026-07-20',
+            e1rm: 0,
+            volume: 0,
+            sets: [
+              { weight: null, reps: 6, isWarmup: false },
+              { weight: null, reps: 8, isWarmup: false },
+            ],
+          },
+        ],
+        isLoading: false,
+      })
+
+      render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId="ex-1" onRemove={vi.fn()} onReplace={vi.fn()} />)
+
+      expect(screen.getByText('last: BW×8 · 2026-07-20')).toBeInTheDocument()
+    })
   })
 })

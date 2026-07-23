@@ -29,15 +29,20 @@ function doneVolume(exercise: SessionExercise): number {
   }, 0)
 }
 
-/** Formats the heaviest non-warmup set of a history session as "W×R", for the
- *  "last time" hint. Returns null if the session has no qualifying set. */
+/** Formats the "last time" hint for a history session: the heaviest non-warmup set as
+ *  "W×R" when any qualifying set has a weight, or, for a purely bodyweight session, the
+ *  set with the most reps as "BW×R". Returns null only when the session has no non-warmup
+ *  set with a rep count at all. */
 function topSet(session: ExerciseHistorySession): string | null {
-  let best: { weight: number; reps: number } | null = null
-  for (const s of session.sets) {
-    if (s.isWarmup || s.weight == null || s.reps == null) continue
-    if (!best || s.weight > best.weight) best = { weight: s.weight, reps: s.reps }
+  const candidates = session.sets.filter((s) => !s.isWarmup && s.reps != null)
+  if (candidates.length === 0) return null
+  const withWeight = candidates.filter((s) => s.weight != null)
+  if (withWeight.length > 0) {
+    const best = withWeight.reduce((a, b) => (b.weight! > a.weight! ? b : a))
+    return `${best.weight}×${best.reps}`
   }
-  return best ? `${best.weight}×${best.reps}` : null
+  const best = candidates.reduce((a, b) => (b.reps! > a.reps! ? b : a))
+  return `BW×${best.reps}`
 }
 
 /** One exercise within the active session: header, a running volume hint,
