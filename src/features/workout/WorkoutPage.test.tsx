@@ -613,6 +613,48 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     expect(sets[1].weight).not.toBe(200)
   })
 
+  it('drops a stale fetch from an earlier swap when a second swap lands first (race guard keys on exerciseId, not the preserved slot id)', async () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    const exBResult = { id: 'ex-b', name: 'Exercise B', exercise_type: 'weighted' as const }
+    const exCResult = { id: 'ex-c', name: 'Exercise C', exercise_type: 'weighted' as const }
+    useExerciseSearch.mockReturnValue({ data: [exBResult, exCResult] })
+
+    let resolveB!: (v: Record<string, { weight: number | null; reps: number | null }[]>) => void
+    let resolveC!: (v: Record<string, { weight: number | null; reps: number | null }[]>) => void
+    fetchLastSetsByExercise.mockImplementation((ids: string[]) => {
+      if (ids[0] === 'ex-b') return new Promise((resolve) => { resolveB = resolve })
+      if (ids[0] === 'ex-c') return new Promise((resolve) => { resolveC = resolve })
+      return Promise.resolve({})
+    })
+    renderAtWorkout()
+
+    // Swap slot 0 to B — fetch₁ (for ex-b) starts and is left pending.
+    fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Exercise B' }))
+    expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-b')
+
+    // Before fetch₁ resolves, swap the same slot again to C — clears sets synchronously,
+    // sets exerciseId to ex-c, and starts fetch₂ (for ex-c), also left pending.
+    fireEvent.click(screen.getByRole('button', { name: 'Replace Exercise B' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Exercise C' }))
+    expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-c')
+    expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
+
+    // fetch₁ (B's stale fetch) resolves first. Old buggy guard (id === slotId, preserved
+    // across swaps, plus "all sets untouched") would incorrectly prefill C's slot with B's
+    // history here. New guard checks exerciseId and must drop it.
+    act(() => resolveB({ 'ex-b': [{ weight: 999, reps: 3 }] }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(useSessionStore.getState().exercises[0].sets[0].weight).not.toBe(999)
+    expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
+
+    // fetch₂ (C's own fetch) then resolves and correctly prefills C's slot.
+    act(() => resolveC({ 'ex-c': [{ weight: 50, reps: 8 }] }))
+    await waitFor(() => expect(useSessionStore.getState().exercises[0].sets[0].weight).toBe(50))
+    expect(useSessionStore.getState().exercises[0].sets[0]).toMatchObject({ weight: 50, reps: 8 })
+  })
+
   it('does not fetch or prefill when swapping in a custom-typed name (no exerciseId)', async () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
     renderAtWorkout()
