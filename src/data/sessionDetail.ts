@@ -1,5 +1,7 @@
-import { parseVGrade } from '../domain'
+import { useQuery } from '@tanstack/react-query'
+import { formatPace, parseVGrade } from '../domain'
 import type { Discipline } from '../domain'
+import { getSupabase } from './supabase'
 
 export interface DetailSet {
   weight: number | null
@@ -86,4 +88,86 @@ export function shapeClimbingSends(
   })
   const totalSends = rows.reduce((sum, r) => sum + r.count, 0)
   return { sends, totalSends }
+}
+
+const SESSION_COLS = 'id, discipline, date, session_type, program_variant, program_week, duration_minutes, body_weight, notes'
+
+function toHeader(s: {
+  discipline: Discipline; date: string; session_type: string | null; program_variant: string | null
+  program_week: number | null; duration_minutes: number | null; body_weight: number | null; notes: string | null
+}): SessionHeader {
+  return {
+    discipline: s.discipline,
+    date: s.date,
+    sessionType: s.session_type,
+    programVariant: s.program_variant,
+    programWeek: s.program_week,
+    durationMinutes: s.duration_minutes,
+    bodyWeight: s.body_weight,
+    notes: s.notes,
+  }
+}
+
+/** Fetches one session by id (RLS scopes to the owner → foreign/bad id yields null) plus its
+ *  discipline-specific children, shaped into a SessionDetail. */
+export function useSessionDetail(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: ['sessionDetail', sessionId],
+    enabled: !!sessionId,
+    queryFn: async (): Promise<SessionDetail | null> => {
+      const supabase = getSupabase()
+      const { data: s, error } = await supabase
+        .from('sessions').select(SESSION_COLS).eq('id', sessionId as string).maybeSingle()
+      if (error) throw error
+      if (!s) return null
+      const header = toHeader(s as Parameters<typeof toHeader>[0])
+
+      if (header.discipline === 'strength') {
+        const { data: rows, error: rErr } = await supabase
+          .from('strength_sets')
+          .select('weight, reps, rpe, is_warmup, order_index, set_number, exercises(name)')
+          .eq('session_id', (s as { id: string }).id)
+          .order('order_index', { ascending: true })
+          .order('set_number', { ascending: true })
+        if (rErr) throw rErr
+        const flat = (rows ?? []).map((r) => {
+          const row = r as unknown as { weight: number | null; reps: number | null; rpe: number | null; is_warmup: boolean; exercises: { name: string } | null }
+          return { exerciseName: row.exercises?.name ?? 'Exercise', weight: row.weight, reps: row.reps, rpe: row.rpe, isWarmup: row.is_warmup }
+        })
+        return { kind: 'strength', header, exercises: groupStrengthSets(flat) }
+      }
+
+      if (header.discipline === 'cardio') {
+        const { data: act, error: aErr } = await supabase
+          .from('cardio_activities')
+          .select('activity, distance_km, duration_minutes, notes')
+          .eq('session_id', (s as { id: string }).id)
+          .maybeSingle()
+        if (aErr) throw aErr
+        const a = (act ?? {}) as { activity?: string; distance_km?: number | null; duration_minutes?: number | null; notes?: string | null }
+        const duration = a.duration_minutes ?? header.durationMinutes
+        const distance = a.distance_km ?? null
+        return {
+          kind: 'cardio',
+          header: { ...header, notes: a.notes ?? header.notes },
+          activity: a.activity ?? 'Cardio',
+          distanceKm: distance,
+          durationMinutes: duration,
+          pace: formatPace(duration, distance),
+        }
+      }
+
+      // climbing
+      const { data: sends, error: cErr } = await supabase
+        .from('climbing_sends')
+        .select('grade, count')
+        .eq('session_id', (s as { id: string }).id)
+      if (cErr) throw cErr
+      const shaped = shapeClimbingSends((sends ?? []).map((r) => {
+        const row = r as { grade: string; count: number }
+        return { grade: row.grade, count: row.count }
+      }))
+      return { kind: 'climbing', header, sends: shaped.sends, totalSends: shaped.totalSends }
+    },
+  })
 }
