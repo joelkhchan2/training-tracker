@@ -87,8 +87,8 @@ export function buildHistoryRows(
   return rows
 }
 
-/** Fetches the viewer's strength + cardio sessions newest-first and assembles History rows.
- *  Batches the child reads (activities, set counts) by session id, like fetchActiveWorkout. */
+/** Fetches the viewer's strength + cardio + climbing sessions newest-first and assembles History
+ *  rows. Batches the child reads (activities, set counts, sends) by session id, like fetchActiveWorkout. */
 export function useSessionHistory(userId: string | undefined) {
   return useQuery({
     queryKey: ['sessionHistory', userId],
@@ -152,8 +152,9 @@ export function useSessionHistory(userId: string | undefined) {
   })
 }
 
-/** Deletes a session (used for cardio entries in History); RLS restricts it to the owner and
- *  the DB cascades to cardio_activities. Invalidates the history list. */
+/** Deletes a session (used for cardio + climbing entries in History); RLS restricts it to the
+ *  owner and the DB cascades to the child rows (cardio_activities / climbing_sends). Invalidates
+ *  the history list. */
 export function useDeleteSession() {
   const queryClient = useQueryClient()
   return useMutation<void, Error, string>({
