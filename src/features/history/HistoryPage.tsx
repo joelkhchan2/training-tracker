@@ -1,76 +1,68 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../lib/useAuth'
-import { useSessionHistory, useDeleteSession } from '../../data/sessionHistory'
+import { useSessionHistory } from '../../data/sessionHistory'
 import type { CardioHistoryRow, StrengthHistoryRow, ClimbingHistoryRow } from '../../data/sessionHistory'
 
-function CardioRow({ row, onDelete }: { row: CardioHistoryRow; onDelete: () => void }) {
+const SCROLL_KEY = 'historyScroll'
+
+function CardioRow({ row }: { row: CardioHistoryRow }) {
   const detail = [
     row.distanceKm != null ? `${Number(row.distanceKm.toFixed(2))} km` : null,
     row.durationMinutes != null ? `${row.durationMinutes} min` : null,
     row.pace ? `${row.pace} /km` : null,
   ].filter(Boolean).join(' · ')
   return (
-    <Card className="flex items-center justify-between gap-3">
-      <div>
-        <p className="font-medium text-text">{row.activity}</p>
-        <p className="text-sm text-muted">{detail ? `${row.date} · ${detail}` : row.date}</p>
-      </div>
-      <Button variant="ghost" size="sm" aria-label={`Delete ${row.activity}`} onClick={onDelete}>
-        Delete
-      </Button>
-    </Card>
-  )
-}
-
-function ClimbingRow({ row, onDelete }: { row: ClimbingHistoryRow; onDelete: () => void }) {
-  const detail = [
-    row.breakdown || null,
-    `${row.totalSends} send${row.totalSends === 1 ? '' : 's'}`,
-  ].filter(Boolean).join(' · ')
-  return (
-    <Card className="flex items-center justify-between gap-3">
-      <div>
-        <p className="font-medium text-text">Climbing</p>
-        <p className="text-sm text-muted">{row.date} · {detail}</p>
-      </div>
-      <Button variant="ghost" size="sm" aria-label="Delete climbing entry" onClick={onDelete}>
-        Delete
-      </Button>
-    </Card>
+    <>
+      <p className="font-medium text-text">{row.activity}</p>
+      <p className="text-sm text-muted">{detail ? `${row.date} · ${detail}` : row.date}</p>
+    </>
   )
 }
 
 function StrengthRow({ row }: { row: StrengthHistoryRow }) {
   return (
-    <Card>
+    <>
       <p className="font-medium text-text">{row.label}</p>
-      <p className="text-sm text-muted">
-        {row.date} · {row.setCount} set{row.setCount === 1 ? '' : 's'}
-      </p>
-    </Card>
+      <p className="text-sm text-muted">{row.date} · {row.setCount} set{row.setCount === 1 ? '' : 's'}</p>
+    </>
+  )
+}
+
+function ClimbingRow({ row }: { row: ClimbingHistoryRow }) {
+  const detail = [row.breakdown || null, `${row.totalSends} send${row.totalSends === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
+  return (
+    <>
+      <p className="font-medium text-text">Climbing</p>
+      <p className="text-sm text-muted">{row.date} · {detail}</p>
+    </>
   )
 }
 
 export function HistoryPage() {
   const { user } = useAuth()
   const { data: rows, isLoading } = useSessionHistory(user?.id)
-  const deleteSession = useDeleteSession()
-  const [error, setError] = useState<string | null>(null)
+  const nav = useNavigate()
 
-  function handleDelete(id: string, activity: string) {
-    if (!window.confirm(`Delete this ${activity} entry?`)) return
-    setError(null)
-    deleteSession.mutate(id, {
-      onError: () => setError('Could not delete. Please try again.'),
-    })
+  // Restore the scroll offset saved when the user last opened a detail, once the list is present.
+  useEffect(() => {
+    if (isLoading) return
+    const saved = sessionStorage.getItem(SCROLL_KEY)
+    if (saved) {
+      window.scrollTo(0, Number(saved))
+      sessionStorage.removeItem(SCROLL_KEY)
+    }
+  }, [isLoading])
+
+  function open(id: string) {
+    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY))
+    nav(`/history/${id}`)
   }
 
   return (
     <AppShell title="History">
-      {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
       {isLoading ? (
         <p className="text-muted">Loading…</p>
       ) : !rows || rows.length === 0 ? (
@@ -79,15 +71,15 @@ export function HistoryPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {rows.map(row =>
-            row.kind === 'cardio' ? (
-              <CardioRow key={row.id} row={row} onDelete={() => handleDelete(row.id, row.activity)} />
-            ) : row.kind === 'climbing' ? (
-              <ClimbingRow key={row.id} row={row} onDelete={() => handleDelete(row.id, 'climbing')} />
-            ) : (
-              <StrengthRow key={row.id} row={row} />
-            ),
-          )}
+          {rows.map(row => (
+            <button key={row.id} type="button" onClick={() => open(row.id)} className="block w-full text-left">
+              <Card>
+                {row.kind === 'cardio' ? <CardioRow row={row} />
+                  : row.kind === 'climbing' ? <ClimbingRow row={row} />
+                  : <StrengthRow row={row} />}
+              </Card>
+            </button>
+          ))}
         </div>
       )}
     </AppShell>

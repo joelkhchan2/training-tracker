@@ -2,19 +2,18 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { HistoryPage } from './HistoryPage'
 
-const { useSessionHistory, useDeleteSession } = vi.hoisted(() => ({
+const { useSessionHistory } = vi.hoisted(() => ({
   useSessionHistory: vi.fn(),
-  useDeleteSession: vi.fn(),
 }))
 
-vi.mock('../../data/sessionHistory', () => ({ useSessionHistory, useDeleteSession }))
-vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
+const navigate = vi.fn()
 
-const deleteMutate = vi.fn()
+vi.mock('../../data/sessionHistory', () => ({ useSessionHistory }))
+vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
 
 beforeEach(() => {
-  deleteMutate.mockReset()
-  useDeleteSession.mockReturnValue({ mutate: deleteMutate })
+  navigate.mockReset()
   useSessionHistory.mockReturnValue({ data: [], isLoading: false })
 })
 
@@ -39,29 +38,6 @@ describe('HistoryPage', () => {
     expect(screen.getByText(/12 sets/)).toBeInTheDocument()
   })
 
-  it('deletes a cardio session after confirmation', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    useSessionHistory.mockReturnValue({
-      isLoading: false,
-      data: [{ kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.2, pace: '6:09' }],
-    })
-    render(<HistoryPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Run' }))
-    expect(deleteMutate.mock.calls[0][0]).toBe('s1')
-  })
-
-  it('shows an inline error when a delete fails', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    useSessionHistory.mockReturnValue({
-      isLoading: false,
-      data: [{ kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.2, pace: '6:09' }],
-    })
-    deleteMutate.mockImplementation((_id, { onError }) => onError())
-    render(<HistoryPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Run' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not delete. Please try again.')
-  })
-
   it('rounds a long-decimal distance to at most 2 places', () => {
     useSessionHistory.mockReturnValue({
       isLoading: false,
@@ -69,5 +45,27 @@ describe('HistoryPage', () => {
     })
     render(<HistoryPage />)
     expect(screen.getByText(/5\.23 km/)).toBeInTheDocument()
+  })
+
+  it('navigates to the session detail route when a row is clicked', () => {
+    useSessionHistory.mockReturnValue({
+      isLoading: false,
+      data: [{ kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.2, pace: '6:09' }],
+    })
+    render(<HistoryPage />)
+    fireEvent.click(screen.getByText('Run'))
+    expect(navigate).toHaveBeenCalledWith('/history/s1')
+  })
+
+  it('does not render a Delete button in the list anymore', () => {
+    useSessionHistory.mockReturnValue({
+      isLoading: false,
+      data: [
+        { kind: 'cardio', id: 's1', date: '2026-07-21', activity: 'Run', durationMinutes: 32, distanceKm: 5.2, pace: '6:09' },
+        { kind: 'strength', id: 's2', date: '2026-07-20', label: 'Gym A', setCount: 12 },
+      ],
+    })
+    render(<HistoryPage />)
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
   })
 })

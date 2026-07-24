@@ -12,6 +12,7 @@ import { ProgramsPage } from './features/programs/ProgramsPage'
 import { BuilderPage } from './features/programs/BuilderPage'
 import { AppLayout } from './features/shell/AppLayout'
 import { HistoryPage } from './features/history/HistoryPage'
+import { SessionDetailPage } from './features/history/SessionDetailPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { CardioLogPage } from './features/cardio/CardioLogPage'
 import { ClimbingLogPage } from './features/climbing/ClimbingLogPage'
@@ -56,6 +57,7 @@ export function AppRoutes() {
       <Route path="/programs/:id/edit" element={<Protected><BuilderPage /></Protected>} />
       <Route path="/cardio/new" element={<Protected><CardioLogPage /></Protected>} />
       <Route path="/climbing/new" element={<Protected><ClimbingLogPage /></Protected>} />
+      <Route path="/history/:sessionId" element={<Protected><SessionDetailPage /></Protected>} />
 
       {/* Authenticated, in-shell (tab bar) — one Protected gate wrapping the layout */}
       <Route element={<Protected><AppLayout /></Protected>}>
