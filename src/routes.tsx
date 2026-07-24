@@ -14,6 +14,7 @@ import { AppLayout } from './features/shell/AppLayout'
 import { HistoryPage } from './features/history/HistoryPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { CardioLogPage } from './features/cardio/CardioLogPage'
+import { ClimbingLogPage } from './features/climbing/ClimbingLogPage'
 
 function Protected({ children }: { children: ReactNode }) {
   const { session, loading, user } = useAuth()
@@ -54,6 +55,7 @@ export function AppRoutes() {
       <Route path="/programs/new" element={<Protected><BuilderPage /></Protected>} />
       <Route path="/programs/:id/edit" element={<Protected><BuilderPage /></Protected>} />
       <Route path="/cardio/new" element={<Protected><CardioLogPage /></Protected>} />
+      <Route path="/climbing/new" element={<Protected><ClimbingLogPage /></Protected>} />
 
       {/* Authenticated, in-shell (tab bar) — one Protected gate wrapping the layout */}
       <Route element={<Protected><AppLayout /></Protected>}>

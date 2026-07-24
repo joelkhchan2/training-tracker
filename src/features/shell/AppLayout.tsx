@@ -16,6 +16,7 @@ export function AppLayout() {
   const [chooserOpen, setChooserOpen] = useState(false)
 
   const cardioEnabled = (profile?.enabled_disciplines ?? []).includes('cardio')
+  const climbingEnabled = (profile?.enabled_disciplines ?? []).includes('climbing')
 
   function go(path: string) {
     setChooserOpen(false)
@@ -53,6 +54,15 @@ export function AppLayout() {
                 onClick={() => go('/cardio/new')}
               >
                 Cardio
+              </button>
+            ) : null}
+            {climbingEnabled ? (
+              <button
+                type="button"
+                className="w-full rounded-xl border border-border bg-bg py-3 text-text"
+                onClick={() => go('/climbing/new')}
+              >
+                Climbing
               </button>
             ) : null}
           </div>

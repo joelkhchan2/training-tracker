@@ -4,7 +4,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../lib/useAuth'
 import { useSessionHistory, useDeleteSession } from '../../data/sessionHistory'
-import type { CardioHistoryRow, StrengthHistoryRow } from '../../data/sessionHistory'
+import type { CardioHistoryRow, StrengthHistoryRow, ClimbingHistoryRow } from '../../data/sessionHistory'
 
 function CardioRow({ row, onDelete }: { row: CardioHistoryRow; onDelete: () => void }) {
   const detail = [
@@ -19,6 +19,24 @@ function CardioRow({ row, onDelete }: { row: CardioHistoryRow; onDelete: () => v
         <p className="text-sm text-muted">{detail ? `${row.date} · ${detail}` : row.date}</p>
       </div>
       <Button variant="ghost" size="sm" aria-label={`Delete ${row.activity}`} onClick={onDelete}>
+        Delete
+      </Button>
+    </Card>
+  )
+}
+
+function ClimbingRow({ row, onDelete }: { row: ClimbingHistoryRow; onDelete: () => void }) {
+  const detail = [
+    row.breakdown || null,
+    `${row.totalSends} send${row.totalSends === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ')
+  return (
+    <Card className="flex items-center justify-between gap-3">
+      <div>
+        <p className="font-medium text-text">Climbing</p>
+        <p className="text-sm text-muted">{row.date} · {detail}</p>
+      </div>
+      <Button variant="ghost" size="sm" aria-label="Delete climbing entry" onClick={onDelete}>
         Delete
       </Button>
     </Card>
@@ -64,6 +82,8 @@ export function HistoryPage() {
           {rows.map(row =>
             row.kind === 'cardio' ? (
               <CardioRow key={row.id} row={row} onDelete={() => handleDelete(row.id, row.activity)} />
+            ) : row.kind === 'climbing' ? (
+              <ClimbingRow key={row.id} row={row} onDelete={() => handleDelete(row.id, 'climbing')} />
             ) : (
               <StrengthRow key={row.id} row={row} />
             ),
