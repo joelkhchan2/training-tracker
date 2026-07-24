@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildHistoryRows } from './sessionHistory'
+import { buildHistoryRows, buildClimbingBreakdown } from './sessionHistory'
 
 const sessions = [
   { id: 's-cardio', discipline: 'cardio' as const, date: '2026-07-21', session_type: null, duration_minutes: 32 },
@@ -28,8 +28,34 @@ describe('buildHistoryRows', () => {
     expect(rows[0]).toEqual({ kind: 'strength', id: 's-strength', date: '2026-07-20', label: 'Gym A', setCount: 12 })
   })
 
-  it('excludes non-strength/cardio sessions (climbing has no renderer yet)', () => {
-    const rows = buildHistoryRows(sessions, new Map(), new Map())
-    expect(rows.map(r => r.id)).toEqual(['s-cardio', 's-strength']) // order preserved, climbing dropped
+  it('builds a climbing row with a highest-first breakdown and total sends', () => {
+    const climbing = new Map([['s-climb', [
+      { grade: 'V2', count: 1 }, { grade: 'V4', count: 3 }, { grade: 'V3', count: 2 },
+    ]]])
+    const [row] = buildHistoryRows(sessions.slice(2, 3), new Map(), new Map(), climbing)
+    expect(row).toEqual({
+      kind: 'climbing', id: 's-climb', date: '2026-07-19',
+      breakdown: 'V4×3, V3×2, V2×1', totalSends: 6,
+    })
+  })
+
+  it('keeps all three disciplines, order preserved', () => {
+    const climbing = new Map([['s-climb', [{ grade: 'V1', count: 1 }]]])
+    const rows = buildHistoryRows(sessions, new Map(), new Map(), climbing)
+    expect(rows.map(r => r.id)).toEqual(['s-cardio', 's-strength', 's-climb'])
+  })
+})
+
+describe('buildClimbingBreakdown', () => {
+  it('orders grades high-to-low and sums counts', () => {
+    expect(buildClimbingBreakdown([
+      { grade: 'V0', count: 2 }, { grade: 'V5', count: 1 }, { grade: 'V3', count: 4 },
+    ])).toEqual({ breakdown: 'V5×1, V3×4, V0×2', totalSends: 7 })
+  })
+
+  it('drops unparseable grades from the breakdown', () => {
+    expect(buildClimbingBreakdown([
+      { grade: 'V2', count: 1 }, { grade: 'VX', count: 9 },
+    ])).toEqual({ breakdown: 'V2×1', totalSends: 1 })
   })
 })

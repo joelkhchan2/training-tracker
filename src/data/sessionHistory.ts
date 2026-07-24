@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatPace } from '../domain'
+import { formatPace, parseVGrade } from '../domain'
 import { getSupabase } from './supabase'
 import type { CardioActivityRow, SessionRow } from './types'
 
@@ -21,18 +21,40 @@ export interface StrengthHistoryRow {
   setCount: number
 }
 
-export type HistoryRow = CardioHistoryRow | StrengthHistoryRow
+export interface ClimbingHistoryRow {
+  kind: 'climbing'
+  id: string
+  date: string
+  breakdown: string
+  totalSends: number
+}
+
+export type HistoryRow = CardioHistoryRow | StrengthHistoryRow | ClimbingHistoryRow
 
 type HistorySession = Pick<SessionRow, 'id' | 'discipline' | 'date' | 'session_type' | 'duration_minutes'>
 type HistoryActivity = Pick<CardioActivityRow, 'activity' | 'duration_minutes' | 'distance_km'>
 
+/** Pure: renders per-grade climbing send counts as a highest-grade-first summary
+ *  ("V4×3, V3×2") and the total send count. Unparseable grades are dropped. */
+export function buildClimbingBreakdown(
+  grades: { grade: string; count: number }[],
+): { breakdown: string; totalSends: number } {
+  const parsed = grades
+    .map(g => ({ n: parseVGrade(g.grade), count: g.count }))
+    .filter((g): g is { n: number; count: number } => g.n !== null)
+    .sort((a, b) => b.n - a.n)
+  const breakdown = parsed.map(g => `V${g.n}×${g.count}`).join(', ')
+  const totalSends = parsed.reduce((sum, g) => sum + g.count, 0)
+  return { breakdown, totalSends }
+}
+
 /** Pure: turns already-fetched sessions (ordered newest-first) + their joined cardio
- *  activity / strength set-count into display rows. Sessions that are neither strength nor
- *  cardio are dropped (no renderer yet); order is preserved. */
+ *  activity / strength set-count / climbing sends into display rows; order is preserved. */
 export function buildHistoryRows(
   sessions: HistorySession[],
   cardioBySession: Map<string, HistoryActivity>,
   setCountBySession: Map<string, number>,
+  climbingBySession: Map<string, { grade: string; count: number }[]> = new Map(),
 ): HistoryRow[] {
   const rows: HistoryRow[] = []
   for (const s of sessions) {
@@ -57,6 +79,9 @@ export function buildHistoryRows(
         label: s.session_type ?? 'Strength',
         setCount: setCountBySession.get(s.id) ?? 0,
       })
+    } else if (s.discipline === 'climbing') {
+      const { breakdown, totalSends } = buildClimbingBreakdown(climbingBySession.get(s.id) ?? [])
+      rows.push({ kind: 'climbing', id: s.id, date: s.date, breakdown, totalSends })
     }
   }
   return rows
@@ -74,7 +99,7 @@ export function useSessionHistory(userId: string | undefined) {
         .from('sessions')
         .select('id, discipline, date, session_type, duration_minutes, start_time')
         .eq('user_id', userId as string)
-        .in('discipline', ['strength', 'cardio'])
+        .in('discipline', ['strength', 'cardio', 'climbing'])
         .order('date', { ascending: false })
         .order('start_time', { ascending: false })
       if (error) throw error
@@ -106,7 +131,23 @@ export function useSessionHistory(userId: string | undefined) {
         }
       }
 
-      return buildHistoryRows(sessions, cardioBySession, setCountBySession)
+      const climbingIds = sessions.filter(s => s.discipline === 'climbing').map(s => s.id)
+      const climbingBySession = new Map<string, { grade: string; count: number }[]>()
+      if (climbingIds.length > 0) {
+        const { data: sends, error: cErr } = await supabase
+          .from('climbing_sends')
+          .select('session_id, grade, count')
+          .in('session_id', climbingIds)
+        if (cErr) throw cErr
+        for (const row of sends ?? []) {
+          const id = row.session_id as string
+          const arr = climbingBySession.get(id) ?? []
+          arr.push({ grade: row.grade as string, count: row.count as number })
+          climbingBySession.set(id, arr)
+        }
+      }
+
+      return buildHistoryRows(sessions, cardioBySession, setCountBySession, climbingBySession)
     },
   })
 }
