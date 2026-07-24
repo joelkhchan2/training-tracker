@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { AppShell } from './AppShell'
 
 describe('AppShell', () => {
@@ -18,5 +18,19 @@ describe('AppShell', () => {
     render(<AppShell title="Home">Content</AppShell>)
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument()
     expect(screen.getByText('Content')).toBeInTheDocument()
+  })
+})
+
+describe('AppShell onBack', () => {
+  it('shows no back button by default', () => {
+    render(<AppShell title="History">body</AppShell>)
+    expect(screen.queryByLabelText('Back')).toBeNull()
+  })
+
+  it('renders a back button that calls onBack when provided', () => {
+    const onBack = vi.fn()
+    render(<AppShell title="Session" onBack={onBack}>body</AppShell>)
+    fireEvent.click(screen.getByLabelText('Back'))
+    expect(onBack).toHaveBeenCalledTimes(1)
   })
 })
