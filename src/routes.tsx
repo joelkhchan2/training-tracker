@@ -12,6 +12,7 @@ import { ProgramsPage } from './features/programs/ProgramsPage'
 import { BuilderPage } from './features/programs/BuilderPage'
 import { AppLayout } from './features/shell/AppLayout'
 import { HistoryPage } from './features/history/HistoryPage'
+import { ProgressPage } from './features/progress/ProgressPage'
 import { SessionDetailPage } from './features/history/SessionDetailPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { CardioLogPage } from './features/cardio/CardioLogPage'
@@ -63,6 +64,7 @@ export function AppRoutes() {
       <Route element={<Protected><AppLayout /></Protected>}>
         <Route path="/" element={<HomePage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/progress" element={<ProgressPage />} />
         <Route path="/programs" element={<ProgramsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

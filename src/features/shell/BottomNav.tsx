@@ -4,6 +4,7 @@ import { cn } from '../../lib/cn'
 const TABS = [
   { to: '/', label: 'Home', end: true },
   { to: '/history', label: 'History', end: false },
+  { to: '/progress', label: 'Progress', end: false },
   { to: '/programs', label: 'Programs', end: false },
   { to: '/settings', label: 'Settings', end: false },
 ]
