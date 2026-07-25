@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
 import { epley1RM, round1, parseVGrade } from '../domain'
+import { getSupabase } from './supabase'
 
 export interface StrengthRecord {
   exerciseId: string
@@ -103,4 +105,63 @@ export function buildClimbingRecord(seededMaxGrade: number | null, liveGrades: s
     if (n != null && n > best) best = n
   }
   return best < 0 ? null : best
+}
+
+/** Reads seeded personal_records + live strength_sets/climbing_sends (all owner-scoped by RLS) and
+ *  reconciles them into display records. */
+export function usePersonalRecords(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['personalRecords', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<{ strength: StrengthRecord[]; climbingMaxGrade: number | null }> => {
+      const supabase = getSupabase()
+
+      const { data: prs, error: prErr } = await supabase
+        .from('personal_records')
+        .select('exercise_id, pr_type, value, weight, reps, exercises(name)')
+        .eq('user_id', userId as string)
+      if (prErr) throw prErr
+
+      const { data: sets, error: sErr } = await supabase
+        .from('strength_sets')
+        .select('exercise_id, session_id, weight, reps, exercises(name)')
+        .eq('user_id', userId as string)
+        .eq('is_warmup', false)
+        .not('weight', 'is', null)
+        .not('reps', 'is', null)
+        .limit(5000)
+      if (sErr) throw sErr
+
+      const { data: sends, error: cErr } = await supabase
+        .from('climbing_sends')
+        .select('grade')
+        .eq('user_id', userId as string)
+      if (cErr) throw cErr
+
+      const seeded: SeededStrengthRow[] = []
+      let seededMaxGrade: number | null = null
+      for (const r of (prs ?? []) as unknown as {
+        exercise_id: string | null; pr_type: string; value: number; weight: number | null; reps: number | null; exercises: { name: string } | null
+      }[]) {
+        if (r.pr_type === 'max_v_grade') {
+          seededMaxGrade = seededMaxGrade == null ? Number(r.value) : Math.max(seededMaxGrade, Number(r.value))
+        } else if ((r.pr_type === 'e1rm' || r.pr_type === 'volume') && r.exercise_id) {
+          seeded.push({ exerciseId: r.exercise_id, name: r.exercises?.name ?? 'Exercise', prType: r.pr_type, value: Number(r.value), weight: r.weight, reps: r.reps })
+        }
+      }
+
+      const live: LiveStrengthRow[] = ((sets ?? []) as unknown as {
+        exercise_id: string | null; session_id: string; weight: number; reps: number; exercises: { name: string } | null
+      }[])
+        .filter((r) => r.exercise_id)
+        .map((r) => ({ exerciseId: r.exercise_id as string, name: r.exercises?.name ?? 'Exercise', sessionId: r.session_id, weight: r.weight, reps: r.reps }))
+
+      const liveGrades = ((sends ?? []) as { grade: string }[]).map((r) => r.grade)
+
+      return {
+        strength: buildStrengthRecords(seeded, live),
+        climbingMaxGrade: buildClimbingRecord(seededMaxGrade, liveGrades),
+      }
+    },
+  })
 }
