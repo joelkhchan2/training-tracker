@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
 import { useAuth } from '../../lib/useAuth'
@@ -20,6 +21,7 @@ function RecordCard({ r }: { r: StrengthRecord }) {
 
 export function ProgressPage() {
   const { user } = useAuth()
+  const nav = useNavigate()
   const { data, isLoading, isError } = usePersonalRecords(user?.id)
 
   const strength = data?.strength ?? []
@@ -28,26 +30,38 @@ export function ProgressPage() {
 
   return (
     <AppShell title="Progress">
-      {isLoading ? (
-        <p className="text-muted">Loading…</p>
-      ) : isError ? (
-        <p role="alert" className="text-sm text-danger">Could not load your records. Please try again.</p>
-      ) : empty ? (
-        <Card><p className="text-muted">Log some workouts to see your records here.</p></Card>
-      ) : (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-text">Personal records</h2>
-            {strength.map(r => <RecordCard key={r.exerciseId} r={r} />)}
-            {climbing != null ? (
-              <Card>
-                <p className="font-medium text-text">Climbing</p>
-                <p className="text-sm text-muted">max V{climbing}</p>
-              </Card>
-            ) : null}
-          </div>
-        </div>
-      )}
+      <div className="space-y-6">
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-text">Personal records</h2>
+          {isLoading ? (
+            <p className="text-muted">Loading…</p>
+          ) : isError ? (
+            <p role="alert" className="text-sm text-danger">Could not load your records. Please try again.</p>
+          ) : empty ? (
+            <Card><p className="text-muted">Log some workouts to see your records here.</p></Card>
+          ) : (
+            <>
+              {strength.map(r => <RecordCard key={r.exerciseId} r={r} />)}
+              {climbing != null ? (
+                <Card>
+                  <p className="font-medium text-text">Climbing</p>
+                  <p className="text-sm text-muted">max V{climbing}</p>
+                </Card>
+              ) : null}
+            </>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-text">Tools</h2>
+          <button type="button" onClick={() => nav('/progress/calculator')} className="block w-full text-left">
+            <Card>
+              <p className="font-medium text-text">1RM Calculator</p>
+              <p className="text-sm text-muted">Estimate your one-rep max and training loads</p>
+            </Card>
+          </button>
+        </section>
+      </div>
     </AppShell>
   )
 }

@@ -13,6 +13,7 @@ import { BuilderPage } from './features/programs/BuilderPage'
 import { AppLayout } from './features/shell/AppLayout'
 import { HistoryPage } from './features/history/HistoryPage'
 import { ProgressPage } from './features/progress/ProgressPage'
+import { OneRepMaxCalculatorPage } from './features/progress/OneRepMaxCalculatorPage'
 import { SessionDetailPage } from './features/history/SessionDetailPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { CardioLogPage } from './features/cardio/CardioLogPage'
@@ -59,6 +60,7 @@ export function AppRoutes() {
       <Route path="/cardio/new" element={<Protected><CardioLogPage /></Protected>} />
       <Route path="/climbing/new" element={<Protected><ClimbingLogPage /></Protected>} />
       <Route path="/history/:sessionId" element={<Protected><SessionDetailPage /></Protected>} />
+      <Route path="/progress/calculator" element={<Protected><OneRepMaxCalculatorPage /></Protected>} />
 
       {/* Authenticated, in-shell (tab bar) — one Protected gate wrapping the layout */}
       <Route element={<Protected><AppLayout /></Protected>}>
