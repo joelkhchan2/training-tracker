@@ -16,7 +16,7 @@
           };
           var p = JSON.parse(localStorage.getItem('tt-prefs') || '{}');
           var t = p.theme;
-          if (t === 'system' || !t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'midnight';
+          if (t === 'system' || !t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'daylight';
           if (!THEME_BG[t]) t = 'midnight';
           var d = document.documentElement;
           d.dataset.theme = t;
