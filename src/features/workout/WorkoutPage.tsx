@@ -327,14 +327,16 @@ export function WorkoutPage() {
           className="fixed inset-x-0 bottom-0 border-t border-border bg-bg/95 p-4 backdrop-blur-sm"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         >
-          {errorMsg ? (
-            <p role="alert" className="mb-2 text-sm text-danger">
-              {errorMsg}
-            </p>
-          ) : null}
-          <Button fullWidth onClick={handleFinish} disabled={isResolving || saveWorkout.isPending}>
-            {isResolving || saveWorkout.isPending ? 'Saving…' : 'Finish workout'}
-          </Button>
+          <div className="mx-auto w-full max-w-md">
+            {errorMsg ? (
+              <p role="alert" className="mb-2 text-sm text-danger">
+                {errorMsg}
+              </p>
+            ) : null}
+            <Button fullWidth onClick={handleFinish} disabled={isResolving || saveWorkout.isPending}>
+              {isResolving || saveWorkout.isPending ? 'Saving…' : 'Finish workout'}
+            </Button>
+          </div>
         </div>
       </AppShell>
 

@@ -21,7 +21,7 @@ export function AppShell({ title, right, onBack, children, className }: AppShell
         className="sticky top-0 z-10 border-b border-border bg-bg/95 backdrop-blur-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="flex h-14 items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-14 w-full max-w-md items-center justify-between gap-3 px-4">
           <div className="flex min-w-0 items-center gap-2">
             {onBack ? (
               <button
@@ -42,7 +42,7 @@ export function AppShell({ title, right, onBack, children, className }: AppShell
         className={cn('flex-1 px-4 py-4', className)}
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
       >
-        {children}
+        <div className="mx-auto w-full max-w-md">{children}</div>
       </main>
       {/* Bottom space cleared by the main padding above for AppLayout's fixed BottomNav. */}
     </div>

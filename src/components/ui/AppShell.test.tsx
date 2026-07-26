@@ -34,3 +34,12 @@ describe('AppShell onBack', () => {
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('AppShell centered column', () => {
+  it('wraps children in a centered max-w-md column', () => {
+    render(<AppShell title="X">body</AppShell>)
+    const wrapper = screen.getByText('body')
+    expect(wrapper.className).toContain('max-w-md')
+    expect(wrapper.className).toContain('mx-auto')
+  })
+})

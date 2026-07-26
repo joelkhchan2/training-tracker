@@ -18,7 +18,7 @@ export function ExerciseHistorySheet({ exerciseId, exerciseName, onClose }: Exer
   return (
     <div className="fixed inset-0 z-40 flex items-end bg-black/40" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full space-y-3 overflow-y-auto rounded-t-2xl bg-surface p-4"
+        className="mx-auto max-h-[85vh] w-full max-w-md space-y-3 overflow-y-auto rounded-t-2xl bg-surface p-4"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
