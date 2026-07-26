@@ -11,6 +11,7 @@ export interface NumberFieldProps {
   disabled?: boolean
   className?: string
   id?: string
+  hideSteppers?: boolean
 }
 
 function clamp(value: number, min: number, max?: number): number {
@@ -38,6 +39,7 @@ export function NumberField({
   disabled = false,
   className,
   id,
+  hideSteppers = false,
 }: NumberFieldProps) {
   const autoId = useId()
   const inputId = id ?? autoId
@@ -66,15 +68,17 @@ export function NumberField({
         {label}
       </label>
       <div className="flex items-stretch gap-2">
-        <button
-          type="button"
-          aria-label={`Decrease ${label}`}
-          onClick={() => commit(value - step)}
-          disabled={disabled}
-          className={stepperClasses}
-        >
-          &minus;
-        </button>
+        {hideSteppers ? null : (
+          <button
+            type="button"
+            aria-label={`Decrease ${label}`}
+            onClick={() => commit(value - step)}
+            disabled={disabled}
+            className={stepperClasses}
+          >
+            &minus;
+          </button>
+        )}
         <input
           id={inputId}
           type="text"
@@ -89,15 +93,17 @@ export function NumberField({
             'disabled:opacity-40',
           )}
         />
-        <button
-          type="button"
-          aria-label={`Increase ${label}`}
-          onClick={() => commit(value + step)}
-          disabled={disabled}
-          className={stepperClasses}
-        >
-          +
-        </button>
+        {hideSteppers ? null : (
+          <button
+            type="button"
+            aria-label={`Increase ${label}`}
+            onClick={() => commit(value + step)}
+            disabled={disabled}
+            className={stepperClasses}
+          >
+            +
+          </button>
+        )}
       </div>
     </div>
   )

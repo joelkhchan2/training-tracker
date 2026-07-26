@@ -49,6 +49,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
             onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
             step={5}
             className="flex-1"
+            hideSteppers
           />
         )}
         <NumberField
@@ -56,6 +57,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
           value={set.reps ?? 0}
           onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
           className="flex-1"
+          hideSteppers
         />
 
         <button

@@ -57,4 +57,42 @@ describe('SetRow', () => {
     expect(set.isWarmup).toBe(true)
     expect(set.rpe).toBe(8)
   })
+
+  it('does not render stepper buttons for Weight and Reps, but inputs work and done/remove buttons present', () => {
+    const prescription: PrescribedExercise[] = [
+      { exerciseName: 'Bench Press', tmKey: 'bench', sets: [{ weight: 135, reps: 5 }] },
+    ]
+    useSessionStore.getState().startFromPrescription(prescription, {
+      sessionType: 'A',
+      dayName: 'Day 1',
+      dayIndex: 0,
+      clientId: 'client-1',
+      startedAt: new Date().toISOString(),
+    })
+
+    function Wrapper() {
+      const set = useSessionStore((s) => s.exercises[0].sets[0])
+      return <SetRow exIdx={0} setIdx={0} set={set} />
+    }
+    render(<Wrapper />)
+
+    // Stepper buttons should not be present
+    expect(screen.queryByLabelText('Increase Weight')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Decrease Weight')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Increase Reps')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Decrease Reps')).not.toBeInTheDocument()
+
+    // But inputs should be present
+    expect(screen.getByLabelText('Weight')).toBeInTheDocument()
+    expect(screen.getByLabelText('Reps')).toBeInTheDocument()
+
+    // Done and remove buttons should still be present
+    expect(screen.getByRole('button', { name: /Set 1 done/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Remove set 1/i })).toBeInTheDocument()
+
+    // Typing in the Weight input should still trigger updateSet
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '155' } })
+    const set = useSessionStore.getState().exercises[0].sets[0]
+    expect(set.weight).toBe(155)
+  })
 })

@@ -28,4 +28,14 @@ describe('NumberField', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Decrease Reps' }))
     expect(onChange).toHaveBeenCalledWith(0)
   })
+
+  it('hides stepper buttons when hideSteppers is true, but input still works', () => {
+    const onChange = vi.fn()
+    render(<NumberField label="Weight" value={100} onChange={onChange} hideSteppers />)
+    expect(screen.queryByLabelText('Increase Weight')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Decrease Weight')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Weight')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '150' } })
+    expect(onChange).toHaveBeenCalledWith(150)
+  })
 })
