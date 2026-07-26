@@ -32,9 +32,56 @@
     Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-html {
-  color-scheme: dark;
+/* Each theme overrides the RAW tokens (not --color-*); @theme maps them, so every utility
+ * re-resolves. color-scheme lives per-theme so native controls follow the palette. */
+[data-theme="midnight"] {
+  --bg:#0a0a0b; --surface:#17171a; --surface-hover:#202024; --border:#2a2a2f;
+  --text:#f5f5f4; --muted:#9a9aa3; --accent:#c3f53c; --accent-fg:#0b1004;
+  --danger:#ff5c5c; --danger-fg:#1a0505; color-scheme: dark;
 }
+[data-theme="navy"] {
+  --bg:#0b1220; --surface:#141d30; --surface-hover:#1d283f; --border:#28344d;
+  --text:#eef2f9; --muted:#94a0b8; --accent:#4d8dff; --accent-fg:#04122b;
+  --danger:#ff6b6b; --danger-fg:#1a0505; color-scheme: dark;
+}
+[data-theme="gold"] {
+  --bg:#0c1526; --surface:#152036; --surface-hover:#1e2c48; --border:#2a3a58;
+  --text:#f3ecdd; --muted:#a99f88; --accent:#e8b23a; --accent-fg:#1a1204;
+  --danger:#e5484d; --danger-fg:#1a0303; color-scheme: dark;
+}
+[data-theme="evergreen"] {
+  --bg:#0a1410; --surface:#132018; --surface-hover:#1b2c21; --border:#26382c;
+  --text:#eaf3ec; --muted:#8ea394; --accent:#3ddc84; --accent-fg:#04140a;
+  --danger:#ff6b6b; --danger-fg:#1a0505; color-scheme: dark;
+}
+[data-theme="ember"] {
+  --bg:#120a08; --surface:#20130f; --surface-hover:#2c1a15; --border:#3a231c;
+  --text:#f8efe9; --muted:#b39a90; --accent:#ff6a1a; --accent-fg:#1a0800;
+  --danger:#ff4d4d; --danger-fg:#1a0303; color-scheme: dark;
+}
+[data-theme="amoled"] {
+  --bg:#000000; --surface:#0d0d0f; --surface-hover:#161619; --border:#242428;
+  --text:#f2f2f3; --muted:#8f8f97; --accent:#00e5a8; --accent-fg:#00140d;
+  --danger:#ff5c5c; --danger-fg:#1a0505; color-scheme: dark;
+}
+[data-theme="contrast"] {
+  --bg:#000000; --surface:#0a0a0a; --surface-hover:#161616; --border:#3a3a3a;
+  --text:#ffffff; --muted:#c9c9c9; --accent:#ffe600; --accent-fg:#000000;
+  --danger:#ff5a5a; --danger-fg:#000000; color-scheme: dark;
+}
+[data-theme="daylight"] {
+  --bg:#f7f7f5; --surface:#ffffff; --surface-hover:#eeeeec; --border:#dcdcd8;
+  --text:#1b1b1a; --muted:#5f5f5c; --accent:#2f6b2f; --accent-fg:#ffffff;
+  --danger:#c62828; --danger-fg:#ffffff; color-scheme: light;
+}
+[data-theme="yuletide"] {
+  --bg:#0b1410; --surface:#14211a; --surface-hover:#1c2e24; --border:#284034;
+  --text:#f4efe6; --muted:#a3b0a5; --accent:#c1121f; --accent-fg:#fff5f5;
+  --danger:#f4a11f; --danger-fg:#1a0f00; color-scheme: dark;
+}
+
+html { font-size: calc(100% * var(--font-scale, 1)); }
+body { font-variant-numeric: tabular-nums; }
 
 body {
   margin: 0;
