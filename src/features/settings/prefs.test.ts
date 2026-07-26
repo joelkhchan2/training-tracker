@@ -65,4 +65,13 @@ describe('data integrity', () => {
     const themeIds = new Set(THEMES.map(t => t.id))
     expect(cssIds).toEqual(themeIds) // includes midnight; catches typos / missing blocks either direction
   })
+
+  it('every THEMES entry has non-empty surface and accent colors', () => {
+    for (const t of THEMES) {
+      expect(typeof t.surface).toBe('string')
+      expect(t.surface.length).toBeGreaterThan(0)
+      expect(typeof t.accent).toBe('string')
+      expect(t.accent.length).toBeGreaterThan(0)
+    }
+  })
 })

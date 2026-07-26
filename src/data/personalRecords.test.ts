@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildStrengthRecords, buildClimbingRecord } from './personalRecords'
+import { buildStrengthRecords, buildClimbingRecord, filterSortRecords, type StrengthRecord } from './personalRecords'
 
 describe('buildStrengthRecords', () => {
   it('keeps a seeded-only exercise that has no live sets (preserves old all-time PR)', () => {
@@ -48,6 +48,16 @@ describe('buildStrengthRecords', () => {
   it('returns [] for no data', () => {
     expect(buildStrengthRecords([], [])).toEqual([])
   })
+
+  it('carries movementPattern from a live row; seeded-only exercises resolve to null', () => {
+    const seeded = [{ exerciseId: 'dl', name: 'Deadlift', prType: 'e1rm' as const, value: 440, weight: 405, reps: 3 }]
+    const live = [{ exerciseId: 's', name: 'Squat', sessionId: 'x', weight: 315, reps: 3, movementPattern: 'squat' }]
+    const out = buildStrengthRecords(seeded, live)
+    const squat = out.find(r => r.exerciseId === 's')
+    const deadlift = out.find(r => r.exerciseId === 'dl')
+    expect(squat?.movementPattern).toBe('squat')
+    expect(deadlift?.movementPattern).toBeNull()
+  })
 })
 
 describe('buildClimbingRecord', () => {
@@ -61,5 +71,42 @@ describe('buildClimbingRecord', () => {
   it('returns null when both sources are empty', () => {
     expect(buildClimbingRecord(null, [])).toBeNull()
     expect(buildClimbingRecord(null, ['6C'])).toBeNull()
+  })
+})
+
+describe('filterSortRecords', () => {
+  const records: StrengthRecord[] = [
+    { exerciseId: 'sq', exerciseName: 'Squat', bestE1rm: 300, bestE1rmWeight: 275, bestE1rmReps: 3, bestVolume: 4000, movementPattern: 'squat' },
+    { exerciseId: 'bp', exerciseName: 'Bench Press', bestE1rm: 200, bestE1rmWeight: 185, bestE1rmReps: 3, bestVolume: 6000, movementPattern: 'push' },
+    { exerciseId: 'ohp', exerciseName: 'Overhead Press', bestE1rm: 120, bestE1rmWeight: 105, bestE1rmReps: 4, bestVolume: 2000, movementPattern: 'push' },
+    { exerciseId: 'cur', exerciseName: 'Curl', bestE1rm: 80, bestE1rmWeight: 60, bestE1rmReps: 8, bestVolume: 8000, movementPattern: null },
+  ]
+
+  it('empty opts returns input sorted by e1RM desc (reproduces current order)', () => {
+    const out = filterSortRecords(records, { query: '', pattern: 'all', sort: 'e1rm' })
+    expect(out.map(r => r.exerciseName)).toEqual(['Squat', 'Bench Press', 'Overhead Press', 'Curl'])
+  })
+
+  it('filters by name substring, case-insensitive', () => {
+    const out = filterSortRecords(records, { query: 'squ', pattern: 'all', sort: 'e1rm' })
+    expect(out.map(r => r.exerciseName)).toEqual(['Squat'])
+  })
+
+  it('filters by movement pattern', () => {
+    expect(filterSortRecords(records, { query: '', pattern: 'push', sort: 'e1rm' }).map(r => r.exerciseName))
+      .toEqual(['Bench Press', 'Overhead Press'])
+    expect(filterSortRecords(records, { query: '', pattern: 'other', sort: 'e1rm' }).map(r => r.exerciseName))
+      .toEqual(['Curl'])
+    expect(filterSortRecords(records, { query: '', pattern: 'all', sort: 'e1rm' })).toHaveLength(4)
+  })
+
+  it('sorts by volume descending', () => {
+    const out = filterSortRecords(records, { query: '', pattern: 'all', sort: 'volume' })
+    expect(out.map(r => r.exerciseName)).toEqual(['Curl', 'Bench Press', 'Squat', 'Overhead Press'])
+  })
+
+  it('sorts by name A-Z', () => {
+    const out = filterSortRecords(records, { query: '', pattern: 'all', sort: 'name' })
+    expect(out.map(r => r.exerciseName)).toEqual(['Bench Press', 'Curl', 'Overhead Press', 'Squat'])
   })
 })

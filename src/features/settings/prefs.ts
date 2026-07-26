@@ -13,16 +13,16 @@ export interface Prefs {
 export const PREFS_KEY = 'tt-prefs'
 export const DEFAULT_PREFS: Prefs = { theme: 'system', fontFamily: 'system', fontScale: 1 }
 
-export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seasonal'; mode: 'dark' | 'light'; bg: string }[] = [
-  { id: 'midnight', label: 'Midnight', group: 'core', mode: 'dark', bg: '#0a0a0b' },
-  { id: 'navy', label: 'Royal Navy', group: 'core', mode: 'dark', bg: '#0b1220' },
-  { id: 'gold', label: 'Old Gold', group: 'core', mode: 'dark', bg: '#0c1526' },
-  { id: 'evergreen', label: 'Evergreen', group: 'core', mode: 'dark', bg: '#0a1410' },
-  { id: 'ember', label: 'Ember', group: 'core', mode: 'dark', bg: '#120a08' },
-  { id: 'amoled', label: 'AMOLED Black', group: 'core', mode: 'dark', bg: '#000000' },
-  { id: 'contrast', label: 'High Contrast', group: 'core', mode: 'dark', bg: '#000000' },
-  { id: 'daylight', label: 'Daylight', group: 'core', mode: 'light', bg: '#f7f7f5' },
-  { id: 'yuletide', label: 'Yuletide', group: 'seasonal', mode: 'dark', bg: '#0b1410' },
+export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seasonal'; mode: 'dark' | 'light'; bg: string; surface: string; accent: string }[] = [
+  { id: 'midnight', label: 'Midnight', group: 'core', mode: 'dark', bg: '#0a0a0b', surface: '#17171a', accent: '#c3f53c' },
+  { id: 'navy', label: 'Royal Navy', group: 'core', mode: 'dark', bg: '#0b1220', surface: '#141d30', accent: '#4d8dff' },
+  { id: 'gold', label: 'Old Gold', group: 'core', mode: 'dark', bg: '#0c1526', surface: '#152036', accent: '#e8b23a' },
+  { id: 'evergreen', label: 'Evergreen', group: 'core', mode: 'dark', bg: '#0a1410', surface: '#132018', accent: '#3ddc84' },
+  { id: 'ember', label: 'Ember', group: 'core', mode: 'dark', bg: '#120a08', surface: '#20130f', accent: '#ff6a1a' },
+  { id: 'amoled', label: 'AMOLED Black', group: 'core', mode: 'dark', bg: '#000000', surface: '#0d0d0f', accent: '#00e5a8' },
+  { id: 'contrast', label: 'High Contrast', group: 'core', mode: 'dark', bg: '#000000', surface: '#0a0a0a', accent: '#ffe600' },
+  { id: 'daylight', label: 'Daylight', group: 'core', mode: 'light', bg: '#f7f7f5', surface: '#ffffff', accent: '#2f6b2f' },
+  { id: 'yuletide', label: 'Yuletide', group: 'seasonal', mode: 'dark', bg: '#0b1410', surface: '#14211a', accent: '#c1121f' },
 ]
 
 // System resolves to these based on OS preference.
