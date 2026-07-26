@@ -29,13 +29,17 @@ function Body({ detail }: { detail: SessionDetail }) {
     return (
       <div className="space-y-3">
         {detail.exercises.map((ex, i) => (
-          <Card key={`${ex.exerciseName}-${i}`} className="space-y-1">
-            <p className="font-medium text-text">{ex.exerciseName}</p>
-            {ex.sets.map((s, j) => (
-              <p key={j} className="text-sm text-muted">
-                {formatSet(s)}{s.isWarmup ? <span className="ml-2 rounded bg-surface-hover px-1.5 py-0.5 text-xs">Warm-up</span> : null}
-              </p>
-            ))}
+          <Card key={`${ex.exerciseName}-${i}`} className="space-y-3">
+            <p className="truncate text-lg font-semibold text-text">{ex.exerciseName}</p>
+            <div className="space-y-2">
+              {ex.sets.map((s, j) => (
+                <div key={j} className="flex items-center gap-3 text-sm">
+                  <span className="w-12 shrink-0 text-muted">Set {j + 1}</span>
+                  <span className="text-text">{formatSet(s)}</span>
+                  {s.isWarmup ? <span className="rounded bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Warm-up</span> : null}
+                </div>
+              ))}
+            </div>
           </Card>
         ))}
         <p className="text-sm text-muted">Strength sessions can&apos;t be deleted yet.</p>

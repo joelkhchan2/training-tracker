@@ -68,11 +68,17 @@ describe('SessionDetailPage', () => {
     })
     render(<SessionDetailPage />)
     expect(screen.getByText('Back Squat')).toBeInTheDocument()
+    expect(screen.getByText('Set 1')).toBeInTheDocument()
     expect(screen.getByText('100×5 @8')).toBeInTheDocument()
+    expect(screen.getByText('Set 2')).toBeInTheDocument()
     expect(screen.getByText('40×10')).toBeInTheDocument()
     expect(screen.getByText('Warm-up')).toBeInTheDocument()
     expect(screen.getByText("Strength sessions can't be deleted yet.")).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Delete session/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(document.querySelector('input')).not.toBeInTheDocument()
+    expect(document.querySelector('button[aria-label*="Remove"]')).not.toBeInTheDocument()
   })
 
   it('renders a cardio detail with activity + Delete button; confirming delete calls mutate and navigates on success', () => {
