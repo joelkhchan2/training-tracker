@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <script>
+      (function () {
+        try {
+          var THEME_BG = { midnight:'#0a0a0b', navy:'#0b1220', gold:'#0c1526', evergreen:'#0a1410', ember:'#120a08', amoled:'#000000', contrast:'#000000', daylight:'#f7f7f5', yuletide:'#0b1410' };
+          var FONT = {
+            rounded: 'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", system-ui, sans-serif',
+            mono: 'ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace'
+          };
+          var p = JSON.parse(localStorage.getItem('tt-prefs') || '{}');
+          var t = p.theme;
+          if (t === 'system' || !t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'midnight';
+          if (!THEME_BG[t]) t = 'midnight';
+          var d = document.documentElement;
+          d.dataset.theme = t;
+          if (typeof p.fontScale === 'number') d.style.setProperty('--font-scale', String(p.fontScale));
+          if (p.fontFamily && FONT[p.fontFamily]) d.style.setProperty('--font-sans', FONT[p.fontFamily]);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', THEME_BG[t]);
+        } catch (e) {}
+      })();
+    </script>
     <title>training-tracker</title>
   </head>
   <body>
