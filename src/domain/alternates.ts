@@ -46,5 +46,5 @@ export function suggestAlternates(
     (Number(b.samePattern) - Number(a.samePattern)) ||
     a.name.localeCompare(b.name),
   )
-  return scored.slice(0, limit).map(({ samePattern: _s, ...rest }) => rest)
+  return scored.slice(0, limit).map((s) => ({ id: s.id, name: s.name, exerciseType: s.exerciseType, sharedCount: s.sharedCount }))
 }
