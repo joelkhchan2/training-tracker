@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ProgramPreview } from './ProgramPreview'
 import type { PreviewProgram } from './ProgramPreview'
 import { PRESETS, pushPullLegs } from '../../domain/presets'
+import type { Scheme } from '../../domain/types'
 
 const pushPullLegsPreset = PRESETS.find(p => p.id === 'pushPullLegs')!
 
@@ -59,5 +60,34 @@ describe('ProgramPreview', () => {
 
     fireEvent.click(editButton)
     expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not crash when an exercise has a malformed scheme (bad DB data)', () => {
+    // Reproduces the real crash: a jsonb scheme with an unknown type whose `sets`
+    // is a number (not an array) made `formatScheme`'s `for..of` throw, white-screening
+    // the whole preview. Also covers a scheme with no `sets` field at all.
+    const malformed: PreviewProgram = {
+      name: 'Malformed',
+      description: '',
+      discipline: 'strength',
+      daysPerWeek: 1,
+      program: {
+        name: 'Malformed',
+        discipline: 'strength',
+        days: [
+          {
+            name: 'Gym B',
+            exercises: [
+              { exerciseName: 'Tempo Squat', order: 0, scheme: { type: 'percentage_flat', sets: 4 } as unknown as Scheme },
+              { exerciseName: 'Mystery Move', order: 1, scheme: { type: 'weird' } as unknown as Scheme },
+            ],
+          },
+        ],
+      },
+    }
+
+    expect(() => render(<ProgramPreview program={malformed} onUse={vi.fn()} />)).not.toThrow()
+    expect(screen.getByText('Tempo Squat')).toBeInTheDocument()
+    expect(screen.getByText('Mystery Move')).toBeInTheDocument()
   })
 })

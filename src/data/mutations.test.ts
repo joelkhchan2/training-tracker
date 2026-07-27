@@ -134,6 +134,21 @@ const benchPercentageExercise: ProgressionExerciseInput = {
 const squatWorkingWeights: WorkingWeights = { squat: { weight: 100, fails: 0 } }
 
 describe('buildProgressionUpdates', () => {
+  it('skips a malformed linear scheme (non-array sets) instead of crashing the save', () => {
+    // Regression: `ex.scheme.sets.forEach(...)` threw on the Finish-Workout save when a
+    // linear scheme had a non-array `sets` (the same `sets: 4` shape as the preview crash).
+    const malformed: ProgressionExerciseInput = {
+      exerciseId: 'ex-bad', exerciseName: 'Bad', tmKey: 'bad',
+      scheme: { type: 'linear', sets: 4 as unknown as never, progression: SQUAT_LINEAR_CONFIG },
+    }
+    const loggedSets = [{ exercise_id: 'ex-bad', set_number: 1, prescription_index: 0, reps: 5 }]
+
+    const plan = buildProgressionUpdates('prog-1', [malformed], loggedSets, {})
+
+    expect(plan.updates).toEqual([])
+    expect(plan.outcomes).toEqual([])
+  })
+
   it('all sets (incl. AMRAP) met: increases the working weight and resets fails', () => {
     const loggedSets = [
       { exercise_id: 'ex-squat', set_number: 1, prescription_index: 0, reps: 5 },

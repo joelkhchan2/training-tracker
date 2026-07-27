@@ -104,6 +104,10 @@ export function buildProgressionUpdates(
 
   for (const ex of exercises) {
     if (ex.scheme.type !== 'linear') continue
+    // Defense-in-depth: schemes are normalized at the DB boundary (normalizeScheme in
+    // queries.ts), but never let a malformed linear scheme reach `.sets.forEach` /
+    // `applyLinearProgression(progression)` — that would crash the Finish-Workout save.
+    if (!Array.isArray(ex.scheme.sets) || typeof ex.scheme.progression?.failsBeforeDeload !== 'number') continue
 
     const setsForExercise = loggedSets.filter(s => s.exercise_id === ex.exerciseId)
     if (setsForExercise.length === 0) continue
