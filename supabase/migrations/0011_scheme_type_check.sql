@@ -9,6 +9,9 @@
 -- the DB->domain read boundary (normalizeScheme in src/data/queries.ts); this covers the
 -- unknown-type class specifically. coalesce(...,'') so a missing `type` is also rejected
 -- (a bare CHECK would let NULL through).
+-- Idempotent: drop-then-add so this is safe to re-run (it is applied out-of-band via the
+-- Supabase MCP as well as shipping here for the file-based migration history).
+alter table program_exercises drop constraint if exists program_exercises_scheme_type_valid;
 alter table program_exercises
   add constraint program_exercises_scheme_type_valid
   check (coalesce(scheme->>'type', '') in ('percentage', 'fixed', 'linear'));
