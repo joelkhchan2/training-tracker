@@ -84,4 +84,80 @@ describe('ProgressPage', () => {
     fireEvent.click(screen.getByText('1RM Calculator'))
     expect(nav).toHaveBeenCalledWith('/progress/calculator')
   })
+
+  it('renders the Tools section before the Personal records section', () => {
+    usePersonalRecords.mockReturnValue({
+      data: { strength: [], climbingMaxGrade: null },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    const toolsHeading = screen.getByText('Tools')
+    const recordsHeading = screen.getByText('Personal records')
+    expect(toolsHeading.compareDocumentPosition(recordsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('ProgressPage — search/filter/sort', () => {
+  const RECORDS = [
+    { exerciseId: 'ex-1', exerciseName: 'Zercher Squat', bestE1rm: 150, bestE1rmWeight: 130, bestE1rmReps: 5, bestVolume: 500, movementPattern: 'hinge' },
+    { exerciseId: 'ex-2', exerciseName: 'Bench Press', bestE1rm: 100, bestE1rmWeight: 90, bestE1rmReps: 5, bestVolume: 1200, movementPattern: 'push' },
+    { exerciseId: 'ex-3', exerciseName: 'Ab Wheel', bestE1rm: 50, bestE1rmWeight: 0, bestE1rmReps: null, bestVolume: 3000, movementPattern: null },
+  ]
+
+  function namesInOrder() {
+    return screen.getAllByText(/^(Ab Wheel|Bench Press|Zercher Squat)$/).map(el => el.textContent)
+  }
+
+  beforeEach(() => {
+    usePersonalRecords.mockReturnValue({
+      data: { strength: RECORDS, climbingMaxGrade: 6 },
+      isLoading: false,
+    })
+  })
+
+  it('defaults to e1RM-descending order', () => {
+    render(<ProgressPage />)
+    expect(namesInOrder()).toEqual(['Zercher Squat', 'Bench Press', 'Ab Wheel'])
+  })
+
+  it('filters records by the search input', () => {
+    render(<ProgressPage />)
+    fireEvent.change(screen.getByLabelText('Search records'), { target: { value: 'bench' } })
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.queryByText('Zercher Squat')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ab Wheel')).not.toBeInTheDocument()
+  })
+
+  it('shows "No matching records." when the search matches nothing', () => {
+    render(<ProgressPage />)
+    fireEvent.change(screen.getByLabelText('Search records'), { target: { value: 'nonexistent' } })
+    expect(screen.getByText('No matching records.')).toBeInTheDocument()
+  })
+
+  it('narrows the list with the movement-pattern filter', () => {
+    render(<ProgressPage />)
+    fireEvent.change(screen.getByLabelText('Filter by movement'), { target: { value: 'push' } })
+    expect(screen.getByText('Bench Press')).toBeInTheDocument()
+    expect(screen.queryByText('Zercher Squat')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ab Wheel')).not.toBeInTheDocument()
+  })
+
+  it('hides the climbing card once a search or movement filter is active', () => {
+    render(<ProgressPage />)
+    expect(screen.getByText('Climbing')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Search records'), { target: { value: 'bench' } })
+    expect(screen.queryByText('Climbing')).not.toBeInTheDocument()
+  })
+
+  it('reorders the list when sorting by Volume', () => {
+    render(<ProgressPage />)
+    fireEvent.change(screen.getByLabelText('Sort records'), { target: { value: 'volume' } })
+    expect(namesInOrder()).toEqual(['Ab Wheel', 'Bench Press', 'Zercher Squat'])
+  })
+
+  it('reorders the list when sorting by Name A–Z', () => {
+    render(<ProgressPage />)
+    fireEvent.change(screen.getByLabelText('Sort records'), { target: { value: 'name' } })
+    expect(namesInOrder()).toEqual(['Ab Wheel', 'Bench Press', 'Zercher Squat'])
+  })
 })

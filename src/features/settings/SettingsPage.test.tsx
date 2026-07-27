@@ -110,4 +110,23 @@ describe('SettingsPage — Appearance', () => {
     fireEvent.click(sizeGroup.getByRole('button', { name: new RegExp(large.label) }))
     expect(setFontScale).toHaveBeenCalledWith(large.value)
   })
+
+  it('renders all theme options in a single flat list with no Seasonal heading', () => {
+    render(<SettingsPage />)
+    expect(screen.queryByText('Seasonal')).not.toBeInTheDocument()
+    const themeGroup = within(screen.getByRole('group', { name: 'Theme' }))
+    expect(themeGroup.getByRole('button', { name: 'System' })).toBeInTheDocument()
+    for (const t of THEMES) {
+      expect(themeGroup.getByRole('button', { name: t.label })).toBeInTheDocument()
+    }
+    expect(themeGroup.getByRole('button', { name: 'Yuletide' })).toBeInTheDocument()
+  })
+
+  it('shows Small/Medium/Large as the primary label for text-size options', () => {
+    render(<SettingsPage />)
+    const sizeGroup = within(screen.getByRole('group', { name: 'Text size' }))
+    for (const s of SCALES) {
+      expect(sizeGroup.getByRole('button', { name: s.label })).toBeInTheDocument()
+    }
+  })
 })

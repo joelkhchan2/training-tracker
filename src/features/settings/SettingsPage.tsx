@@ -15,9 +15,6 @@ const DISCIPLINES: { key: Discipline; label: string }[] = [
   { key: 'calisthenics', label: 'Calisthenics' },
 ]
 
-const CORE_THEMES = THEMES.filter(t => t.group === 'core')
-const SEASONAL_THEMES = THEMES.filter(t => t.group === 'seasonal')
-
 // "System" preview mixes the two concrete themes System resolves to, so the
 // swatch stays honest without hard-coding colors that could drift from prefs.ts.
 const SYSTEM_PREVIEW_BG = `linear-gradient(135deg, ${THEMES.find(t => t.id === 'midnight')!.bg} 50%, ${THEMES.find(t => t.id === 'daylight')!.bg} 50%)`
@@ -27,12 +24,14 @@ interface ThemeOption {
   label: string
   bg: string
   mode: 'dark' | 'light' | 'auto'
+  surface?: string
+  accent?: string
 }
 
 const SYSTEM_OPTION: ThemeOption = { id: 'system', label: 'System', bg: SYSTEM_PREVIEW_BG, mode: 'auto' }
 
 function ThemeSwatchButton({ option, active, onSelect }: { option: ThemeOption; active: boolean; onSelect: () => void }) {
-  const dotColor = option.mode === 'light' ? '#111111' : '#ffffff'
+  const accentColor = option.accent ?? (option.mode === 'light' ? '#111111' : '#ffffff')
   return (
     <button
       type="button"
@@ -43,8 +42,11 @@ function ThemeSwatchButton({ option, active, onSelect }: { option: ThemeOption; 
         active ? 'border-accent ring-2 ring-accent' : 'hover:border-accent/50',
       )}
     >
-      <span className="relative h-6 w-6 shrink-0 rounded-full border border-border/50" style={{ background: option.bg }}>
-        <span className="absolute right-0 top-0 h-2 w-2 rounded-full" style={{ background: dotColor }} />
+      <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-border/50" style={{ background: option.bg }}>
+        {option.surface ? (
+          <span className="absolute bottom-0.5 left-0.5 h-2.5 w-2.5 rounded-sm" style={{ background: option.surface }} />
+        ) : null}
+        <span className="absolute right-0 top-0 h-2 w-2 rounded-full" style={{ background: accentColor }} />
       </span>
       <span className="flex-1">{option.label}</span>
       {active && <span aria-hidden="true">✓</span>}
@@ -102,20 +104,10 @@ export function SettingsPage() {
             <h3 className="text-sm font-medium text-muted">Theme</h3>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <ThemeSwatchButton option={SYSTEM_OPTION} active={theme === 'system'} onSelect={() => setTheme('system')} />
-              {CORE_THEMES.map(t => (
+              {THEMES.map(t => (
                 <ThemeSwatchButton key={t.id} option={t} active={theme === t.id} onSelect={() => setTheme(t.id)} />
               ))}
             </div>
-            {SEASONAL_THEMES.length > 0 && (
-              <>
-                <h3 className="pt-2 text-sm font-medium text-muted">Seasonal</h3>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {SEASONAL_THEMES.map(t => (
-                    <ThemeSwatchButton key={t.id} option={t} active={theme === t.id} onSelect={() => setTheme(t.id)} />
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           <div className="space-y-2" role="group" aria-label="Font">
@@ -159,8 +151,8 @@ export function SettingsPage() {
                       active ? 'border-accent ring-2 ring-accent' : 'hover:border-accent/50',
                     )}
                   >
-                    <span className="tabular-nums leading-none" style={{ fontSize: `${18 * s.value}px` }}>18</span>
-                    <span className="text-xs text-muted">{s.label}</span>
+                    <span className="text-sm font-medium leading-none">{s.label}</span>
+                    <span aria-hidden="true" className="tabular-nums leading-none text-muted" style={{ fontSize: `${18 * s.value}px` }}>Aa</span>
                   </button>
                 )
               })}
