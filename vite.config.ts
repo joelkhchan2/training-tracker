@@ -10,7 +10,10 @@ export default defineConfig(({ mode }) => ({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' (not 'autoUpdate'): surface a one-tap "New version" toast via
+      // UpdatePrompt so a deploy applies on a single reload, instead of the
+      // silent autoUpdate that left stale bundles cached until a full reinstall.
+      registerType: 'prompt',
       manifest: {
         name: 'Training Tracker',
         short_name: 'Training',
