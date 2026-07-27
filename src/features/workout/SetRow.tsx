@@ -32,8 +32,20 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
         </span>
       ) : null}
 
-      <div className="flex items-end gap-2">
-        <div className="flex w-12 shrink-0 flex-col items-start gap-1 pb-3">
+      {/* Grid, not flex: fixed 3rem tracks for the set label + done/remove
+          buttons, and minmax(0,1fr) tracks for the weight/reps fields. The
+          minmax lower bound of 0 means the field tracks shrink instead of
+          forcing the row (and the whole page) wider than the viewport — the
+          structural, can't-regress version of the min-w-0 flex fix. */}
+      <div
+        className={cn(
+          'grid items-end gap-2',
+          hideWeight
+            ? 'grid-cols-[3rem_minmax(0,1fr)_3rem_3rem]'
+            : 'grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_3rem_3rem]',
+        )}
+      >
+        <div className="flex flex-col items-start gap-1 pb-3">
           <span className="text-sm font-medium text-muted">Set {setNumber}</span>
           {set.isFsl ? (
             <span className="inline-flex rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold text-accent">
@@ -48,7 +60,6 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
             value={set.weight ?? 0}
             onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
             step={5}
-            className="flex-1"
             hideSteppers
           />
         )}
@@ -56,7 +67,6 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
           label="Reps"
           value={set.reps ?? 0}
           onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
-          className="flex-1"
           hideSteppers
         />
 
