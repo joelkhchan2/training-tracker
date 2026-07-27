@@ -63,11 +63,11 @@ export function NumberField({
   )
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
+    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
       <label htmlFor={inputId} className="text-sm font-medium text-muted">
         {label}
       </label>
-      <div className="flex items-stretch gap-2">
+      <div className="flex min-w-0 items-stretch gap-2">
         {hideSteppers ? null : (
           <button
             type="button"
