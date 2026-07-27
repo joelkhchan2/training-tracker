@@ -6,8 +6,8 @@ import { applyLinearProgression } from '../linearProgression'
 const LP_PRESET_IDS = ['strongLifts5x5', 'startingStrength', 'basicBeginner', 'greyskullLP']
 
 describe('PRESETS registry', () => {
-  it('has 7 entries', () => {
-    expect(PRESETS.length).toBe(7)
+  it('has 8 entries', () => {
+    expect(PRESETS.length).toBe(8)
   })
 
   it('flags fiveThreeOne as requiring training maxes', () => {
@@ -19,7 +19,7 @@ describe('PRESETS registry', () => {
 
   it('flags every non-5/3/1 preset as not requiring training maxes', () => {
     const others = PRESETS.filter(p => p.id !== 'fiveThreeOne')
-    expect(others.length).toBe(6)
+    expect(others.length).toBe(7)
     for (const preset of others) {
       expect(preset.requiresTrainingMaxes).toBe(false)
       expect(preset.tmKeys).toEqual([])
@@ -41,7 +41,7 @@ describe('PRESETS registry', () => {
 
   it('flags every other preset as not requiring starting weights', () => {
     const nonLp = PRESETS.filter(p => !LP_PRESET_IDS.includes(p.id))
-    expect(nonLp.length).toBe(3)
+    expect(nonLp.length).toBe(4)
     for (const preset of nonLp) {
       expect(preset.requiresStartingWeights).toBe(false)
       expect(preset.startingWeightLifts).toEqual([])
@@ -54,7 +54,7 @@ describe('PRESETS registry', () => {
     }
   })
 
-  for (const presetId of ['strongLifts5x5', 'pushPullLegs', 'beginnerLinear', 'fiveThreeOne', 'startingStrength', 'basicBeginner', 'greyskullLP']) {
+  for (const presetId of ['strongLifts5x5', 'pushPullLegs', 'beginnerLinear', 'fiveThreeOne', 'startingStrength', 'basicBeginner', 'greyskullLP', 'gabrielleWorkout']) {
     describe(presetId, () => {
       const preset = PRESETS.find(p => p.id === presetId)
 
@@ -100,6 +100,61 @@ describe('PRESETS registry', () => {
       })
     })
   }
+
+  describe('gabrielleWorkout — single-day 3×12 with baked-in weights', () => {
+    const preset = PRESETS.find(p => p.id === 'gabrielleWorkout')!
+
+    it('is a single "Full Body" day of nine exercises in order', () => {
+      expect(preset.program.days.length).toBe(1)
+      const day = preset.program.days[0]
+      expect(day.name).toBe('Full Body')
+      expect(day.exercises.map(e => e.exerciseName)).toEqual([
+        'Treadmill', '45° Leg Press', 'Pull-down', 'Leg Extensions', 'Leg Curl',
+        'Shoulder Press', 'Cable Row', 'Decline Sit-ups', 'Treadmill',
+      ])
+      expect(day.exercises.map(e => e.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    })
+
+    it('has no progression rule (weights are managed manually)', () => {
+      expect(preset.program.progressionRule).toBeUndefined()
+      expect(preset.requiresTrainingMaxes).toBe(false)
+      expect(preset.requiresStartingWeights).toBe(false)
+    })
+
+    it('prescribes 3×12 at the sheet weights for lifts, and a single check-off set for treadmill', () => {
+      const [prescription] = [getPrescription(preset.program, { dayIndex: 0, week: 1, cycle: 1 }, {})]
+      const byName = (name: string) => prescription.filter(e => e.exerciseName === name)
+
+      const weights: Record<string, number> = {
+        '45° Leg Press': 90, 'Pull-down': 70, 'Leg Extensions': 110,
+        'Leg Curl': 70, 'Shoulder Press': 40, 'Cable Row': 66,
+      }
+      for (const [name, weight] of Object.entries(weights)) {
+        const ex = byName(name)[0]
+        expect(ex.sets.length).toBe(3)
+        for (const set of ex.sets) {
+          expect(set.reps).toBe(12)
+          expect(set.weight).toBe(weight)
+        }
+      }
+
+      // Decline Sit-ups: 3×12 bodyweight — no target weight.
+      const situps = byName('Decline Sit-ups')[0]
+      expect(situps.sets.length).toBe(3)
+      for (const set of situps.sets) {
+        expect(set.reps).toBe(12)
+        expect(set.weight).toBeUndefined()
+      }
+
+      // Two treadmill entries (warm-up + cool-down), each one check-off set, no weight.
+      const treadmills = byName('Treadmill')
+      expect(treadmills.length).toBe(2)
+      for (const t of treadmills) {
+        expect(t.sets.length).toBe(1)
+        expect(t.sets[0].weight).toBeUndefined()
+      }
+    })
+  })
 
   describe('linear-progression presets — getPrescription resolves the supplied working weight', () => {
     for (const presetId of LP_PRESET_IDS) {
