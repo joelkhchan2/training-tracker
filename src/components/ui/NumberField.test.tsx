@@ -38,4 +38,20 @@ describe('NumberField', () => {
     fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '150' } })
     expect(onChange).toHaveBeenCalledWith(150)
   })
+
+  // Regression guard: when used as a flex-1 field (e.g. two side-by-side in a
+  // SetRow), the input's intrinsic ~20-char preferred width leaks up through
+  // any flex ancestor left at min-width:auto, forcing horizontal overflow that
+  // blows the whole page wider than the viewport. min-w-0 on BOTH wrapper divs
+  // (not just the input) is what lets the field shrink. jsdom can't measure
+  // layout, so we assert the load-bearing classes are present.
+  it('keeps min-w-0 on both flex wrappers so the field can shrink', () => {
+    render(<NumberField label="Weight" value={100} onChange={vi.fn()} hideSteppers />)
+    const input = screen.getByLabelText('Weight')
+    const inputRow = input.parentElement as HTMLElement
+    const outerWrapper = inputRow.parentElement as HTMLElement
+    expect(input).toHaveClass('min-w-0')
+    expect(inputRow).toHaveClass('min-w-0')
+    expect(outerWrapper).toHaveClass('min-w-0')
+  })
 })
