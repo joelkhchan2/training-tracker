@@ -6,6 +6,7 @@ import { beginnerLinear } from './beginnerLinear'
 import { startingStrength } from './startingStrength'
 import { basicBeginner } from './basicBeginner'
 import { greyskullLP } from './greyskullLP'
+import { gabrielleWorkout } from './gabrielleWorkout'
 
 export interface PresetMeta {
   id: string
@@ -124,6 +125,18 @@ export const PRESETS: PresetMeta[] = [
     startingWeightLifts: linearSchemeLifts(greyskullLP),
     program: greyskullLP,
   },
+  {
+    id: 'gabrielleWorkout',
+    name: gabrielleWorkout.name,
+    description: "Gabrielle's full-body gym day — 3×12 on each lift with a treadmill warm-up and cool-down. Weights preset from her sheet; adjust as you progress.",
+    discipline: gabrielleWorkout.discipline,
+    daysPerWeek: gabrielleWorkout.days.length,
+    requiresTrainingMaxes: false,
+    tmKeys: [],
+    requiresStartingWeights: false,
+    startingWeightLifts: [],
+    program: gabrielleWorkout,
+  },
 ]
 
-export { fiveThreeOne, strongLifts5x5, pushPullLegs, beginnerLinear, startingStrength, basicBeginner, greyskullLP }
+export { fiveThreeOne, strongLifts5x5, pushPullLegs, beginnerLinear, startingStrength, basicBeginner, greyskullLP, gabrielleWorkout }
