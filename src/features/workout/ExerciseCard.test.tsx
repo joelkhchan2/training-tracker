@@ -23,6 +23,12 @@ describe('ExerciseCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
     expect(onReplace).toHaveBeenCalled()
   })
+  it('fires onReplace from the ⇄ substitute button', () => {
+    const onReplace = vi.fn()
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={onReplace} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Substitute Squat' }))
+    expect(onReplace).toHaveBeenCalled()
+  })
   it('hides the weight field for a bodyweight exercise', () => {
     render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
     expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument()
