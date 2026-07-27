@@ -6,6 +6,7 @@ import { TextField } from '../../components/ui/TextField'
 import { useExerciseSearch } from '../../data/exerciseCatalog'
 import { useAuth } from '../../lib/useAuth'
 import type { DraftExerciseKind } from '../../domain/programDraft'
+import { kindForExerciseType } from './exerciseKind'
 
 export interface PickedExercise {
   exerciseName: string
@@ -21,15 +22,6 @@ const KIND_OPTIONS: { value: DraftExerciseKind; label: string }[] = [
   { value: 'strength', label: 'Strength' },
   { value: 'bodyweight', label: 'Bodyweight' },
 ]
-
-/** Maps a catalog row's `exercise_type` to the draft's `kind`: only
- *  `'bodyweight'` maps to `'bodyweight'`, everything else (today just
- *  `'weighted'`/`'timed'`) maps to `'strength'` — the only two kinds
- *  `DraftExerciseKind` supports so far. */
-// eslint-disable-next-line react-refresh/only-export-components
-export function kindForExerciseType(exerciseType: string | null): DraftExerciseKind {
-  return exerciseType === 'bodyweight' ? 'bodyweight' : 'strength'
-}
 
 /**
  * Catalog search + add-custom affordance used by the Custom Program Builder

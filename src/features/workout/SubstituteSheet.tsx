@@ -1,5 +1,6 @@
-import { ExercisePicker, kindForExerciseType } from '../programs/ExercisePicker'
+import { ExercisePicker } from '../programs/ExercisePicker'
 import type { PickedExercise } from '../programs/ExercisePicker'
+import { kindForExerciseType } from '../programs/exerciseKind'
 import { useAuth } from '../../lib/useAuth'
 import { useAlternateExercises } from '../../data/alternateExercises'
 
