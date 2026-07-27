@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { r5, programWeekCount, advanceCursor, applyProgression, getPrescription } from './programEngine'
-import type { LinearProgressionConfig, Program } from './types'
+import type { LinearProgressionConfig, Program, Scheme } from './types'
 import { fiveThreeOne } from './presets/fiveThreeOne'
 
 // Shared fixture: the `linear` Scheme variant requires a `progression` config
@@ -190,5 +190,42 @@ describe('getPrescription (linear scheme)', () => {
     const day = getPrescription(noTmKeyProgram, { dayIndex: 0, week: 1, cycle: 1 }, {}, { Squat: 135 })
     const squat = day.find(e => e.exerciseName === 'Squat')!
     expect(squat.sets).toEqual([{ weight: 135, reps: 5 }])
+  })
+})
+
+describe('engine robustness to malformed jsonb data', () => {
+  // `scheme` is a jsonb column, so a bad/legacy/hand-edited row can violate the TS
+  // types at runtime. The engine must degrade to empty sets, never throw and crash
+  // the workout/preview screens.
+  const oneExerciseProgram = (scheme: unknown): Program => ({
+    name: 'bad', discipline: 'strength',
+    days: [{ name: 'A', exercises: [{ exerciseName: 'X', order: 0, scheme: scheme as Scheme }] }],
+  })
+  const cursor = { dayIndex: 0, week: 1, cycle: 1 }
+
+  it('getPrescription: unknown scheme type with a non-array `sets` -> empty sets, no throw', () => {
+    const out = getPrescription(oneExerciseProgram({ type: 'percentage_flat', sets: 4 }), cursor, {})
+    expect(out[0].sets).toEqual([])
+  })
+
+  it('getPrescription: percentage scheme with a week whose `sets` is a non-array -> empty sets, no throw', () => {
+    // weeks IS an array, but the selected week's `sets` is a number — the old code did
+    // `wk.sets.map(...)` and threw here; this exercises the inner `Array.isArray(wk.sets)` guard.
+    const out = getPrescription(oneExerciseProgram({ type: 'percentage', tmKey: 'squat', weeks: [{ sets: 4 }] }), cursor, { squat: 200 })
+    expect(out[0].sets).toEqual([])
+  })
+
+  it('getPrescription: fixed scheme with a null `sets` -> empty sets, no throw', () => {
+    const out = getPrescription(oneExerciseProgram({ type: 'fixed', sets: null }), cursor, {})
+    expect(out[0].sets).toEqual([])
+  })
+
+  it('getPrescription: a day whose `exercises` is not an array -> [], no throw', () => {
+    const p = { name: 'bad', discipline: 'strength', days: [{ name: 'A', exercises: null }] } as unknown as Program
+    expect(getPrescription(p, cursor, {})).toEqual([])
+  })
+
+  it('programWeekCount: percentage scheme with a non-array `weeks` -> defaults to 1, no throw', () => {
+    expect(programWeekCount(oneExerciseProgram({ type: 'percentage', tmKey: 'squat', weeks: 3 }))).toBe(1)
   })
 })

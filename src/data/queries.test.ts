@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import type { LinearProgressionConfig } from '../domain'
-import { buildDomainProgram, buildWorkingWeights, fetchActiveWorkout } from './queries'
+import { buildDomainProgram, buildWorkingWeights, fetchActiveWorkout, normalizeScheme } from './queries'
 import type {
   ExerciseProgressRow,
   ExerciseRow,
@@ -223,5 +223,37 @@ describe('buildDomainProgram', () => {
 
     const program = buildDomainProgram(programRow, days, programExercises, {})
     expect(program.days[0].exercises[0].exerciseName).toBe('Unknown exercise')
+  })
+})
+
+describe('normalizeScheme (DB->domain boundary hardening)', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+  beforeEach(() => { warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+  afterEach(() => { warnSpy.mockRestore() })
+
+  it('coerces an unknown scheme type to an empty fixed scheme (so it renders empty, not as linear)', () => {
+    expect(normalizeScheme({ type: 'percentage_flat', sets: 4 }, 'ctx')).toEqual({ type: 'fixed', sets: [] })
+  })
+
+  it('coerces a percentage scheme with a non-array `weeks` to empty weeks', () => {
+    expect(normalizeScheme({ type: 'percentage', tmKey: 'squat', weeks: 3 }, 'ctx')).toEqual({ type: 'percentage', tmKey: 'squat', weeks: [] })
+  })
+
+  it('coerces a fixed scheme with a null `sets` to empty sets', () => {
+    expect(normalizeScheme({ type: 'fixed', sets: null }, 'ctx')).toEqual({ type: 'fixed', sets: [] })
+  })
+
+  it('downgrades a linear scheme missing its progression to fixed (so the save path skips it)', () => {
+    expect(normalizeScheme({ type: 'linear', sets: [{ reps: 5 }] }, 'ctx').type).toBe('fixed')
+  })
+
+  it('passes a well-formed percentage scheme through unchanged', () => {
+    const good = { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 0.65, reps: 5 }] }] }
+    expect(normalizeScheme(good, 'ctx')).toEqual(good)
+  })
+
+  it('warns (observability) when it encounters an unknown scheme type', () => {
+    normalizeScheme({ type: 'weird' }, 'MyProgram / SomeExercise')
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown scheme type'))
   })
 })

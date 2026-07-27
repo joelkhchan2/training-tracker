@@ -87,7 +87,7 @@ function buildProgressionMeta(bundle: ActiveWorkoutBundle): Record<string, { key
   const day = bundle.program.days[bundle.cursor.dayIndex]
   const out: Record<string, { key: string; failsBeforeDeload: number }> = {}
   for (const ex of day?.exercises ?? []) {
-    if (ex.scheme.type !== 'linear') continue
+    if (ex.scheme.type !== 'linear' || typeof ex.scheme.progression?.failsBeforeDeload !== 'number') continue
     out[ex.exerciseName] = { key: ex.tmKey ?? ex.exerciseName, failsBeforeDeload: ex.scheme.progression.failsBeforeDeload }
   }
   return out

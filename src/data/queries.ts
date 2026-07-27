@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import type { Program, ProgramExercise, TrainingMaxes, Cursor } from '../domain'
+import type {
+  Program, ProgramExercise, TrainingMaxes, Cursor,
+  Scheme, PercentageSet, FixedSet, LinearSet, LinearProgressionConfig,
+} from '../domain'
 import { getSupabase } from './supabase'
 import type {
   ExerciseProgressRow,
@@ -61,6 +64,48 @@ export function buildWorkingWeights(
   return result
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** Coerce a raw jsonb `scheme` into a well-formed domain `Scheme` at the single DB->domain
+ *  boundary, so every downstream consumer (getPrescription, the workout save path,
+ *  ProgramPreview) can trust the shape instead of re-guarding it. A malformed / legacy /
+ *  hand-edited row degrades to an empty scheme (rather than throwing a screen later), and we
+ *  warn so the corruption is visible rather than silent — mirroring the existing
+ *  `[workout] dropping sets ...` precedent in WorkoutPage. */
+export function normalizeScheme(raw: unknown, ctx: string): Scheme {
+  const warn = (msg: string) => console.warn(`[program] ${ctx}: ${msg}`)
+  if (!isRecord(raw)) { warn('scheme is not an object; rendering empty'); return { type: 'fixed', sets: [] } }
+
+  if (raw.type === 'percentage') {
+    if (!Array.isArray(raw.weeks)) warn('percentage scheme has a non-array `weeks`; using no weeks')
+    const weeksRaw = Array.isArray(raw.weeks) ? raw.weeks : []
+    return {
+      type: 'percentage',
+      tmKey: typeof raw.tmKey === 'string' ? raw.tmKey : '',
+      weeks: weeksRaw.map(w => ({ sets: isRecord(w) && Array.isArray(w.sets) ? (w.sets as PercentageSet[]) : [] })),
+    }
+  }
+
+  if (raw.type === 'fixed') {
+    if (!Array.isArray(raw.sets)) warn('fixed scheme has a non-array `sets`; using no sets')
+    return { type: 'fixed', sets: Array.isArray(raw.sets) ? (raw.sets as FixedSet[]) : [] }
+  }
+
+  if (raw.type === 'linear') {
+    const progressionOk = isRecord(raw.progression) && typeof raw.progression.failsBeforeDeload === 'number'
+    if (!Array.isArray(raw.sets) || !progressionOk) {
+      warn('linear scheme missing valid `sets`/`progression`; downgrading to fixed so the save path skips it')
+      return { type: 'fixed', sets: Array.isArray(raw.sets) ? (raw.sets as FixedSet[]) : [] }
+    }
+    return { type: 'linear', sets: raw.sets as LinearSet[], progression: raw.progression as unknown as LinearProgressionConfig }
+  }
+
+  warn(`unknown scheme type ${JSON.stringify(raw.type)}; rendering empty`)
+  return { type: 'fixed', sets: [] }
+}
+
 /** Assembles the domain `Program` shape (days -> exercises with their scheme) from DB rows,
  *  so callers can pass the result straight into `getPrescription(program, cursor, maxes)`. */
 export function buildDomainProgram(
@@ -92,7 +137,7 @@ export function buildDomainProgram(
               ?? pe.exercise_name ?? pe.role_key ?? 'Unknown exercise',
             tmKey: pe.role_key ?? undefined,
             order: pe.order_index,
-            scheme: pe.scheme,
+            scheme: normalizeScheme(pe.scheme, `${programRow.name} / ${pe.exercise_name ?? pe.role_key ?? pe.id}`),
           })),
       })),
   }

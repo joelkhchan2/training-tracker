@@ -29,8 +29,12 @@ export interface ProgramPreviewProps {
  *  scheme type rather than computing a (misleading, TM-less) weight. */
 function formatScheme(scheme: Scheme): string {
   if (scheme.type === 'percentage') return '%-based'
+  // Defensive: scheme is jsonb from the DB, so a malformed/unknown-type row can have
+  // a non-array (or missing) `sets`. Never let that white-screen the whole preview.
+  const sets = Array.isArray(scheme.sets) ? scheme.sets : []
+  if (sets.length === 0) return '—'
   const groups: { reps: number; count: number }[] = []
-  for (const s of scheme.sets) {
+  for (const s of sets) {
     const last = groups[groups.length - 1]
     if (last && last.reps === s.reps) last.count += 1
     else groups.push({ reps: s.reps, count: 1 })
