@@ -81,6 +81,14 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
           </button>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+            <button
+              type="button"
+              onClick={onReplace}
+              aria-label={`Substitute ${exercise.exerciseName}`}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text hover:bg-surface-hover"
+            >
+              ⇄
+            </button>
             {exerciseId ? (
               <button
                 type="button"

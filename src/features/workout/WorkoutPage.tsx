@@ -14,11 +14,13 @@ import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { buildTodayExerciseIdMap, fetchLastSetsByExercise } from '../../data/exerciseHistory'
 import { detectStrengthPRs, sessionTonnage } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
+import type { PickedExercise } from '../programs/ExercisePicker'
 import { ExerciseCard } from './ExerciseCard'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
 import { RestTimerPill } from './RestTimerPill'
 import { SessionMetaCard } from './SessionMetaCard'
 import { SessionTimer } from './SessionTimer'
+import { SubstituteSheet } from './SubstituteSheet'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useRestTimer } from './restTimer'
@@ -284,6 +286,34 @@ export function WorkoutPage() {
     navigate('/')
   }
 
+  function handlePick(pick: PickedExercise) {
+    if (!sheet) return
+    if (sheet.mode === 'add') {
+      addExercise(pick)
+    } else {
+      const exIdx = sheet.exIdx
+      replaceExercise(exIdx, pick) // clears synchronously (Spec A); preserves the slot id
+      if (pick.exerciseId && user) {
+        fetchLastSetsByExercise([pick.exerciseId], user.id)
+          .then((byId) => {
+            const lastSets = byId[pick.exerciseId!]
+            if (!lastSets) return
+            const ex = useSessionStore.getState().exercises[exIdx]
+            // Race guard: the slot still holds the exercise this fetch was for (a later swap to a
+            // different exercise changes exerciseId and correctly drops this stale fetch), AND
+            // every set is still untouched (the shape replaceExercise left).
+            if (!ex || ex.exerciseId !== pick.exerciseId) return
+            if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
+            lastSets.forEach((ls, i) => {
+              if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
+            })
+          })
+          .catch(() => {}) // no history / fetch error → leave blank
+      }
+    }
+    setSheet(null)
+  }
+
   return (
     <>
       <AppShell
@@ -345,35 +375,16 @@ export function WorkoutPage() {
       <RestTimerPill />
 
       {sheet ? (
-        <ExercisePickerSheet
-          onPick={(pick) => {
-            if (sheet.mode === 'add') {
-              addExercise(pick)
-            } else {
-              const exIdx = sheet.exIdx
-              replaceExercise(exIdx, pick) // clears synchronously (Spec A); preserves the slot id
-              if (pick.exerciseId && user) {
-                fetchLastSetsByExercise([pick.exerciseId], user.id)
-                  .then((byId) => {
-                    const lastSets = byId[pick.exerciseId!]
-                    if (!lastSets) return
-                    const ex = useSessionStore.getState().exercises[exIdx]
-                    // Race guard: the slot still holds the exercise this fetch was for (a later swap to a
-                    // different exercise changes exerciseId and correctly drops this stale fetch), AND
-                    // every set is still untouched (the shape replaceExercise left).
-                    if (!ex || ex.exerciseId !== pick.exerciseId) return
-                    if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
-                    lastSets.forEach((ls, i) => {
-                      if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
-                    })
-                  })
-                  .catch(() => {}) // no history / fetch error → leave blank
-              }
-            }
-            setSheet(null)
-          }}
-          onClose={() => setSheet(null)}
-        />
+        sheet.mode === 'replace' ? (
+          <SubstituteSheet
+            currentExerciseId={exercises[sheet.exIdx]?.exerciseId ?? todayIdByName[exercises[sheet.exIdx]?.exerciseName ?? ''] ?? null}
+            currentName={exercises[sheet.exIdx]?.exerciseName ?? ''}
+            onPick={handlePick}
+            onClose={() => setSheet(null)}
+          />
+        ) : (
+          <ExercisePickerSheet onPick={handlePick} onClose={() => setSheet(null)} />
+        )
       ) : null}
     </>
   )

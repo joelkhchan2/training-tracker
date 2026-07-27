@@ -46,6 +46,9 @@ vi.mock('../../data/exerciseHistory', async (importOriginal) => {
   return { ...actual, useExerciseHistory: () => ({ data: undefined, isLoading: false }), fetchLastSetsByExercise }
 })
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch }))
+// Replace-mode now renders SubstituteSheet, which calls useAlternateExercises (a real
+// useQuery); this test harness has no QueryClientProvider, so stub it out.
+vi.mock('../../data/alternateExercises', () => ({ useAlternateExercises: () => ({ data: [], isLoading: false }) }))
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))
@@ -666,5 +669,14 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     expect(useSessionStore.getState().exercises[0].exerciseName).toBe('Sled Push')
     expect(fetchLastSetsByExercise).not.toHaveBeenCalled()
     expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
+  })
+
+  it('opens the SubstituteSheet (with suggested alternates) from the ⇄ button', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Substitute Squat' }))
+
+    expect(screen.getByText('Suggested alternates')).toBeInTheDocument()
   })
 })
