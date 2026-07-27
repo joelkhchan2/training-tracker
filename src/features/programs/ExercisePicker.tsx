@@ -6,7 +6,6 @@ import { TextField } from '../../components/ui/TextField'
 import { useExerciseSearch } from '../../data/exerciseCatalog'
 import { useAuth } from '../../lib/useAuth'
 import type { DraftExerciseKind } from '../../domain/programDraft'
-import type { ExerciseSearchResult } from '../../data/exerciseCatalog'
 
 export interface PickedExercise {
   exerciseName: string
@@ -27,7 +26,8 @@ const KIND_OPTIONS: { value: DraftExerciseKind; label: string }[] = [
  *  `'bodyweight'` maps to `'bodyweight'`, everything else (today just
  *  `'weighted'`/`'timed'`) maps to `'strength'` — the only two kinds
  *  `DraftExerciseKind` supports so far. */
-function kindForExerciseType(exerciseType: ExerciseSearchResult['exercise_type']): DraftExerciseKind {
+// eslint-disable-next-line react-refresh/only-export-components
+export function kindForExerciseType(exerciseType: string | null): DraftExerciseKind {
   return exerciseType === 'bodyweight' ? 'bodyweight' : 'strength'
 }
 
