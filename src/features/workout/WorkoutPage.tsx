@@ -12,7 +12,7 @@ import { useSaveWorkout } from '../../data/mutations'
 import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { buildTodayExerciseIdMap, fetchLastSetsByExercise } from '../../data/exerciseHistory'
-import { detectStrengthPRs, sessionTonnage } from '../../domain'
+import { detectStrengthPRs, sessionTonnage, shapeSetForSave } from '../../domain'
 import type { LoggedSet, PersonalRecord, PrType } from '../../domain'
 import type { PickedExercise } from '../programs/ExercisePicker'
 import { ExerciseCard } from './ExerciseCard'
@@ -209,13 +209,14 @@ export function WorkoutPage() {
           continue
         }
         exercise.sets.forEach((set, setIdx) => {
-          if (set.reps == null) return
-          const weight = exercise.kind === 'bodyweight' ? null : (set.weight ?? 0)
+          const shaped = shapeSetForSave(exercise.inputType, set)
+          if (shaped == null) return // nothing typed for this type's required field(s) — nothing to save
           const row: WorkoutSetInput = {
             exercise_id: resolvedId,
             set_number: setIdx + 1,
-            weight,
-            reps: set.reps,
+            weight: shaped.weight,
+            reps: shaped.reps,
+            duration_seconds: shaped.durationSeconds,
             rpe: set.rpe ?? null,
             is_warmup: set.isWarmup ?? false,
             order_index: orderIndex++,
@@ -223,8 +224,17 @@ export function WorkoutPage() {
           }
           sets.push(row)
           if (set.isWarmup) return // saved to p_sets, but excluded from tonnage/PR + progression
-          loggedSets.push({ exerciseName: exercise.exerciseName, weight: weight ?? 0, reps: set.reps })
-          if (!exercise.adhoc) progressionSets.push(row)
+          // loggedSets feeds sessionTonnage/detectStrengthPRs — only weighted/bodyweight
+          // rows have a real reps count; a timed/weighted_time set is excluded, not
+          // zeroed, so a hold never fabricates "0 volume" or corrupts a PR comparison.
+          if (exercise.inputType === 'weighted' || exercise.inputType === 'bodyweight') {
+            loggedSets.push({ exerciseName: exercise.exerciseName, weight: shaped.weight ?? 0, reps: shaped.reps ?? 0 })
+          }
+          // progressionSets feeds buildProgressionUpdates, which expects a real reps
+          // count against a linear scheme's prescribed reps — a prescribed exercise
+          // overridden to timed/weighted_time/bodyweight mid-session contributes no
+          // progression update this session (not a fail, not a crash).
+          if (!exercise.adhoc && exercise.inputType === 'weighted') progressionSets.push(row)
         })
       }
 

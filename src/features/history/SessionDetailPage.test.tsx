@@ -81,6 +81,30 @@ describe('SessionDetailPage', () => {
     expect(document.querySelector('button[aria-label*="Remove"]')).not.toBeInTheDocument()
   })
 
+  it('renders a mixed weighted/timed/weighted_time set list in one exercise group, in order', () => {
+    useSessionDetail.mockReturnValue({
+      data: {
+        kind: 'strength',
+        header,
+        exercises: [
+          {
+            exerciseName: 'Front Lever Practice',
+            sets: [
+              { weight: 100, reps: 5, rpe: null, isWarmup: false, durationSeconds: null },
+              { weight: null, reps: null, rpe: null, isWarmup: false, durationSeconds: 45 },
+              { weight: 25, reps: null, rpe: null, isWarmup: false, durationSeconds: 30 },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<SessionDetailPage />)
+    expect(screen.getByText('100×5')).toBeInTheDocument()
+    expect(screen.getByText('0:45')).toBeInTheDocument()
+    expect(screen.getByText('25 × 0:30')).toBeInTheDocument()
+  })
+
   it('renders a cardio detail with activity + Delete button; confirming delete calls mutate and navigates on success', () => {
     useSessionDetail.mockReturnValue({
       data: {

@@ -22,7 +22,7 @@ export interface WorkoutSessionInput {
 
 /** Shape of one element of `p_sets` passed to the `log_workout` RPC. */
 export type WorkoutSetInput = Pick<StrengthSetRow, 'exercise_id' | 'set_number'> &
-  Partial<Pick<StrengthSetRow, 'weight' | 'reps' | 'rpe' | 'is_warmup' | 'order_index'>> & {
+  Partial<Pick<StrengthSetRow, 'weight' | 'reps' | 'rpe' | 'is_warmup' | 'order_index' | 'duration_seconds'>> & {
     /** Original index into the exercise's `scheme.sets` (see sessionStore `SessionSet.prescriptionIndex`).
      *  Not persisted — the RPC ignores unknown keys — used only to match logged sets to prescribed
      *  sets by a stable key. Null/undefined for user-added extra sets. */

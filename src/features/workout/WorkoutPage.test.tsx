@@ -315,14 +315,70 @@ describe('WorkoutPage', () => {
     // resolved to the real push-up exercise_id from the bundle (never null — see the
     // no-null-exercise_id guard in handleFinish).
     expect(payload.sets).toEqual([
-      { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
-      { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, rpe: null, is_warmup: false, order_index: 1, prescription_index: 1 },
-      { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, rpe: null, is_warmup: false, order_index: 2, prescription_index: 2 },
-      { exercise_id: 'ex-pushup', set_number: 1, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 3, prescription_index: 0 },
-      { exercise_id: 'ex-pushup', set_number: 2, weight: 0, reps: 10, rpe: null, is_warmup: false, order_index: 4, prescription_index: 1 },
+      { exercise_id: 'ex-squat', set_number: 1, weight: 300, reps: 5, duration_seconds: null, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
+      { exercise_id: 'ex-squat', set_number: 2, weight: 155, reps: 5, duration_seconds: null, rpe: null, is_warmup: false, order_index: 1, prescription_index: 1 },
+      { exercise_id: 'ex-squat', set_number: 3, weight: 175, reps: 3, duration_seconds: null, rpe: null, is_warmup: false, order_index: 2, prescription_index: 2 },
+      { exercise_id: 'ex-pushup', set_number: 1, weight: 0, reps: 10, duration_seconds: null, rpe: null, is_warmup: false, order_index: 3, prescription_index: 0 },
+      { exercise_id: 'ex-pushup', set_number: 2, weight: 0, reps: 10, duration_seconds: null, rpe: null, is_warmup: false, order_index: 4, prescription_index: 1 },
     ])
     // progressionSets excludes nothing here (neither exercise is adhoc) — it should equal sets.
     expect(payload.progressionSets).toEqual(payload.sets)
+  })
+
+  it('excludes a prescribed exercise from progressionSets after it is overridden to timed mid-session, but still saves its shaped set', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().setInputType(0, 'timed') // override Squat (prescribed) to timed
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 45 })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    const [payload] = mockMutate.mock.calls[0]
+    expect(payload.progressionSets.some((s: { exercise_id: string | null }) => s.exercise_id === 'ex-squat')).toBe(false)
+
+    const squatRows = payload.sets.filter((s: { exercise_id: string | null }) => s.exercise_id === 'ex-squat')
+    // Only the overridden set 0 had a duration typed in — sets 1/2 have no durationSeconds
+    // and inputType 'timed' requires it, so shapeSetForSave drops them (nothing typed → nothing saved).
+    expect(squatRows).toEqual([
+      { exercise_id: 'ex-squat', set_number: 1, weight: null, reps: null, duration_seconds: 45, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
+    ])
+  })
+
+  it('produces zero tonnage and no fabricated PR for a session containing only timed sets, and an empty progressionSets', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().setInputType(0, 'timed')
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 45 })
+    useSessionStore.getState().setInputType(1, 'timed')
+    useSessionStore.getState().updateSet(1, 0, { durationSeconds: 20 })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    const [payload, options] = mockMutate.mock.calls[0]
+    expect(payload.progressionSets).toEqual([])
+
+    act(() =>
+      options.onSuccess({ sessionId: 'session-1', cycleComplete: false, nextCursor: bundle.cursor, progressionOutcomes: [] }),
+    )
+
+    const tonnageLabel = screen.getByText('tonnage')
+    expect(tonnageLabel.previousElementSibling).toHaveTextContent('0')
+    expect(screen.queryByText(/new e1RM/)).not.toBeInTheDocument()
+  })
+
+  it('shapes a weighted_time set with weight + duration and reps forced null', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().setInputType(0, 'weighted_time')
+    useSessionStore.getState().updateSet(0, 0, { weight: 45, durationSeconds: 30 })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    const [payload] = mockMutate.mock.calls[0]
+    const squatRows = payload.sets.filter((s: { exercise_id: string | null }) => s.exercise_id === 'ex-squat')
+    expect(squatRows).toEqual([
+      { exercise_id: 'ex-squat', set_number: 1, weight: 45, reps: null, duration_seconds: 30, rpe: null, is_warmup: false, order_index: 0, prescription_index: 0 },
+    ])
   })
 
   it('shows the SummarySheet with tonnage and a detected PR on save success', () => {

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExerciseCard } from './ExerciseCard'
+import { useSessionStore } from './sessionStore'
 import type { ExerciseHistorySession } from '../../data/exerciseHistory'
 
 const { useExerciseHistory } = vi.hoisted(() => ({
@@ -12,7 +13,18 @@ const { useExerciseHistory } = vi.hoisted(() => ({
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../data/exerciseHistory', () => ({ useExerciseHistory }))
 
-const ex = { id: 'x1', exerciseId: null, exerciseName: 'Squat', kind: 'strength' as const, sets: [{ weight: 100, reps: 5, done: false }] }
+beforeEach(() => {
+  useSessionStore.getState().reset()
+})
+
+const ex = {
+  id: 'x1',
+  exerciseId: null,
+  exerciseName: 'Squat',
+  kind: 'strength' as const,
+  inputType: 'weighted' as const,
+  sets: [{ weight: 100, reps: 5, done: false, durationSeconds: null }],
+}
 
 describe('ExerciseCard', () => {
   it('fires onRemove and onReplace from the controls', () => {
@@ -42,8 +54,16 @@ describe('ExerciseCard', () => {
     expect(screen.getByRole('button', { name: 'Reorder Squat' })).toHaveClass('touch-none')
   })
 
-  it('hides the weight field for a bodyweight exercise', () => {
-    render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+  it('hides the weight field for a bodyweight-inputType exercise', () => {
+    render(
+      <ExerciseCard
+        exIdx={0}
+        exercise={{ ...ex, kind: 'bodyweight', inputType: 'bodyweight' }}
+        exerciseId={null}
+        onRemove={vi.fn()}
+        onReplace={vi.fn()}
+      />,
+    )
     expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument()
   })
   it('excludes a done warmup set from the running volume hint', () => {
@@ -52,9 +72,10 @@ describe('ExerciseCard', () => {
       exerciseId: null,
       exerciseName: 'Squat',
       kind: 'strength' as const,
+      inputType: 'weighted' as const,
       sets: [
-        { weight: 100, reps: 5, done: true, isWarmup: true },
-        { weight: 100, reps: 5, done: true },
+        { weight: 100, reps: 5, done: true, isWarmup: true, durationSeconds: null },
+        { weight: 100, reps: 5, done: true, durationSeconds: null },
       ],
     }
     render(<ExerciseCard exIdx={0} exercise={warmupEx} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
@@ -112,9 +133,47 @@ describe('ExerciseCard', () => {
         isLoading: false,
       })
 
-      render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId="ex-1" onRemove={vi.fn()} onReplace={vi.fn()} />)
+      render(
+        <ExerciseCard
+          exIdx={0}
+          exercise={{ ...ex, kind: 'bodyweight', inputType: 'bodyweight' }}
+          exerciseId="ex-1"
+          onRemove={vi.fn()}
+          onReplace={vi.fn()}
+        />,
+      )
 
       expect(screen.getByText('last: BW×8 · 2026-07-20')).toBeInTheDocument()
     })
+  })
+
+  it('shows all 4 input-type options in the override Select and calls setInputType on change', () => {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never,
+      { sessionType: 'A', dayName: 'A', dayIndex: 0, clientId: 'c1', startedAt: new Date().toISOString() },
+    )
+    function Wrapper() {
+      const exercise = useSessionStore((s) => s.exercises[0])
+      return <ExerciseCard exIdx={0} exercise={exercise} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />
+    }
+    render(<Wrapper />)
+
+    const select = screen.getByLabelText('Log as') as HTMLSelectElement
+    const optionLabels = Array.from(select.options).map((o) => o.textContent)
+    expect(optionLabels).toEqual(['Weight × Reps', 'Bodyweight', 'Timed', 'Weighted + Timed'])
+
+    fireEvent.change(select, { target: { value: 'timed' } })
+    expect(useSessionStore.getState().exercises[0].inputType).toBe('timed')
+  })
+
+  it('shows "—" for doneVolume when every set is timed (weight-less sets never count toward volume)', () => {
+    const timedEx = {
+      id: 'x-timed', exerciseId: null, exerciseName: 'Plank', kind: 'strength' as const, inputType: 'timed' as const,
+      sets: [{ weight: null, reps: null, done: true, durationSeconds: 45 }],
+    }
+    render(<ExerciseCard exIdx={0} exercise={timedEx} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    // Scoped to `span` because the RPE dropdown (added since this brief was written) also
+    // renders a literal '—' as its unset-value option text.
+    expect(screen.getByText('—', { selector: 'span' })).toBeInTheDocument()
   })
 })

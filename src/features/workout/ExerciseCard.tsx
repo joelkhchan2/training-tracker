@@ -3,13 +3,14 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Select } from '../../components/ui/Select'
 import { useAuth } from '../../lib/useAuth'
 import { useExerciseHistory } from '../../data/exerciseHistory'
 import type { ExerciseHistorySession } from '../../data/exerciseHistory'
 import { SetRow } from './SetRow'
 import { ExerciseHistorySheet } from './ExerciseHistorySheet'
 import { useSessionStore } from './sessionStore'
-import type { SessionExercise } from './sessionStore'
+import type { ExerciseInputType, SessionExercise } from './sessionStore'
 
 export interface ExerciseCardProps {
   exIdx: number
@@ -18,6 +19,13 @@ export interface ExerciseCardProps {
   onReplace: () => void
   onRemove: () => void
 }
+
+const INPUT_TYPE_OPTIONS: { value: ExerciseInputType; label: string }[] = [
+  { value: 'weighted', label: 'Weight × Reps' },
+  { value: 'bodyweight', label: 'Bodyweight' },
+  { value: 'timed', label: 'Timed' },
+  { value: 'weighted_time', label: 'Weighted + Timed' },
+]
 
 /** Running volume (Σ weight × reps) across this exercise's completed sets —
  *  a quick "how much did I actually move" signal while logging. Sets with
@@ -49,6 +57,7 @@ function topSet(session: ExerciseHistorySession): string | null {
  *  its editable SetRows, and a control to add another set. */
 export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove }: ExerciseCardProps) {
   const addSet = useSessionStore((s) => s.addSet)
+  const setInputType = useSessionStore((s) => s.setInputType)
   const volume = doneVolume(exercise)
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: exercise.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
@@ -110,6 +119,14 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
           </div>
         </div>
 
+        <Select
+          label="Log as"
+          value={exercise.inputType}
+          onChange={(value) => setInputType(exIdx, value as ExerciseInputType)}
+          options={INPUT_TYPE_OPTIONS}
+          className="max-w-[14rem]"
+        />
+
         {last && lastTop ? (
           <p className="text-xs text-muted">
             last: {lastTop} · {last.date}
@@ -118,7 +135,7 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
 
         <div className="space-y-2">
           {exercise.sets.map((set, setIdx) => (
-            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} hideWeight={exercise.kind === 'bodyweight'} />
+            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} inputType={exercise.inputType} />
           ))}
         </div>
 

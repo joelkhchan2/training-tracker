@@ -288,4 +288,66 @@ describe.skipIf(!anon)('log_workout RPC', () => {
       .single()
     expect(aOwnProgress?.user_id).toBe(a.userId)
   })
+
+  it('round-trips duration_seconds for a timed set (weight/reps both null)', async () => {
+    const user = await makeUser(`logwk_duration_${Date.now()}@test.dev`)
+    const exerciseId = await makeExercise(user.client, user.userId)
+    const clientId = `session-duration-${Date.now()}`
+    const session = { discipline: 'strength', session_type: 'A', date: '2026-07-28', status: 'active' }
+    const sets = [
+      { exercise_id: exerciseId, set_number: 1, weight: null, reps: null, is_warmup: false, order_index: 0, duration_seconds: 45 },
+    ]
+
+    const result = await user.client.rpc('log_workout', { p_client_id: clientId, p_session: session, p_sets: sets })
+    expect(result.error).toBeNull()
+
+    const { data: rows } = await user.client
+      .from('strength_sets')
+      .select('weight, reps, duration_seconds')
+      .eq('session_id', result.data as string)
+    expect(rows).toHaveLength(1)
+    expect(rows?.[0]).toMatchObject({ weight: null, reps: null, duration_seconds: 45 })
+  })
+
+  it('reads duration_seconds as null when an old caller omits the key entirely (backward compat)', async () => {
+    const user = await makeUser(`logwk_duration_omit_${Date.now()}@test.dev`)
+    const exerciseId = await makeExercise(user.client, user.userId)
+    const clientId = `session-duration-omit-${Date.now()}`
+    const session = { discipline: 'strength', session_type: 'A', date: '2026-07-28', status: 'active' }
+    const sets = twoSets(exerciseId) // no duration_seconds key at all — simulates a pre-migration client
+
+    const result = await user.client.rpc('log_workout', { p_client_id: clientId, p_session: session, p_sets: sets })
+    expect(result.error).toBeNull()
+
+    const { data: rows } = await user.client
+      .from('strength_sets')
+      .select('duration_seconds')
+      .eq('session_id', result.data as string)
+    expect(rows).toHaveLength(2)
+    for (const row of rows ?? []) expect(row.duration_seconds).toBeNull()
+  })
+
+  it('inserts a timed set (weight and reps both null) without violating any existing strength_sets constraint', async () => {
+    const user = await makeUser(`logwk_duration_constraint_${Date.now()}@test.dev`)
+    const exerciseId = await makeExercise(user.client, user.userId)
+    const clientId = `session-duration-constraint-${Date.now()}`
+    const session = { discipline: 'strength', session_type: 'A', date: '2026-07-28', status: 'active' }
+    const sets = [
+      { exercise_id: exerciseId, set_number: 1, weight: null, reps: null, is_warmup: false, order_index: 0, duration_seconds: 30 },
+      { exercise_id: exerciseId, set_number: 2, weight: 25, reps: null, is_warmup: false, order_index: 1, duration_seconds: 20 },
+    ]
+
+    const result = await user.client.rpc('log_workout', { p_client_id: clientId, p_session: session, p_sets: sets })
+    expect(result.error).toBeNull()
+
+    const { data: rows } = await user.client
+      .from('strength_sets')
+      .select('weight, reps, duration_seconds')
+      .eq('session_id', result.data as string)
+      .order('order_index', { ascending: true })
+    expect(rows).toEqual([
+      { weight: null, reps: null, duration_seconds: 30 },
+      { weight: 25, reps: null, duration_seconds: 20 },
+    ])
+  })
 })

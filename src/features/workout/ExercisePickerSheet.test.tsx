@@ -25,7 +25,7 @@ describe('ExercisePickerSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Kayak' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Kayak', kind: 'strength' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Kayak', kind: 'strength', exerciseType: null })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalled()
   })

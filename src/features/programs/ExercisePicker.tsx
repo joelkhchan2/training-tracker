@@ -15,6 +15,10 @@ export interface PickedExercise {
   exerciseName: string
   kind: DraftExerciseKind
   exerciseId?: string
+  /** Raw catalog exercise_type, when known — populated from the picked catalog row's
+   *  exercise_type, or explicit null for the typed custom-add path (no catalog row yet).
+   *  Feeds sessionStore's `defaultInputType`. */
+  exerciseType?: string | null
 }
 
 export interface ExercisePickerProps {
@@ -118,12 +122,17 @@ export function ExercisePicker({ onPick, suggested, suggestedLabel }: ExercisePi
   function handleAddCustom() {
     const name = customName.trim()
     if (!name) return
-    onPick({ exerciseName: name, kind: customKind })
+    onPick({ exerciseName: name, kind: customKind, exerciseType: null })
     setCustomName('')
   }
 
   function handlePickItem(item: ExerciseListItem) {
-    onPick({ exerciseName: item.name, kind: kindForExerciseType(item.exerciseType), exerciseId: item.id })
+    onPick({
+      exerciseName: item.name,
+      kind: kindForExerciseType(item.exerciseType),
+      exerciseId: item.id,
+      exerciseType: item.exerciseType,
+    })
   }
 
   function handleToggleFavorite(item: ExerciseListItem, isFavorited: boolean) {
