@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { formatPace, parseVGrade } from '../domain'
+import { formatDuration, formatPace, inferInputType, parseVGrade } from '../domain'
 import type { Discipline } from '../domain'
 import { getSupabase } from './supabase'
 
@@ -8,6 +8,7 @@ export interface DetailSet {
   reps: number | null
   rpe: number | null
   isWarmup: boolean
+  durationSeconds: number | null
 }
 
 export interface StrengthExerciseGroup {
@@ -54,23 +55,28 @@ export type SessionDetail = StrengthSessionDetail | CardioSessionDetail | Climbi
 /** Pure: group flat strength rows (already ordered by order_index, set_number) into consecutive
  *  same-exercise groups, preserving the performed order (a superset A,B,A,B → four groups). */
 export function groupStrengthSets(
-  rows: { exerciseName: string; weight: number | null; reps: number | null; rpe: number | null; isWarmup: boolean }[],
+  rows: { exerciseName: string; weight: number | null; reps: number | null; rpe: number | null; isWarmup: boolean; durationSeconds: number | null }[],
 ): StrengthExerciseGroup[] {
   const groups: StrengthExerciseGroup[] = []
   for (const r of rows) {
     const last = groups[groups.length - 1]
-    const set: DetailSet = { weight: r.weight, reps: r.reps, rpe: r.rpe, isWarmup: r.isWarmup }
+    const set: DetailSet = { weight: r.weight, reps: r.reps, rpe: r.rpe, isWarmup: r.isWarmup, durationSeconds: r.durationSeconds }
     if (last && last.exerciseName === r.exerciseName) last.sets.push(set)
     else groups.push({ exerciseName: r.exerciseName, sets: [set] })
   }
   return groups
 }
 
-/** Pure: a set's load as "weight×reps" (or "BW×reps" when weight is null — matches
- *  ExerciseHistorySheet), "@rpe" appended when present; drops "×reps" when reps is null. */
+/** Pure: a set's load, shaped by its inferred input type — "weight×reps" (or "BW×reps"
+ *  when weight is null — matches ExerciseHistorySheet) for weighted/bodyweight, a bare
+ *  "m:ss" for timed, "weight × m:ss" for weighted_time; "@rpe" appended when present. */
 export function formatSet(set: DetailSet): string {
-  const load = set.weight != null ? String(set.weight) : 'BW'
-  const base = set.reps != null ? `${load}×${set.reps}` : load
+  const type = inferInputType(set)
+  const base =
+    type === 'timed' ? formatDuration(set.durationSeconds as number)
+    : type === 'weighted_time' ? `${set.weight} × ${formatDuration(set.durationSeconds as number)}`
+    : set.reps != null ? `${set.weight != null ? set.weight : 'BW'}×${set.reps}`
+    : (set.weight != null ? String(set.weight) : 'BW')
   return set.rpe != null ? `${base} @${set.rpe}` : base
 }
 
@@ -127,14 +133,20 @@ export function useSessionDetail(sessionId: string | undefined) {
       if (header.discipline === 'strength') {
         const { data: rows, error: rErr } = await supabase
           .from('strength_sets')
-          .select('weight, reps, rpe, is_warmup, order_index, set_number, exercises(name)')
+          .select('weight, reps, rpe, is_warmup, order_index, set_number, duration_seconds, exercises(name)')
           .eq('session_id', (s as { id: string }).id)
           .order('order_index', { ascending: true })
           .order('set_number', { ascending: true })
         if (rErr) throw rErr
         const flat = (rows ?? []).map((r) => {
-          const row = r as unknown as { weight: number | null; reps: number | null; rpe: number | null; is_warmup: boolean; exercises: { name: string } | null }
-          return { exerciseName: row.exercises?.name ?? 'Exercise', weight: row.weight, reps: row.reps, rpe: row.rpe, isWarmup: row.is_warmup }
+          const row = r as unknown as {
+            weight: number | null; reps: number | null; rpe: number | null; is_warmup: boolean
+            duration_seconds: number | null; exercises: { name: string } | null
+          }
+          return {
+            exerciseName: row.exercises?.name ?? 'Exercise', weight: row.weight, reps: row.reps, rpe: row.rpe,
+            isWarmup: row.is_warmup, durationSeconds: row.duration_seconds ?? null,
+          }
         })
         return { kind: 'strength', header, exercises: groupStrengthSets(flat) }
       }

@@ -48,6 +48,18 @@ describe('useSessionDetail', () => {
     expect(d.exercises[0].sets).toHaveLength(2)
   })
 
+  it('flows duration_seconds through into DetailSet for a timed set', async () => {
+    from
+      .mockReturnValueOnce(stub({ data: { id: 's2', discipline: 'strength', date: '2026-07-28', session_type: 'Gym A', program_variant: null, program_week: null, duration_minutes: 10, body_weight: null, notes: null }, error: null }))
+      .mockReturnValueOnce(stub({ data: [
+        { weight: null, reps: null, rpe: null, is_warmup: false, order_index: 0, set_number: 1, duration_seconds: 45, exercises: { name: 'Plank' } },
+      ], error: null }))
+    const { result } = renderHook(() => useSessionDetail('s2'), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const d = result.current.data as { kind: string; exercises: { sets: { durationSeconds: number | null }[] }[] }
+    expect(d.exercises[0].sets[0].durationSeconds).toBe(45)
+  })
+
   it('shapes a cardio session with pace', async () => {
     from
       .mockReturnValueOnce(stub({ data: { id: 'c1', discipline: 'cardio', date: '2026-07-21', session_type: null, program_variant: null, program_week: null, duration_minutes: 30, body_weight: null, notes: null }, error: null }))
