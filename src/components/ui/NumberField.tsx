@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '../../lib/cn'
 
 export interface NumberFieldProps {
@@ -12,7 +12,17 @@ export interface NumberFieldProps {
   className?: string
   id?: string
   hideSteppers?: boolean
+  /** Optional override for the input's text-size/weight classes (replaces the
+   *  default `text-3xl font-bold` when provided). Lets one caller (the workout
+   *  SetRow) request a smaller size without shrinking the number on the other
+   *  five screens that share this component. */
+  inputClassName?: string
 }
+
+// A *complete* number: digits, an optional leading '-', an optional '.digits'
+// tail. Partial in-progress states ('', '-', '.', '102.') deliberately do NOT
+// match, so they update the buffer without committing.
+const COMPLETE_NUMBER = /^-?\d+(\.\d+)?$/
 
 function clamp(value: number, min: number, max?: number): number {
   let next = Math.max(min, value)
@@ -28,7 +38,15 @@ function roundToStep(value: number): number {
 
 /** Large numeric input for weight/reps entry mid-workout: big legible text,
  *  a mobile decimal keyboard, and +/- steppers sized for sweaty-hands
- *  tapping. Controlled — the caller owns `value` and receives numbers back. */
+ *  tapping. Controlled — the caller owns `value` and receives numbers back.
+ *
+ *  The input renders an internal string `buffer`, not `value` directly, so
+ *  the field can go transiently empty/partial ('', '-', '.', '102.') while
+ *  typing. It commits (via the clamp/round path) only when the buffer is a
+ *  *complete* number; a partial buffer never emits `NaN` and never gets
+ *  silently reverted mid-edit. `focused` gates syncing the buffer from an
+ *  external `value` change (prefill, stepper, reset) so that sync never
+ *  clobbers an in-progress edit like "102." back to "102". */
 export function NumberField({
   label,
   value,
@@ -40,19 +58,50 @@ export function NumberField({
   className,
   id,
   hideSteppers = false,
+  inputClassName,
 }: NumberFieldProps) {
   const autoId = useId()
   const inputId = id ?? autoId
 
+  const [buffer, setBuffer] = useState(() => String(value))
+  const [focused, setFocused] = useState(false)
+
+  // While focused (or mid-edit — see handleTextChange), the buffer is the
+  // source of truth, so a transient '', '-', '.', '102.' can be shown
+  // without being clobbered by an external `value` change. Once unfocused,
+  // the prop is shown directly — no effect needed to resync, since
+  // `display` just re-derives from `value` on every render.
+  const display = focused ? buffer : String(value)
+
   const commit = (next: number) => onChange(clamp(roundToStep(next), min, max))
 
+  const handleFocus = () => {
+    setBuffer(String(value))
+    setFocused(true)
+  }
+
   const handleTextChange = (raw: string) => {
-    // Allow the field to be transiently empty/partial while typing without
-    // forcing it back to a number on every keystroke.
-    if (raw === '' || raw === '-' || raw === '.') return
-    const parsed = Number(raw)
-    if (Number.isNaN(parsed)) return
-    commit(parsed)
+    setBuffer(raw)
+    // A change event can't fire without the input having focus — treat it as
+    // such even if a `focus` event wasn't separately observed (e.g. a
+    // programmatic/test-fired `change`), so the buffer (not a stale `value`
+    // prop) stays the display source of truth for the rest of the edit.
+    setFocused(true)
+    if (!COMPLETE_NUMBER.test(raw)) return // partial — buffer-only, no commit
+    commit(Number(raw))
+  }
+
+  const handleBlur = () => {
+    if (!COMPLETE_NUMBER.test(buffer)) {
+      // Empty or partial ('-', '.', '102.') left on blur — never leave state
+      // NaN; commit the clamped min. Clearing `focused` below means
+      // `display` immediately falls back to `String(value)`, so a
+      // controlled caller that echoes `onChange` back into `value` shows
+      // the committed min right away.
+      setBuffer(String(clamp(roundToStep(min), min, max)))
+      commit(min)
+    }
+    setFocused(false)
   }
 
   const stepperClasses = cn(
@@ -83,12 +132,16 @@ export function NumberField({
           id={inputId}
           type="text"
           inputMode="decimal"
-          value={value}
+          value={display}
+          placeholder="0"
           disabled={disabled}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onChange={(event) => handleTextChange(event.target.value)}
           className={cn(
             'min-w-0 flex-1 rounded-xl border border-border bg-surface text-center',
-            'text-3xl font-bold tabular-nums text-text',
+            inputClassName ?? 'text-3xl font-bold',
+            'tabular-nums text-text',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             'disabled:opacity-40',
           )}

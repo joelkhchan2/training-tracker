@@ -29,6 +29,19 @@ describe('ExerciseCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Substitute Squat' }))
     expect(onReplace).toHaveBeenCalled()
   })
+  it('wraps a long exercise name instead of truncating it', () => {
+    const longName = 'Barbell Overhead Press With An Extremely Long Accessory Descriptor'
+    render(<ExerciseCard exIdx={0} exercise={{ ...ex, exerciseName: longName }} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    const title = screen.getByRole('button', { name: `Replace ${longName}` })
+    expect(title).toHaveClass('break-words')
+    expect(title).not.toHaveClass('truncate')
+  })
+
+  it('marks the drag handle touch-action:none so pressing it does not pan the page', () => {
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Reorder Squat' })).toHaveClass('touch-none')
+  })
+
   it('hides the weight field for a bodyweight exercise', () => {
     render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
     expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument()

@@ -35,6 +35,9 @@ const KIND_OPTIONS: { value: DraftExerciseKind; label: string }[] = [
  * The search box only queries on submit (not per keystroke) — `useExerciseSearch`
  * is called with the last *submitted* term, not the raw input value, which is
  * the minimal debounce this picker needs per Task 9.
+ *
+ * The custom-exercise form is collapsed behind a "+ Custom exercise" button by
+ * default — it and the button are mutually exclusive.
  */
 export function ExercisePicker({ onPick }: ExercisePickerProps) {
   const { user } = useAuth()
@@ -42,6 +45,7 @@ export function ExercisePicker({ onPick }: ExercisePickerProps) {
   const [submittedTerm, setSubmittedTerm] = useState('')
   const { data: results = [] } = useExerciseSearch(submittedTerm, user?.id)
 
+  const [customOpen, setCustomOpen] = useState(false)
   const [customName, setCustomName] = useState('')
   const [customKind, setCustomKind] = useState<DraftExerciseKind>('strength')
 
@@ -88,18 +92,26 @@ export function ExercisePicker({ onPick }: ExercisePickerProps) {
         </ul>
       ) : null}
 
-      <div className="space-y-3 border-t border-border pt-4">
-        <h3 className="text-sm font-medium text-muted">Add custom exercise</h3>
-        <TextField label="Custom exercise name" value={customName} onChange={setCustomName} placeholder="e.g. Zercher Squat" />
-        <Select
-          label="Kind"
-          value={customKind}
-          onChange={(value) => setCustomKind(value as DraftExerciseKind)}
-          options={KIND_OPTIONS}
-        />
-        <Button type="button" onClick={handleAddCustom} fullWidth>
-          Add exercise
-        </Button>
+      <div className="border-t border-border pt-4">
+        {customOpen ? (
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted">Add custom exercise</h3>
+            <TextField label="Custom exercise name" value={customName} onChange={setCustomName} placeholder="e.g. Zercher Squat" />
+            <Select
+              label="Kind"
+              value={customKind}
+              onChange={(value) => setCustomKind(value as DraftExerciseKind)}
+              options={KIND_OPTIONS}
+            />
+            <Button type="button" onClick={handleAddCustom} fullWidth>
+              Add exercise
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="secondary" size="sm" fullWidth onClick={() => setCustomOpen(true)}>
+            + Custom exercise
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -24,7 +24,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
   return (
     <div
       data-testid={`set-row-${exIdx}-${setIdx}`}
-      className={cn('flex flex-col gap-1 rounded-xl p-2 transition-colors', set.done && 'bg-accent/10')}
+      className={cn('flex flex-col gap-1 rounded-xl px-2 py-1 transition-colors', set.done && 'bg-accent/10')}
     >
       {set.isAmrap ? (
         <span className="ml-12 inline-flex w-fit items-center rounded-full border border-danger bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
@@ -39,7 +39,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
           structural, can't-regress version of the min-w-0 flex fix. */}
       <div
         className={cn(
-          'grid items-end gap-2',
+          'grid items-end gap-1.5',
           hideWeight
             ? 'grid-cols-[3rem_minmax(0,1fr)_3rem_3rem]'
             : 'grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_3rem_3rem]',
@@ -61,6 +61,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
             onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
             step={5}
             hideSteppers
+            inputClassName="text-xl font-bold"
           />
         )}
         <NumberField
@@ -68,6 +69,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
           value={set.reps ?? 0}
           onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
           hideSteppers
+          inputClassName="text-xl font-bold"
         />
 
         <button
@@ -100,7 +102,7 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
         </button>
       </div>
 
-      <div className="flex items-center gap-3 pl-14">
+      <div className="flex items-center gap-2 pl-14">
         <button
           type="button"
           onClick={() => updateSet(exIdx, setIdx, { isWarmup: !set.isWarmup })}

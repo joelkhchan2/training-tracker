@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, closestCenter, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { AppShell } from '../../components/ui/AppShell'
@@ -139,6 +139,7 @@ export function WorkoutPage() {
   const removeExercise = useSessionStore((s) => s.removeExercise)
   const replaceExercise = useSessionStore((s) => s.replaceExercise)
   const reorderExercises = useSessionStore((s) => s.reorderExercises)
+  const insertExerciseAt = useSessionStore((s) => s.insertExerciseAt)
   const startedAt = useSessionStore((s) => s.startedAt)
   const notes = useSessionStore((s) => s.notes)
   const bodyWeight = useSessionStore((s) => s.bodyWeight)
@@ -147,10 +148,15 @@ export function WorkoutPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isResolving, setIsResolving] = useState(false)
-  const [sheet, setSheet] = useState<{ mode: 'add' } | { mode: 'replace'; exIdx: number } | null>(null)
+  const [sheet, setSheet] = useState<{ mode: 'add'; index?: number } | { mode: 'replace'; exIdx: number } | null>(null)
 
+  // MouseSensor + TouchSensor (not PointerSensor): a TouchSensor registered alongside
+  // PointerSensor never activates on touch (pointerdown wins the race before
+  // touchstart), which is the bug this fixes. MouseSensor never fires from a touch,
+  // so the two don't race each other.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -289,7 +295,8 @@ export function WorkoutPage() {
   function handlePick(pick: PickedExercise) {
     if (!sheet) return
     if (sheet.mode === 'add') {
-      addExercise(pick)
+      if (sheet.index !== undefined) insertExerciseAt(sheet.index, pick)
+      else addExercise(pick)
     } else {
       const exIdx = sheet.exIdx
       replaceExercise(exIdx, pick) // clears synchronously (Spec A); preserves the slot id
@@ -332,18 +339,26 @@ export function WorkoutPage() {
           </div>
         }
       >
-        <div className="space-y-4 pb-24">
+        <div className="space-y-3 pb-24">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               {exercises.map((exercise, exIdx) => (
-                <ExerciseCard
-                  key={exercise.id}
-                  exIdx={exIdx}
-                  exercise={exercise}
-                  exerciseId={exercise.exerciseId ?? todayIdByName[exercise.exerciseName] ?? null}
-                  onRemove={() => removeExercise(exIdx)}
-                  onReplace={() => setSheet({ mode: 'replace', exIdx })}
-                />
+                <div key={exercise.id} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => setSheet({ mode: 'add', index: exIdx })}
+                    className="w-full rounded-lg py-0.5 text-center text-xs font-medium text-muted hover:text-text"
+                  >
+                    + Add exercise here
+                  </button>
+                  <ExerciseCard
+                    exIdx={exIdx}
+                    exercise={exercise}
+                    exerciseId={exercise.exerciseId ?? todayIdByName[exercise.exerciseName] ?? null}
+                    onRemove={() => removeExercise(exIdx)}
+                    onReplace={() => setSheet({ mode: 'replace', exIdx })}
+                  />
+                </div>
               ))}
             </SortableContext>
           </DndContext>
