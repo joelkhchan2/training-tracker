@@ -1,8 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
+import type { ExerciseListItem } from '../../data/exerciseCatalog'
 
-const { useCommonExercises } = vi.hoisted(() => ({ useCommonExercises: vi.fn(() => ({ data: [] })) }))
+const { useCommonExercises } = vi.hoisted(() => ({
+  useCommonExercises: vi.fn((): { data: ExerciseListItem[] } => ({ data: [] })),
+}))
 
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch: () => ({ data: [] }) }))

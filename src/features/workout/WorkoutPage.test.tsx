@@ -48,8 +48,15 @@ vi.mock('../../data/exerciseHistory', async (importOriginal) => {
 })
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch }))
 // Replace-mode now renders SubstituteSheet, which calls useAlternateExercises (a real
-// useQuery); this test harness has no QueryClientProvider, so stub it out.
-vi.mock('../../data/alternateExercises', () => ({ useAlternateExercises: () => ({ data: [], isLoading: false }) }))
+// useQuery); this test harness has no QueryClientProvider, so stub it out. Non-empty so
+// SubstituteSheet's mapped `suggested` list is non-empty and ExercisePicker renders the
+// "Suggested alternates" heading (it omits the section entirely when suggested is empty).
+vi.mock('../../data/alternateExercises', () => ({
+  useAlternateExercises: () => ({
+    data: [{ id: 'ex-dl', name: 'Barbell Deadlift', exerciseType: 'weighted', primaryMuscles: null, equipment: null, sharedCount: 3 }],
+    isLoading: false,
+  }),
+}))
 // ExercisePicker (embedded by both SubstituteSheet and ExercisePickerSheet) now calls these
 // two hooks itself; this test harness has no QueryClientProvider, so stub them out too.
 vi.mock('../../data/favoriteExercises', () => ({
