@@ -95,4 +95,13 @@ describe('shapeSetForSave', () => {
   it('weighted_time: drops the set when duration is untyped', () => {
     expect(shapeSetForSave('weighted_time', { weight: 45, reps: null, durationSeconds: null })).toBeNull()
   })
+  it('returns null for an unknown/undefined inputType rather than falling through silently', () => {
+    expect(
+      shapeSetForSave('bogus' as unknown as import('./duration').InputType, {
+        weight: 135,
+        reps: 5,
+        durationSeconds: null,
+      }),
+    ).toBeNull()
+  })
 })

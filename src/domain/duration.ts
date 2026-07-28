@@ -70,5 +70,10 @@ export function shapeSetForSave(
       return set.durationSeconds == null
         ? null
         : { weight: set.weight ?? 0, reps: null, durationSeconds: set.durationSeconds }
+    default:
+      // Unexpected/undefined inputType (e.g. a pre-migration persisted session that
+      // slipped past sessionStore's migrate step) — drop the set rather than falling
+      // through silently. Belt-and-suspenders behind the persist migration below.
+      return null
   }
 }

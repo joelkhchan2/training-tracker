@@ -87,6 +87,52 @@ export function defaultInputType(
   return 'weighted'
 }
 
+/** Persist schema version. Bumped from the implicit 0 to 1 when `inputType`
+ *  (SessionExercise) and `durationSeconds` (SessionSet) became required fields — see
+ *  `migrateSession` below. Bump again (and extend `migrateSession`) the next time a
+ *  required field is added to the persisted shape. */
+export const SESSION_STORE_VERSION = 1
+
+/** Pre-v1 persisted shape: `inputType` didn't exist yet on exercises, and
+ *  `durationSeconds` didn't exist yet on sets. Local to the migration — every other
+ *  field already matches the current `SessionState`/`SessionExercise`/`SessionSet`
+ *  shapes at every historical version. */
+type LegacySessionSet = Omit<SessionSet, 'durationSeconds'> & { durationSeconds?: number | null }
+type LegacySessionExercise = Omit<SessionExercise, 'inputType' | 'sets'> & {
+  inputType?: ExerciseInputType
+  sets: LegacySessionSet[]
+}
+type LegacyPersistedState = Omit<SessionState, 'exercises'> & { exercises: LegacySessionExercise[] }
+
+/** zustand/persist's `migrate` hook, extracted as a pure function so it's unit-testable
+ *  without going through localStorage/zustand rehydration. Called once on rehydrate with
+ *  whatever was actually in storage (`persisted`, untyped — it predates today's schema)
+ *  and the version tag it was written with.
+ *
+ *  A session persisted before `SESSION_STORE_VERSION` 1 (this feature's deploy) has no
+ *  `inputType` on its exercises and no `durationSeconds` on its sets. Left as-is, every
+ *  exercise rehydrates with `inputType === undefined`: SetRow's field-visibility flags
+ *  all go false, and `shapeSetForSave(undefined, set)` returns `undefined` (pre-default-
+ *  arm) or now `null`, which drops the set from the save payload — silently losing the
+ *  whole in-progress workout on Finish. Backfilling here, once, on rehydrate, is cheaper
+ *  and safer than teaching every downstream consumer to tolerate a missing field. */
+export function migrateSession(persisted: unknown, version: number): SessionState {
+  if (version >= SESSION_STORE_VERSION) return persisted as SessionState
+  const state = persisted as LegacyPersistedState
+  if (!state || !Array.isArray(state.exercises)) return persisted as SessionState
+  return {
+    ...state,
+    exercises: state.exercises.map((ex) => ({
+      ...ex,
+      inputType: ex.inputType ?? defaultInputType(undefined, ex.kind),
+      sets: ex.sets.map((s) => ({
+        ...s,
+        durationSeconds: s.durationSeconds ?? null,
+      })),
+    })),
+  }
+}
+
 export type SessionStatus = 'idle' | 'active'
 
 export interface SessionState {
@@ -361,6 +407,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
     }),
     {
       name: 'tt-active-session',
+      version: SESSION_STORE_VERSION,
+      migrate: (persisted, version) => migrateSession(persisted, version),
       partialize: (state) => ({
         status: state.status,
         clientId: state.clientId,

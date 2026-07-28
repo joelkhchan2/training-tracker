@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSessionStore } from './sessionStore'
+import { useSessionStore, migrateSession, SESSION_STORE_VERSION } from './sessionStore'
 import type { PrescribedExercise } from '../../domain/types'
 
 const prescription: PrescribedExercise[] = [
@@ -268,6 +268,71 @@ describe('persistence config', () => {
   it('is configured with the tt-active-session storage key', () => {
     const options = useSessionStore.persist.getOptions()
     expect(options.name).toBe('tt-active-session')
+  })
+
+  it('is configured with SESSION_STORE_VERSION and a migrate hook', () => {
+    const options = useSessionStore.persist.getOptions()
+    expect(options.version).toBe(SESSION_STORE_VERSION)
+    expect(typeof options.migrate).toBe('function')
+  })
+})
+
+describe('migrateSession', () => {
+  it('leaves a state already at the current version untouched', () => {
+    const current = {
+      status: 'active',
+      exercises: [
+        { id: '1', exerciseId: null, exerciseName: 'Squat', kind: 'strength', inputType: 'weighted', sets: [] },
+      ],
+    }
+    expect(migrateSession(current, SESSION_STORE_VERSION)).toBe(current)
+  })
+
+  it('backfills missing inputType (bodyweight/weighted by kind) and missing durationSeconds on a pre-v1 persisted state', () => {
+    const legacy = {
+      status: 'active',
+      clientId: 'client-123',
+      sessionType: '5/3/1',
+      dayName: 'A',
+      dayIndex: 0,
+      startedAt: '2026-07-12T00:00:00.000Z',
+      notes: '',
+      bodyWeight: null,
+      exercises: [
+        {
+          id: '1',
+          exerciseId: null,
+          exerciseName: 'Squat',
+          kind: 'strength',
+          // no inputType — pre-v1 shape
+          sets: [
+            { weight: 135, reps: 5, done: false }, // no durationSeconds — pre-v1 shape
+          ],
+        },
+        {
+          id: '2',
+          exerciseId: null,
+          exerciseName: 'Pull-up',
+          kind: 'bodyweight',
+          sets: [{ weight: null, reps: 10, done: false }],
+        },
+      ],
+    }
+
+    const migrated = migrateSession(legacy, 0)
+
+    expect(migrated.exercises[0].inputType).toBe('weighted')
+    expect(migrated.exercises[0].sets[0].durationSeconds).toBeNull()
+    expect(migrated.exercises[1].inputType).toBe('bodyweight')
+    expect(migrated.exercises[1].sets[0].durationSeconds).toBeNull()
+    // untouched fields survive
+    expect(migrated.clientId).toBe('client-123')
+    expect(migrated.exercises[0].sets[0]).toMatchObject({ weight: 135, reps: 5, done: false })
+  })
+
+  it('passes through a null/undefined persisted state (first-ever load, nothing in storage)', () => {
+    expect(migrateSession(undefined, 0)).toBeUndefined()
+    expect(migrateSession(null, 0)).toBeNull()
   })
 })
 
