@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '../../lib/cn'
 
 export interface NumberFieldProps {
@@ -66,34 +66,42 @@ export function NumberField({
   const [buffer, setBuffer] = useState(() => String(value))
   const [focused, setFocused] = useState(false)
 
-  useEffect(() => {
-    // Can't derive this during render: `focused` is driven by DOM focus/blur
-    // events, not a prop, so there's no render-time signal to diff against.
-    // Controlled buffer must resync from an external `value` change
-    // (prefill/stepper/reset) whenever the user isn't actively mid-edit.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!focused) setBuffer(String(value))
-  }, [value, focused])
+  // While focused (or mid-edit — see handleTextChange), the buffer is the
+  // source of truth, so a transient '', '-', '.', '102.' can be shown
+  // without being clobbered by an external `value` change. Once unfocused,
+  // the prop is shown directly — no effect needed to resync, since
+  // `display` just re-derives from `value` on every render.
+  const display = focused ? buffer : String(value)
 
   const commit = (next: number) => onChange(clamp(roundToStep(next), min, max))
 
+  const handleFocus = () => {
+    setBuffer(String(value))
+    setFocused(true)
+  }
+
   const handleTextChange = (raw: string) => {
     setBuffer(raw)
+    // A change event can't fire without the input having focus — treat it as
+    // such even if a `focus` event wasn't separately observed (e.g. a
+    // programmatic/test-fired `change`), so the buffer (not a stale `value`
+    // prop) stays the display source of truth for the rest of the edit.
+    setFocused(true)
     if (!COMPLETE_NUMBER.test(raw)) return // partial — buffer-only, no commit
     commit(Number(raw))
   }
 
   const handleBlur = () => {
-    setFocused(false)
     if (!COMPLETE_NUMBER.test(buffer)) {
-      // Empty or partial ('-', '.', '102.') left on blur — never leave state NaN.
-      commit(min)
+      // Empty or partial ('-', '.', '102.') left on blur — never leave state
+      // NaN. Stay in buffer-display mode (don't clear `focused`) since the
+      // caller's `value` prop won't reflect this commit until it re-renders
+      // us, and the field must show the committed min immediately.
       setBuffer(String(clamp(roundToStep(min), min, max)))
-    } else {
-      // Re-sync to the canonical (clamped/rounded) string in case the raw
-      // buffer was outside [min,max] and the commit path adjusted it.
-      setBuffer(String(clamp(roundToStep(Number(buffer)), min, max)))
+      commit(min)
+      return
     }
+    setFocused(false)
   }
 
   const stepperClasses = cn(
@@ -124,10 +132,10 @@ export function NumberField({
           id={inputId}
           type="text"
           inputMode="decimal"
-          value={buffer}
+          value={display}
           placeholder="0"
           disabled={disabled}
-          onFocus={() => setFocused(true)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={(event) => handleTextChange(event.target.value)}
           className={cn(
