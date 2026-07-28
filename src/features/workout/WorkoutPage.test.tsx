@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import * as dndCore from '@dnd-kit/core'
 import { WorkoutPage } from './WorkoutPage'
 import { useSessionStore } from './sessionStore'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
@@ -52,6 +53,13 @@ vi.mock('../../data/alternateExercises', () => ({ useAlternateExercises: () => (
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))
+// Spies on useSensor's real implementation so a test can assert which sensor CLASSES
+// WorkoutPage registers (MouseSensor + TouchSensor, not PointerSensor) without needing
+// jsdom to reproduce dnd-kit's pointerdown/touchstart activation race.
+vi.mock('@dnd-kit/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@dnd-kit/core')>()
+  return { ...actual, useSensor: vi.fn(actual.useSensor) }
+})
 
 const prescription: PrescribedExercise[] = [
   {
@@ -346,6 +354,46 @@ describe('WorkoutPage', () => {
     expect(useSessionStore.getState().clientId).toBe('client-123')
     expect(useSessionStore.getState().exercises[0].sets).toHaveLength(3)
     expect(screen.queryByRole('dialog', { name: 'Workout summary' })).not.toBeInTheDocument()
+  })
+})
+
+describe('WorkoutPage — drag sensors + insert-in-place', () => {
+  it('configures MouseSensor + TouchSensor + KeyboardSensor, not PointerSensor', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    const usedSensors = vi.mocked(dndCore.useSensor).mock.calls.map((call) => call[0] as unknown)
+    expect(usedSensors).toContain(dndCore.MouseSensor)
+    expect(usedSensors).toContain(dndCore.TouchSensor)
+    expect(usedSensors).toContain(dndCore.KeyboardSensor)
+    expect(usedSensors).not.toContain(dndCore.PointerSensor)
+  })
+
+  it('renders a "+ Add exercise here" affordance above each card; picking from it inserts at that index', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exercise_type: 'weighted' }] })
+    renderAtWorkout()
+
+    const gapButtons = screen.getAllByRole('button', { name: '+ Add exercise here' })
+    expect(gapButtons).toHaveLength(2) // one per exercise: Squat, Push-up
+
+    fireEvent.click(gapButtons[1]) // the gap above Push-up, index 1
+    fireEvent.click(screen.getByRole('button', { name: 'Face Pulls' }))
+
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Squat', 'Face Pulls', 'Push-up'])
+  })
+
+  it('the trailing "+ Add exercise" button still appends via addExercise', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exercise_type: 'weighted' }] })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Face Pulls' }))
+
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Squat', 'Push-up', 'Face Pulls'])
   })
 })
 
