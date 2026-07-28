@@ -6,6 +6,13 @@ const { useAlternateExercises } = vi.hoisted(() => ({ useAlternateExercises: vi.
 vi.mock('../../data/alternateExercises', () => ({ useAlternateExercises }))
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch: () => ({ data: [] }) }))
+// ExercisePicker now calls these two hooks itself; this test harness has no
+// QueryClientProvider, so stub them out too.
+vi.mock('../../data/favoriteExercises', () => ({
+  useFavoriteExercises: () => ({ items: [], ids: new Set() }),
+  useToggleFavorite: () => ({ mutate: vi.fn() }),
+}))
+vi.mock('../../data/recentExercises', () => ({ useRecentExercises: () => ({ data: [] }) }))
 
 describe('SubstituteSheet', () => {
   it('renders suggested alternates and routes a tap to onPick', () => {

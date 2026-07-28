@@ -50,6 +50,13 @@ vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch }))
 // Replace-mode now renders SubstituteSheet, which calls useAlternateExercises (a real
 // useQuery); this test harness has no QueryClientProvider, so stub it out.
 vi.mock('../../data/alternateExercises', () => ({ useAlternateExercises: () => ({ data: [], isLoading: false }) }))
+// ExercisePicker (embedded by both SubstituteSheet and ExercisePickerSheet) now calls these
+// two hooks itself; this test harness has no QueryClientProvider, so stub them out too.
+vi.mock('../../data/favoriteExercises', () => ({
+  useFavoriteExercises: () => ({ items: [], ids: new Set() }),
+  useToggleFavorite: () => ({ mutate: vi.fn() }),
+}))
+vi.mock('../../data/recentExercises', () => ({ useRecentExercises: () => ({ data: [] }) }))
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))
@@ -378,6 +385,11 @@ describe('WorkoutPage — drag sensors + insert-in-place', () => {
     expect(gapButtons).toHaveLength(2) // one per exercise: Squat, Push-up
 
     fireEvent.click(gapButtons[1]) // the gap above Push-up, index 1
+    // Results only render once a term is submitted (Suggested/Favorites/Recent occupy the
+    // empty-term state) — the mocked useExerciseSearch ignores the term and always returns
+    // Face Pulls, so any submitted term surfaces it.
+    fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'face' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.click(screen.getByRole('button', { name: 'Face Pulls' }))
 
     const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
@@ -390,6 +402,11 @@ describe('WorkoutPage — drag sensors + insert-in-place', () => {
     renderAtWorkout()
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    // Results only render once a term is submitted (Suggested/Favorites/Recent occupy the
+    // empty-term state) — the mocked useExerciseSearch ignores the term and always returns
+    // Face Pulls, so any submitted term surfaces it.
+    fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'face' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.click(screen.getByRole('button', { name: 'Face Pulls' }))
 
     const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
@@ -604,9 +621,13 @@ const legPressResult: ExerciseListItem = { id: 'ex-lp', name: 'Leg Press', exerc
 
 /** Opens the replace sheet for exercise 0 (Squat) and clicks the "Leg Press" search result,
  *  which is how `ExercisePicker` invokes `onPick({ exerciseName, kind, exerciseId })` for a
- *  catalog swap (as opposed to a typed custom-name pick, which has no exerciseId). */
+ *  catalog swap (as opposed to a typed custom-name pick, which has no exerciseId). Results
+ *  only render once a term is submitted (Suggested/Favorites/Recent occupy the empty-term
+ *  state) — the mocked useExerciseSearch ignores the term, so any submitted term surfaces it. */
 function replaceExercise0WithLegPress() {
   fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+  fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'leg' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }))
   fireEvent.click(screen.getByRole('button', { name: 'Leg Press' }))
 }
 
@@ -679,14 +700,19 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     })
     renderAtWorkout()
 
-    // Swap slot 0 to B — fetch₁ (for ex-b) starts and is left pending.
+    // Swap slot 0 to B — fetch₁ (for ex-b) starts and is left pending. Results only render
+    // once a term is submitted; the mocked useExerciseSearch ignores the term.
     fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+    fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'ex' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.click(screen.getByRole('button', { name: 'Exercise B' }))
     expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-b')
 
     // Before fetch₁ resolves, swap the same slot again to C — clears sets synchronously,
     // sets exerciseId to ex-c, and starts fetch₂ (for ex-c), also left pending.
     fireEvent.click(screen.getByRole('button', { name: 'Replace Exercise B' }))
+    fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'ex' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.click(screen.getByRole('button', { name: 'Exercise C' }))
     expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-c')
     expect(useSessionStore.getState().exercises[0].sets.every((s) => s.weight == null)).toBe(true)
