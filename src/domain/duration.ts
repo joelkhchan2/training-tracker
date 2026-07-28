@@ -37,3 +37,38 @@ export function parseDurationInput(raw: string): number | null {
   if (!/^\d+$/.test(trimmed)) return null
   return Number(trimmed)
 }
+
+export type InputType = 'weighted' | 'bodyweight' | 'timed' | 'weighted_time'
+
+/** Infers a logged/prescribed set's input type from its (weight, duration_seconds)
+ *  null-pattern — the 4 types are exhaustive and non-overlapping once shapeSetForSave's
+ *  nulling is applied consistently, so reps doesn't even need inspecting. A legacy row
+ *  with neither weight nor duration (pre-migration, or a malformed direct-SQL edit)
+ *  infers as 'bodyweight', matching how it already renders today. */
+export function inferInputType(row: { weight: number | null; durationSeconds: number | null }): InputType {
+  if (row.durationSeconds != null) return row.weight != null ? 'weighted_time' : 'timed'
+  return row.weight != null ? 'weighted' : 'bodyweight'
+}
+
+/** Shapes one session set for the log_workout save payload, by input type. Returns null
+ *  when the type's required field(s) are empty — "nothing typed → nothing saved", the
+ *  same skip behavior the pre-existing `if (set.reps == null) return` had for weighted/
+ *  bodyweight sets, now extended (not bypassed) for timed/weighted_time: a timed set with
+ *  its duration typed in is never dropped, and never fabricates a weight/reps value. */
+export function shapeSetForSave(
+  inputType: InputType,
+  set: { weight: number | null; reps: number | null; durationSeconds: number | null },
+): { weight: number | null; reps: number | null; durationSeconds: number | null } | null {
+  switch (inputType) {
+    case 'weighted':
+      return set.reps == null ? null : { weight: set.weight ?? 0, reps: set.reps, durationSeconds: null }
+    case 'bodyweight':
+      return set.reps == null ? null : { weight: null, reps: set.reps, durationSeconds: null }
+    case 'timed':
+      return set.durationSeconds == null ? null : { weight: null, reps: null, durationSeconds: set.durationSeconds }
+    case 'weighted_time':
+      return set.durationSeconds == null
+        ? null
+        : { weight: set.weight ?? 0, reps: null, durationSeconds: set.durationSeconds }
+  }
+}
