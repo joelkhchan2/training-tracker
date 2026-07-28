@@ -107,10 +107,14 @@ describe('useToggleFavorite', () => {
 
     act(() => { result.current.mutate({ item: pullup, isFavorited: false }) })
 
-    // Optimistic write happens synchronously in onMutate, before the mutation settles.
-    const optimistic = qc.getQueryData<{ items: ExerciseListItem[]; ids: Set<string> }>(['favorites', 'user-1'])
-    expect(optimistic?.items).toEqual([squat, pullup])
-    expect(optimistic?.ids.has('ex-pullup')).toBe(true)
+    // Optimistic write lands in onMutate (after awaiting cancelQueries), before the mutation
+    // settles. No useFavoriteExercises observer is mounted, so onSettled's invalidate won't
+    // trigger a real refetch and the optimistic value stays stable for waitFor to observe.
+    await waitFor(() => {
+      const optimistic = qc.getQueryData<{ items: ExerciseListItem[]; ids: Set<string> }>(['favorites', 'user-1'])
+      expect(optimistic?.items).toEqual([squat, pullup])
+      expect(optimistic?.ids.has('ex-pullup')).toBe(true)
+    })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(insertMock).toHaveBeenCalledWith({ user_id: 'user-1', exercise_id: 'ex-pullup' })
@@ -130,9 +134,11 @@ describe('useToggleFavorite', () => {
 
     act(() => { result.current.mutate({ item: squat, isFavorited: true }) })
 
-    const optimistic = qc.getQueryData<{ items: ExerciseListItem[]; ids: Set<string> }>(['favorites', 'user-1'])
-    expect(optimistic?.items).toEqual([pullup])
-    expect(optimistic?.ids.has('ex-squat')).toBe(false)
+    await waitFor(() => {
+      const optimistic = qc.getQueryData<{ items: ExerciseListItem[]; ids: Set<string> }>(['favorites', 'user-1'])
+      expect(optimistic?.items).toEqual([pullup])
+      expect(optimistic?.ids.has('ex-squat')).toBe(false)
+    })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
   })
@@ -150,6 +156,20 @@ describe('useToggleFavorite', () => {
 
     const rolledBack = qc.getQueryData<{ items: ExerciseListItem[]; ids: Set<string> }>(['favorites', 'user-1'])
     expect(rolledBack).toEqual({ items: [squat], ids: new Set(['ex-squat']) })
+  })
+
+  it('onError clears the cache entry (rather than leaving the optimistic value) when there was no prior cache value', async () => {
+    from.mockImplementation(() => ({ insert: vi.fn().mockReturnValue(Promise.resolve({ error: new Error('boom') })) }))
+    const { Wrapper, qc } = wrapperWithClient()
+    // Deliberately no seedCache: ['favorites', 'user-1'] has never been populated.
+
+    const { result } = renderHook(() => useToggleFavorite(), { wrapper: Wrapper })
+
+    act(() => { result.current.mutate({ item: pullup, isFavorited: false }) })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    expect(qc.getQueryData(['favorites', 'user-1'])).toBeUndefined()
   })
 
   it('onSettled invalidates [favorites, userId]', async () => {

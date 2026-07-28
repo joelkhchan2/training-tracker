@@ -74,11 +74,9 @@ export function useToggleFavorite() {
         if (error) throw error
       }
     },
-    onMutate: ({ item, isFavorited }) => {
-      // Deliberately not awaited: the optimistic write below must land synchronously within
-      // this same mutate() call (Recent/Common/Suggested read `ids` on the next render tick),
-      // so cancellation is fired and forgotten rather than gating the cache write on it.
-      void queryClient.cancelQueries({ queryKey: ['favorites', userId] })
+    onMutate: async ({ item, isFavorited }) => {
+      // Cancel any in-flight refetch so it can't land after and clobber the optimistic write.
+      await queryClient.cancelQueries({ queryKey: ['favorites', userId] })
       const previous = queryClient.getQueryData<FavoritesState>(['favorites', userId])
       const base = previous ?? EMPTY
       const next: FavoritesState = isFavorited
@@ -88,7 +86,12 @@ export function useToggleFavorite() {
       return { previous }
     },
     onError: (_error, _vars, context) => {
-      if (context) queryClient.setQueryData(['favorites', userId], context.previous)
+      if (!context) return
+      if (context.previous === undefined) {
+        queryClient.removeQueries({ queryKey: ['favorites', userId] })
+      } else {
+        queryClient.setQueryData(['favorites', userId], context.previous)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['favorites', userId] })
