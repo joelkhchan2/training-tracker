@@ -44,8 +44,9 @@ export interface CardioSessionDetail {
 export interface ClimbingSessionDetail {
   kind: 'climbing'
   header: SessionHeader
-  sends: { grade: string; count: number }[]
+  sends: { grade: string; count: number; attempts: number }[]
   totalSends: number
+  totalAttempts: number
 }
 
 export type SessionDetail = StrengthSessionDetail | CardioSessionDetail | ClimbingSessionDetail
@@ -76,8 +77,8 @@ export function formatSet(set: DetailSet): string {
 /** Pure: order climbing sends highest-v-grade-first; unparseable grades (e.g. font) are kept and
  *  sorted to the end by raw string. totalSends counts every row. */
 export function shapeClimbingSends(
-  rows: { grade: string; count: number }[],
-): { sends: { grade: string; count: number }[]; totalSends: number } {
+  rows: { grade: string; count: number; attempts: number }[],
+): { sends: { grade: string; count: number; attempts: number }[]; totalSends: number; totalAttempts: number } {
   const sends = [...rows].sort((a, b) => {
     const na = parseVGrade(a.grade)
     const nb = parseVGrade(b.grade)
@@ -87,7 +88,8 @@ export function shapeClimbingSends(
     return a.grade < b.grade ? -1 : a.grade > b.grade ? 1 : 0
   })
   const totalSends = rows.reduce((sum, r) => sum + r.count, 0)
-  return { sends, totalSends }
+  const totalAttempts = rows.reduce((sum, r) => sum + r.attempts, 0)
+  return { sends, totalSends, totalAttempts }
 }
 
 const SESSION_COLS = 'id, discipline, date, session_type, program_variant, program_week, duration_minutes, body_weight, notes'
@@ -160,14 +162,14 @@ export function useSessionDetail(sessionId: string | undefined) {
       // climbing
       const { data: sends, error: cErr } = await supabase
         .from('climbing_sends')
-        .select('grade, count')
+        .select('grade, count, attempts')
         .eq('session_id', (s as { id: string }).id)
       if (cErr) throw cErr
       const shaped = shapeClimbingSends((sends ?? []).map((r) => {
-        const row = r as { grade: string; count: number }
-        return { grade: row.grade, count: row.count }
+        const row = r as { grade: string; count: number; attempts: number }
+        return { grade: row.grade, count: row.count, attempts: row.attempts }
       }))
-      return { kind: 'climbing', header, sends: shaped.sends, totalSends: shaped.totalSends }
+      return { kind: 'climbing', header, sends: shaped.sends, totalSends: shaped.totalSends, totalAttempts: shaped.totalAttempts }
     },
   })
 }

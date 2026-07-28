@@ -48,18 +48,23 @@ describe('formatSet', () => {
 })
 
 describe('shapeClimbingSends', () => {
-  it('orders v-scale grades highest-first and sums counts', () => {
-    const out = shapeClimbingSends([
-      { grade: 'V2', count: 1 }, { grade: 'V5', count: 2 }, { grade: 'V3', count: 4 },
+  it('orders highest V-grade first, carries attempts, and totals both', () => {
+    const { sends, totalSends, totalAttempts } = shapeClimbingSends([
+      { grade: 'V4', count: 1, attempts: 5 },
+      { grade: 'V6', count: 0, attempts: 3 },
+      { grade: 'V2', count: 2, attempts: 2 },
     ])
-    expect(out.sends.map(s => s.grade)).toEqual(['V5', 'V3', 'V2'])
-    expect(out.totalSends).toBe(7)
+    expect(sends.map((s) => s.grade)).toEqual(['V6', 'V4', 'V2'])
+    expect(sends[0]).toEqual({ grade: 'V6', count: 0, attempts: 3 })
+    expect(totalSends).toBe(3)
+    expect(totalAttempts).toBe(10)
   })
   it('keeps unparseable grades (sorted to the end) and still counts them', () => {
     const out = shapeClimbingSends([
-      { grade: 'V4', count: 1 }, { grade: '6C', count: 3 },
+      { grade: 'V4', count: 1, attempts: 1 }, { grade: '6C', count: 3, attempts: 3 },
     ])
     expect(out.sends.map(s => s.grade)).toEqual(['V4', '6C'])
     expect(out.totalSends).toBe(4)
+    expect(out.totalAttempts).toBe(4)
   })
 })
