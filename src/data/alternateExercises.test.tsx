@@ -29,6 +29,7 @@ const squatRow = {
   exercise_type: 'weighted',
   primary_muscles: 'quadriceps, calves, glutes, hamstrings, back',
   movement_pattern: 'squat',
+  equipment: 'barbell',
 }
 const deadliftRow = {
   id: 'dl',
@@ -36,6 +37,7 @@ const deadliftRow = {
   exercise_type: 'weighted',
   primary_muscles: 'lower back, hamstrings, back, calves, arms, glutes, hamstrings, lats, back, quadriceps, traps',
   movement_pattern: 'pull',
+  equipment: 'barbell',
 }
 const curlRow = {
   id: 'cu',
@@ -43,6 +45,7 @@ const curlRow = {
   exercise_type: 'weighted',
   primary_muscles: 'biceps',
   movement_pattern: 'pull',
+  equipment: 'dumbbell',
 }
 
 describe('useAlternateExercises', () => {
@@ -67,5 +70,13 @@ describe('useAlternateExercises', () => {
     const ids = result.current.data?.map((a) => a.id)
     expect(ids?.[0]).toBe('dl')
     expect(ids).not.toContain('sq')
+  })
+
+  it('threads equipment through to each returned AlternateExercise', async () => {
+    from.mockReturnValueOnce(stub({ data: [squatRow, deadliftRow, curlRow], error: null }))
+    const { result } = renderHook(() => useAlternateExercises('sq', 'Barbell Squat', 'u1'), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const deadlift = result.current.data?.find((a) => a.id === 'dl')
+    expect(deadlift).toMatchObject({ primaryMuscles: deadliftRow.primary_muscles, equipment: 'barbell' })
   })
 })

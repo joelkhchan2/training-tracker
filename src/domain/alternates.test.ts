@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { muscleTokens, suggestAlternates, type CandidateExercise } from './alternates'
 
-const ex = (id: string, name: string, primaryMuscles: string | null, movementPattern: string | null = null, exerciseType: string | null = 'weighted'): CandidateExercise =>
-  ({ id, name, exerciseType, primaryMuscles, movementPattern })
+const ex = (
+  id: string,
+  name: string,
+  primaryMuscles: string | null,
+  movementPattern: string | null = null,
+  exerciseType: string | null = 'weighted',
+  equipment: string | null = null,
+): CandidateExercise => ({ id, name, exerciseType, primaryMuscles, movementPattern, equipment })
 
 describe('muscleTokens', () => {
   it('splits, lowercases, trims, drops empties', () => {
@@ -46,6 +52,12 @@ describe('suggestAlternates', () => {
     expect(suggestAlternates(null, [squat])).toEqual([])
     expect(suggestAlternates(ex('x', 'X', null), [squat])).toEqual([])
     expect(suggestAlternates(squat, [deadlift, frontSquat, legExt], 1).length).toBe(1)
+  })
+  it('passes primaryMuscles and equipment through unchanged (no ranking impact)', () => {
+    const bench = ex('bp', 'Bench Press', 'chest, triceps', 'push', 'weighted', 'barbell')
+    const ohp = ex('ohp', 'Overhead Press', 'shoulders, triceps', 'push', 'weighted', 'dumbbell')
+    const out = suggestAlternates(bench, [bench, ohp])
+    expect(out).toEqual([{ id: 'ohp', name: 'Overhead Press', exerciseType: 'weighted', primaryMuscles: 'shoulders, triceps', equipment: 'dumbbell', sharedCount: 1 }])
   })
   it('pins the user example: Bench Press surfaces an overhead press (real catalog strings)', () => {
     // Real catalog: Bench Press = 'chest, triceps, delts'; Dumbbell Overhead Press =
