@@ -346,6 +346,75 @@ describe('sessionStore — exercise management', () => {
   })
 })
 
+describe('insertExerciseAt', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  function seedThree() {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never,
+      exMgmtMeta,
+    )
+    useSessionStore.getState().addExercise({ exerciseName: 'Bench', kind: 'strength' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Row', kind: 'strength' })
+    // -> ['Squat', 'Bench', 'Row']
+  }
+
+  it('inserts at the front (index 0)', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(0, { exerciseName: 'Warmup', kind: 'strength' })
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Warmup', 'Squat', 'Bench', 'Row'])
+  })
+
+  it('inserts in the middle', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(1, { exerciseName: 'Curl', kind: 'strength' })
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Squat', 'Curl', 'Bench', 'Row'])
+  })
+
+  it('inserts at the end when index equals length, matching addExercise', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(3, { exerciseName: 'Face Pulls', kind: 'strength' })
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Squat', 'Bench', 'Row', 'Face Pulls'])
+  })
+
+  it('clamps a negative index to 0', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(-5, { exerciseName: 'Warmup', kind: 'strength' })
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Warmup', 'Squat', 'Bench', 'Row'])
+  })
+
+  it('clamps an out-of-range index to the current length', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(99, { exerciseName: 'Face Pulls', kind: 'strength' })
+    const names = useSessionStore.getState().exercises.map((e) => e.exerciseName)
+    expect(names).toEqual(['Squat', 'Bench', 'Row', 'Face Pulls'])
+  })
+
+  it('produces the same shape as addExercise: id, adhoc, kind, exerciseId, 3 empty sets, no tmKey', () => {
+    seedThree()
+    useSessionStore.getState().insertExerciseAt(1, { exerciseName: 'Curl', kind: 'strength', exerciseId: 'ex-curl' })
+    const inserted = useSessionStore.getState().exercises[1]
+    expect(inserted).toMatchObject({ exerciseName: 'Curl', kind: 'strength', adhoc: true, exerciseId: 'ex-curl', tmKey: undefined })
+    expect(inserted.id).toBeTruthy()
+    expect(inserted.sets).toHaveLength(3)
+    expect(inserted.sets.every((s) => s.weight === null && s.reps === null && s.done === false)).toBe(true)
+  })
+
+  it('preserves the other exercises and their ids', () => {
+    seedThree()
+    const before = useSessionStore.getState().exercises.map((e) => ({ id: e.id, name: e.exerciseName }))
+    useSessionStore.getState().insertExerciseAt(1, { exerciseName: 'Curl', kind: 'strength' })
+    const after = useSessionStore.getState().exercises
+    expect(after.find((e) => e.id === before[0].id)?.exerciseName).toBe('Squat')
+    expect(after.find((e) => e.id === before[1].id)?.exerciseName).toBe('Bench')
+    expect(after.find((e) => e.id === before[2].id)?.exerciseName).toBe('Row')
+  })
+})
+
 const capMeta = { sessionType: 'Gym A', dayName: 'Gym A', dayIndex: 0, clientId: 'c1', startedAt: '2026-07-23T00:00:00Z' }
 
 describe('sessionStore — capture fields', () => {

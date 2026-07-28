@@ -84,6 +84,22 @@ function emptySet(): SessionSet {
   return { weight: null, reps: null, done: false }
 }
 
+/** Builds a fresh adhoc SessionExercise from a picker result — shared by
+ *  `addExercise` and `insertExerciseAt` so the two can't drift on shape
+ *  (id, adhoc flag, 3 empty sets, no tmKey). Kept module-private: this file
+ *  isn't a component, but nothing outside it needs this shape directly. */
+function buildAdhocExercise(pick: ExercisePick): SessionExercise {
+  return {
+    id: crypto.randomUUID(),
+    exerciseId: pick.exerciseId ?? null,
+    exerciseName: pick.exerciseName,
+    kind: pick.kind,
+    tmKey: undefined,
+    adhoc: true,
+    sets: [emptySet(), emptySet(), emptySet()],
+  }
+}
+
 export interface SessionActions {
   startFromPrescription: (prescription: PrescribedExercise[], meta: StartSessionMeta) => void
   updateSet: (exIdx: number, setIdx: number, patch: Partial<SessionSet>) => void
@@ -91,6 +107,7 @@ export interface SessionActions {
   addSet: (exIdx: number) => void
   removeSet: (exIdx: number, setIdx: number) => void
   addExercise: (pick: ExercisePick) => void
+  insertExerciseAt: (index: number, pick: ExercisePick) => void
   removeExercise: (exIdx: number) => void
   replaceExercise: (exIdx: number, pick: ExercisePick) => void
   reorderExercises: (fromIdx: number, toIdx: number) => void
@@ -216,20 +233,16 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       },
 
       addExercise: (pick) => {
-        set((state) => ({
-          exercises: [
-            ...state.exercises,
-            {
-              id: crypto.randomUUID(),
-              exerciseId: pick.exerciseId ?? null,
-              exerciseName: pick.exerciseName,
-              kind: pick.kind,
-              tmKey: undefined,
-              adhoc: true,
-              sets: [emptySet(), emptySet(), emptySet()],
-            },
-          ],
-        }))
+        set((state) => ({ exercises: [...state.exercises, buildAdhocExercise(pick)] }))
+      },
+
+      insertExerciseAt: (index, pick) => {
+        set((state) => {
+          const clamped = Math.max(0, Math.min(index, state.exercises.length))
+          const next = [...state.exercises]
+          next.splice(clamped, 0, buildAdhocExercise(pick))
+          return { exercises: next }
+        })
       },
 
       removeExercise: (exIdx) => {
