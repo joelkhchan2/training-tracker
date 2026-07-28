@@ -1,6 +1,34 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { NumberField } from './NumberField'
+import { NumberField, type NumberFieldProps } from './NumberField'
+
+// A realistic controlled parent: echoes `onChange` back into `value`, the
+// way every real caller (SetRow, sessionStore-backed forms) does. Bare
+// `vi.fn()` callers never do this, so they can't exercise what the field
+// displays after a commit — only whether/what onChange was called with.
+//
+// `{...props}` is spread AFTER `value`/`onChange` so a test can still force
+// an explicit `value` prop (e.g. to simulate an EXTERNAL write, such as
+// sessionStore's carry-forward, that bypasses this field's own onChange).
+function Controlled({
+  initial = 0,
+  onChange,
+  ...props
+}: { initial?: number } & Partial<NumberFieldProps>) {
+  const [v, setV] = useState(initial)
+  return (
+    <NumberField
+      label="Weight"
+      value={v}
+      onChange={(next) => {
+        setV(next)
+        onChange?.(next)
+      }}
+      {...props}
+    />
+  )
+}
 
 describe('NumberField', () => {
   it('renders its label and current value', () => {
@@ -70,7 +98,7 @@ describe('NumberField', () => {
 
   it('commits min on blur when the buffer is left empty', () => {
     const onChange = vi.fn()
-    render(<NumberField label="Reps" value={5} onChange={onChange} min={0} />)
+    render(<Controlled label="Reps" initial={5} onChange={onChange} min={0} />)
     const input = screen.getByLabelText('Reps')
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.blur(input)
@@ -80,13 +108,37 @@ describe('NumberField', () => {
 
   it('retyping a full replacement after clearing does not merge with the old value', () => {
     const onChange = vi.fn()
-    render(<NumberField label="Reps" value={5} onChange={onChange} />)
+    render(<Controlled label="Reps" initial={5} onChange={onChange} />)
     const input = screen.getByLabelText('Reps')
     fireEvent.change(input, { target: { value: '' } }) // backspace the prefilled 5
     fireEvent.change(input, { target: { value: '1' } })
     fireEvent.change(input, { target: { value: '12' } })
     expect(input).toHaveValue('12')
     expect(onChange).toHaveBeenLastCalledWith(12)
+  })
+
+  // Regression guard for a bug a reviewer found: handleBlur's invalid/empty
+  // branch used to skip `setFocused(false)`, so `focused` got stuck `true`
+  // after any empty+blur. Consequence: the field would permanently show its
+  // stale internal `buffer` and ignore all future EXTERNAL `value` prop
+  // changes — reachable in real use via sessionStore.updateSet's
+  // carry-forward, which writes a sibling set's weight/reps into this same
+  // field's `value` prop while it isn't focused.
+  it('shows a later external value change after an empty-blur commit (carry-forward)', () => {
+    const { rerender } = render(<Controlled label="Reps" initial={5} min={0} />)
+    const input = screen.getByLabelText('Reps')
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input) // commits min, and must clear `focused`
+    expect(input).toHaveValue('0')
+
+    // External write that bypasses this field's own onChange — e.g. a
+    // sibling set's carry-forward — with no refocus in between. The
+    // `Controlled` wrapper's explicit `value` prop overrides its own
+    // internal state (see the component's `{...props}` spread order above).
+    rerender(<Controlled label="Reps" initial={5} min={0} value={42} />)
+    expect(screen.getByLabelText('Reps')).toHaveValue('42')
   })
 
   it('typing a decimal digit-by-digit keeps the dot and only the complete number commits', () => {

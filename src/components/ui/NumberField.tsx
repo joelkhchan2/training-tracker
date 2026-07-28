@@ -94,12 +94,12 @@ export function NumberField({
   const handleBlur = () => {
     if (!COMPLETE_NUMBER.test(buffer)) {
       // Empty or partial ('-', '.', '102.') left on blur — never leave state
-      // NaN. Stay in buffer-display mode (don't clear `focused`) since the
-      // caller's `value` prop won't reflect this commit until it re-renders
-      // us, and the field must show the committed min immediately.
+      // NaN; commit the clamped min. Clearing `focused` below means
+      // `display` immediately falls back to `String(value)`, so a
+      // controlled caller that echoes `onChange` back into `value` shows
+      // the committed min right away.
       setBuffer(String(clamp(roundToStep(min), min, max)))
       commit(min)
-      return
     }
     setFocused(false)
   }
