@@ -51,18 +51,20 @@ describe('startFromPrescription', () => {
     expect(squat.exerciseName).toBe('Squat')
     expect(squat.tmKey).toBe('squat')
     expect(squat.sets).toEqual([
-      { weight: 135, reps: 5, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: 135, prescribedReps: 5 },
-      { weight: 155, reps: 5, done: false, isFsl: true, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: 155, prescribedReps: 5 },
-      { weight: 175, reps: 3, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 2, prescribedWeight: 175, prescribedReps: 3 },
+      { weight: 135, reps: 5, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: 135, prescribedReps: 5, durationSeconds: null },
+      { weight: 155, reps: 5, done: false, isFsl: true, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: 155, prescribedReps: 5, durationSeconds: null },
+      { weight: 175, reps: 3, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 2, prescribedWeight: 175, prescribedReps: 3, durationSeconds: null },
     ])
+    expect(squat.inputType).toBe('weighted')
 
     const pushup = state.exercises[1]
     expect(pushup.exerciseName).toBe('Push-up')
     expect(pushup.tmKey).toBeUndefined()
     expect(pushup.sets).toEqual([
-      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: undefined, prescribedReps: 10 },
-      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: undefined, prescribedReps: 10 },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 0, prescribedWeight: undefined, prescribedReps: 10, durationSeconds: null },
+      { weight: null, reps: 10, done: false, isFsl: undefined, isAmrap: undefined, targetReps: undefined, prescriptionIndex: 1, prescribedWeight: undefined, prescribedReps: 10, durationSeconds: null },
     ])
+    expect(pushup.inputType).toBe('weighted') // prescription-sourced always defaults to weighted, even a bodyweight-named lift
   })
 })
 
@@ -223,13 +225,13 @@ describe('toggleDone', () => {
 })
 
 describe('addSet', () => {
-  it('appends a set copying the last set weight/reps, done=false', () => {
+  it('appends a set copying the last set weight/reps (not durationSeconds), done=false', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
     useSessionStore.getState().addSet(0)
 
     const state = useSessionStore.getState()
     expect(state.exercises[0].sets).toHaveLength(4)
-    expect(state.exercises[0].sets[3]).toEqual({ weight: 175, reps: 3, done: false })
+    expect(state.exercises[0].sets[3]).toEqual({ weight: 175, reps: 3, done: false, durationSeconds: null })
     // other exercise untouched
     expect(state.exercises[1].sets).toHaveLength(2)
   })
@@ -471,5 +473,133 @@ describe('sessionStore — picker exerciseId', () => {
     useSessionStore.getState().startFromPrescription([{ exerciseName: 'Squat', sets: [{ weight: 100, reps: 5 }] }] as never, idMeta)
     useSessionStore.getState().replaceExercise(0, { exerciseName: 'Leg Press', kind: 'strength', exerciseId: 'ex-legpress' })
     expect(useSessionStore.getState().exercises[0].exerciseId).toBe('ex-legpress')
+  })
+})
+
+import { defaultInputType } from './sessionStore'
+
+describe('defaultInputType', () => {
+  it('defaults a catalog "timed" exercise_type to timed regardless of kind', () => {
+    expect(defaultInputType('timed', 'strength')).toBe('timed')
+    expect(defaultInputType('timed', 'bodyweight')).toBe('timed')
+  })
+  it('defaults a catalog "bodyweight" exercise_type, or a bodyweight kind, to bodyweight', () => {
+    expect(defaultInputType('bodyweight', 'strength')).toBe('bodyweight')
+    expect(defaultInputType(null, 'bodyweight')).toBe('bodyweight')
+  })
+  it('defaults everything else (weighted, unknown, undefined/custom-add) to weighted', () => {
+    expect(defaultInputType('weighted', 'strength')).toBe('weighted')
+    expect(defaultInputType(null, 'strength')).toBe('weighted')
+    expect(defaultInputType(undefined, 'strength')).toBe('weighted')
+  })
+})
+
+describe('sessionStore — inputType threading through exercise management', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('addExercise derives inputType from the pick\'s exerciseType + kind', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Plank', kind: 'strength', exerciseType: 'timed' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Pull-up', kind: 'bodyweight', exerciseType: 'bodyweight' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Made Up', kind: 'strength' }) // no exerciseType at all
+    const ex = useSessionStore.getState().exercises
+    expect(ex[0].inputType).toBe('timed')
+    expect(ex[1].inputType).toBe('bodyweight')
+    expect(ex[2].inputType).toBe('weighted')
+  })
+
+  it('insertExerciseAt derives inputType the same way', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().insertExerciseAt(0, { exerciseName: 'Plank', kind: 'strength', exerciseType: 'timed' })
+    expect(useSessionStore.getState().exercises[0].inputType).toBe('timed')
+  })
+
+  it('replaceExercise derives inputType from the new pick', () => {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never,
+      exMgmtMeta,
+    )
+    useSessionStore.getState().replaceExercise(0, { exerciseName: 'Dead Hang', kind: 'strength', exerciseType: 'timed' })
+    expect(useSessionStore.getState().exercises[0].inputType).toBe('timed')
+  })
+
+  it('setInputType mutates only the targeted exercise\'s inputType, leaving its sets untouched', () => {
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Squat', tmKey: 'squat', sets: [{ weight: 100, reps: 5 }] }] as never,
+      exMgmtMeta,
+    )
+    useSessionStore.getState().addExercise({ exerciseName: 'Curl', kind: 'strength' })
+    useSessionStore.getState().updateSet(0, 0, { weight: 105, reps: 3 })
+
+    useSessionStore.getState().setInputType(0, 'timed')
+
+    const ex = useSessionStore.getState().exercises
+    expect(ex[0].inputType).toBe('timed')
+    expect(ex[0].sets[0]).toMatchObject({ weight: 105, reps: 3 }) // switching type doesn't clear entered values
+    expect(ex[1].inputType).toBe('weighted') // sibling exercise untouched
+  })
+})
+
+describe('emptySet / addSet durationSeconds', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('addExercise seeds 3 empty sets each with durationSeconds: null', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Plank', kind: 'strength', exerciseType: 'timed' })
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets.every((s) => s.durationSeconds === null)).toBe(true)
+  })
+})
+
+describe('updateSet durationSeconds carry-forward', () => {
+  beforeEach(() => useSessionStore.getState().reset())
+
+  it('carries a typed duration forward to later not-yet-done sets with no distinct prescribed target (ad-hoc)', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Front Lever', kind: 'strength', exerciseType: 'timed' })
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 30 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].durationSeconds).toBe(30)
+    expect(sets[1].durationSeconds).toBe(30)
+    expect(sets[2].durationSeconds).toBe(30)
+  })
+
+  it('does not overwrite a later set already marked done', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Front Lever', kind: 'strength', exerciseType: 'timed' })
+    useSessionStore.getState().toggleDone(0, 1)
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 30 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].durationSeconds).toBe(30)
+    expect(sets[1].durationSeconds).toBeNull() // done set untouched
+    expect(sets[2].durationSeconds).toBe(30)
+  })
+
+  it('only propagates forward, not to earlier sets', () => {
+    useSessionStore.getState().startFromPrescription([] as never, exMgmtMeta)
+    useSessionStore.getState().addExercise({ exerciseName: 'Front Lever', kind: 'strength', exerciseType: 'timed' })
+    useSessionStore.getState().updateSet(0, 2, { durationSeconds: 30 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].durationSeconds).toBeNull()
+    expect(sets[1].durationSeconds).toBeNull()
+    expect(sets[2].durationSeconds).toBe(30)
+  })
+
+  it('does NOT carry duration forward on a multi-target prescribed exercise overridden to timed (regression for the resurrected-prescribed-set bug)', () => {
+    // Squat's 3 prescribed sets each have a distinct prescribedWeight/prescribedReps
+    // (135/5, 155/5, 175/3) — the same gate that keeps weight/reps carry-forward off
+    // an ascending scheme must also keep duration carry-forward off it, or editing
+    // set 1's duration would silently resurrect sets 2/3 at save time.
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().setInputType(0, 'timed')
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 45 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0].durationSeconds).toBe(45)
+    expect(sets[1].durationSeconds).toBeNull() // distinct prescribed target — no carry
+    expect(sets[2].durationSeconds).toBeNull() // distinct prescribed target — no carry
   })
 })

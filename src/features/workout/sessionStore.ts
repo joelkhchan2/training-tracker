@@ -28,6 +28,12 @@ export interface SessionSet {
   rpe?: number | null
   /** Marks a warmup set: saved with is_warmup=true but excluded from tonnage/PR/progression. */
   isWarmup?: boolean
+  /** Duration for a timed/weighted_time exercise's set, in seconds; null when unused
+   *  (weighted/bodyweight) or not yet typed in. Like weight/reps' carry-forward, a typed
+   *  duration carries forward to later not-yet-done sets only when that later set has no
+   *  distinct prescribed target of its own (`prescribedWeight`/`prescribedReps` both
+   *  undefined — i.e. a purely ad-hoc set) — see `updateSet` below. */
+  durationSeconds: number | null
 }
 
 export interface SessionExercise {
@@ -44,14 +50,41 @@ export interface SessionExercise {
   exerciseId: string | null
   exerciseName: string
   /** 'strength' | 'bodyweight'. Prescribed exercises default to 'strength'; added/swapped
-   *  exercises carry the picked kind. Drives the mint exercise_type and hiding the weight
-   *  field for bodyweight. */
+   *  exercises carry the picked kind. Drives the mint exercise_type for adhoc exercises —
+   *  logging-time field rendering is driven by `inputType`, not this. */
   kind: DraftExerciseKind
   tmKey?: string
   /** True for an added or replaced/swapped exercise (no longer the programmed lift). Drives
    *  save-path mint resolution and exclusion from progression. */
   adhoc?: boolean
+  /** Which fields this exercise's sets are logged with — always set, never optional.
+   *  Defaulted from the catalog exercise_type on add/prescribe (see `defaultInputType`),
+   *  overridable mid-session via `setInputType`. Drives SetRow's field rendering and gates
+   *  the save path's loggedSets/progressionSets inclusion. */
+  inputType: ExerciseInputType
   sets: SessionSet[]
+}
+
+/** Logging-only input type — separate from `DraftExerciseKind` (the Custom Program
+ *  Builder's 2-option strength/bodyweight kind, which stays weight/reps-only). Not every
+ *  exercise is weight×reps: a front lever, dead hang, plank, or weighted hang is logged
+ *  by duration, sometimes with added weight, never with reps. */
+export type ExerciseInputType = 'weighted' | 'bodyweight' | 'timed' | 'weighted_time'
+
+/** Derives the default input type from a catalog row's raw `exercise_type` plus the
+ *  draft `kind` (used when no exercise_type is available, e.g. a typed custom exercise):
+ *  a catalog 'timed' exercise always defaults to timed; a catalog 'bodyweight' exercise,
+ *  or a bodyweight-kind custom exercise, defaults to bodyweight; everything else
+ *  (weighted, unknown/null exercise_type with a strength kind) defaults to weighted.
+ *  'weighted_time' has no catalog default — it is reachable only via the ExerciseCard
+ *  override control. */
+export function defaultInputType(
+  exerciseType: string | null | undefined,
+  kind: DraftExerciseKind,
+): ExerciseInputType {
+  if (exerciseType === 'timed') return 'timed'
+  if (exerciseType === 'bodyweight' || kind === 'bodyweight') return 'bodyweight'
+  return 'weighted'
 }
 
 export type SessionStatus = 'idle' | 'active'
@@ -78,10 +111,19 @@ export interface StartSessionMeta {
 
 /** Structurally the `PickedExercise` type from ExercisePicker; kept local so the store
  *  doesn't import a component module. */
-export type ExercisePick = { exerciseName: string; kind: DraftExerciseKind; exerciseId?: string }
+export type ExercisePick = {
+  exerciseName: string
+  kind: DraftExerciseKind
+  exerciseId?: string
+  /** Raw catalog exercise_type, when known — feeds `defaultInputType`. Optional (like
+   *  exerciseId): a picker-sourced pick always supplies it (possibly explicit null for
+   *  the typed custom-add path); an untouched call site simply omits it, which
+   *  `defaultInputType` treats the same as an explicit null. */
+  exerciseType?: string | null
+}
 
 function emptySet(): SessionSet {
-  return { weight: null, reps: null, done: false }
+  return { weight: null, reps: null, done: false, durationSeconds: null }
 }
 
 /** Builds a fresh adhoc SessionExercise from a picker result — shared by
@@ -96,6 +138,7 @@ function buildAdhocExercise(pick: ExercisePick): SessionExercise {
     kind: pick.kind,
     tmKey: undefined,
     adhoc: true,
+    inputType: defaultInputType(pick.exerciseType, pick.kind),
     sets: [emptySet(), emptySet(), emptySet()],
   }
 }
@@ -113,6 +156,7 @@ export interface SessionActions {
   reorderExercises: (fromIdx: number, toIdx: number) => void
   setNotes: (notes: string) => void
   setBodyWeight: (bodyWeight: number | null) => void
+  setInputType: (exIdx: number, inputType: ExerciseInputType) => void
   reset: () => void
 }
 
@@ -140,6 +184,10 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           exerciseName: ex.exerciseName,
           kind: 'strength',
           tmKey: ex.tmKey,
+          // Prescriptions are weight/reps-only (programs carry no exercise_type) — a
+          // prescribed exercise always defaults to 'weighted'. An ad-hoc override to
+          // timed/bodyweight/weighted_time happens on the card, mid-session.
+          inputType: 'weighted',
           sets: ex.sets.map((s, i) => ({
             weight: s.weight ?? null,
             reps: s.reps,
@@ -150,6 +198,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             prescriptionIndex: i,
             prescribedWeight: s.weight,
             prescribedReps: s.reps,
+            durationSeconds: null,
           })),
         }))
         set({
@@ -189,6 +238,23 @@ export const useSessionStore = create<SessionState & SessionActions>()(
                 if ('reps' in patch && s.prescribedReps === edited.prescribedReps) {
                   next = { ...next, reps: edited.reps }
                 }
+                // Duration has no prescribed value of its own to compare, so it
+                // mirrors the *intent* of the weight/reps gate directly: carry
+                // forward only to a later set with no distinct prescribed target at
+                // all (a purely ad-hoc set, e.g. a timed exercise added mid-session).
+                // On a multi-target *prescribed* exercise overridden to timed
+                // (Squat 135/5, 155/5, 175/3), every set has its own prescribedWeight/
+                // prescribedReps, so this gate blocks the carry — editing set 1's
+                // duration must not stamp a duration onto sets 2/3, which would
+                // otherwise make shapeSetForSave save 3 rows instead of 1 and
+                // silently resurrect prescribed sets the user never touched.
+                if (
+                  'durationSeconds' in patch &&
+                  s.prescribedWeight === undefined &&
+                  s.prescribedReps === undefined
+                ) {
+                  next = { ...next, durationSeconds: edited.durationSeconds }
+                }
                 return next
               }),
             }
@@ -217,6 +283,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
               weight: last?.weight ?? null,
               reps: last?.reps ?? null,
               done: false,
+              // Not copied from the last set (unlike weight/reps) — a fresh set always
+              // starts with no duration typed in, even mid-run of timed holds.
+              durationSeconds: null,
             }
             return { ...ex, sets: [...ex.sets, newSet] }
           }),
@@ -260,6 +329,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
               kind: pick.kind,
               tmKey: undefined,
               adhoc: true,
+              inputType: defaultInputType(pick.exerciseType, pick.kind),
               // Keep the set count, drop every value + prescription field by
               // building fresh empty sets.
               sets: ex.sets.map(() => emptySet()),
@@ -281,6 +351,11 @@ export const useSessionStore = create<SessionState & SessionActions>()(
 
       setNotes: (notes) => set({ notes }),
       setBodyWeight: (bodyWeight) => set({ bodyWeight }),
+      setInputType: (exIdx, inputType) => {
+        set((state) => ({
+          exercises: state.exercises.map((ex, i) => (i === exIdx ? { ...ex, inputType } : ex)),
+        }))
+      },
 
       reset: () => set({ ...initialState }),
     }),

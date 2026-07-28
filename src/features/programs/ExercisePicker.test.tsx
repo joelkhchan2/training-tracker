@@ -61,7 +61,7 @@ describe('ExercisePicker', () => {
     search('squ')
     fireEvent.click(screen.getByRole('button', { name: 'Squat' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength', exerciseId: 'ex-squat' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength', exerciseId: 'ex-squat', exerciseType: 'weighted' })
   })
 
   it('calls onPick with kind "bodyweight" and the result id as exerciseId for a bodyweight catalog row', () => {
@@ -72,7 +72,7 @@ describe('ExercisePicker', () => {
     search('pul')
     fireEvent.click(screen.getByRole('button', { name: 'Pull-up' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Pull-up', kind: 'bodyweight', exerciseId: 'ex-pullup' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Pull-up', kind: 'bodyweight', exerciseId: 'ex-pullup', exerciseType: 'bodyweight' })
   })
 
   it('hides the custom-exercise form until "+ Custom exercise" is tapped', () => {
@@ -97,7 +97,7 @@ describe('ExercisePicker', () => {
     fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'bodyweight' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Zercher Squat', kind: 'bodyweight' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Zercher Squat', kind: 'bodyweight', exerciseType: null })
   })
 
   it('defaults the add-custom kind to strength', () => {
@@ -108,7 +108,7 @@ describe('ExercisePicker', () => {
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Sled Push' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Sled Push', kind: 'strength' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Sled Push', kind: 'strength', exerciseType: null })
   })
 
   it('does not call onPick for add-custom when the name is blank', () => {
@@ -180,6 +180,6 @@ describe('ExercisePicker', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Squat/ }))
 
-    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength', exerciseId: 'ex-squat' })
+    expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Squat', kind: 'strength', exerciseId: 'ex-squat', exerciseType: 'weighted' })
   })
 })
