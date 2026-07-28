@@ -13,7 +13,8 @@ create table favorite_exercises (
   created_at timestamptz not null default now(),
   primary key (user_id, exercise_id)
 );
-create index on favorite_exercises(user_id);
+-- No separate user_id index: the composite PK (user_id, exercise_id) already
+-- indexes user_id as its leading column, serving every `where user_id = ?` read.
 alter table favorite_exercises enable row level security;
 create policy "own favorite_exercises - all" on favorite_exercises for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
