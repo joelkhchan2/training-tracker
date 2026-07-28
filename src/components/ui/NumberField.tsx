@@ -12,10 +12,10 @@ export interface NumberFieldProps {
   className?: string
   id?: string
   hideSteppers?: boolean
-  /** Additive: merged onto the input's own text-size/weight classes (default
-   *  `text-3xl font-bold`). Lets one caller (the workout SetRow) request a
-   *  smaller size without shrinking the number on the other five screens
-   *  that share this component. */
+  /** Optional override for the input's text-size/weight classes (replaces the
+   *  default `text-3xl font-bold` when provided). Lets one caller (the workout
+   *  SetRow) request a smaller size without shrinking the number on the other
+   *  five screens that share this component. */
   inputClassName?: string
 }
 
