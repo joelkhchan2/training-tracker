@@ -110,6 +110,7 @@ export interface StrengthSetRow {
   is_warmup: boolean
   order_index: number
   created_at: string
+  duration_seconds: number | null
 }
 
 export interface CardioActivityRow {
