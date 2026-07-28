@@ -1,3 +1,5 @@
+import { useCommonExercises } from '../../data/commonExercises'
+import { useAuth } from '../../lib/useAuth'
 import { ExercisePicker } from '../programs/ExercisePicker'
 import type { PickedExercise } from '../programs/ExercisePicker'
 
@@ -7,8 +9,12 @@ export interface ExercisePickerSheetProps {
 }
 
 /** Bottom-sheet host for the shared ExercisePicker, used to add or replace an exercise
- *  mid-workout. Picking routes to onPick (the caller decides add vs replace) then closes. */
+ *  mid-workout. Picking routes to onPick (the caller decides add vs replace) then closes.
+ *  Feeds the picker's Suggested section from useCommonExercises, labeled "Common". */
 export function ExercisePickerSheet({ onPick, onClose }: ExercisePickerSheetProps) {
+  const { user } = useAuth()
+  const { data: common = [] } = useCommonExercises(user?.id)
+
   return (
     <div className="fixed inset-0 z-40 flex items-end bg-black/40" onClick={onClose}>
       <div
@@ -16,7 +22,7 @@ export function ExercisePickerSheet({ onPick, onClose }: ExercisePickerSheetProp
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <ExercisePicker onPick={onPick} />
+        <ExercisePicker onPick={onPick} suggested={common} suggestedLabel="Common" />
         <button type="button" onClick={onClose} className="w-full rounded-xl border border-border bg-bg py-3 text-text">
           Cancel
         </button>

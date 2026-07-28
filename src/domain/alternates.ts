@@ -4,12 +4,15 @@ export interface CandidateExercise {
   exerciseType: string | null
   primaryMuscles: string | null
   movementPattern: string | null
+  equipment: string | null
 }
 
 export interface AlternateExercise {
   id: string
   name: string
   exerciseType: string | null
+  primaryMuscles: string | null
+  equipment: string | null
   sharedCount: number
 }
 
@@ -37,7 +40,8 @@ export function suggestAlternates(
     for (const t of muscleTokens(c.primaryMuscles)) if (cur.has(t)) shared++
     if (shared === 0) continue
     scored.push({
-      id: c.id, name: c.name, exerciseType: c.exerciseType, sharedCount: shared,
+      id: c.id, name: c.name, exerciseType: c.exerciseType, primaryMuscles: c.primaryMuscles, equipment: c.equipment,
+      sharedCount: shared,
       samePattern: c.movementPattern != null && c.movementPattern === current.movementPattern,
     })
   }
@@ -46,5 +50,7 @@ export function suggestAlternates(
     (Number(b.samePattern) - Number(a.samePattern)) ||
     a.name.localeCompare(b.name),
   )
-  return scored.slice(0, limit).map((s) => ({ id: s.id, name: s.name, exerciseType: s.exerciseType, sharedCount: s.sharedCount }))
+  return scored.slice(0, limit).map((s) => ({
+    id: s.id, name: s.name, exerciseType: s.exerciseType, primaryMuscles: s.primaryMuscles, equipment: s.equipment, sharedCount: s.sharedCount,
+  }))
 }

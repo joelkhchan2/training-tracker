@@ -1,8 +1,8 @@
 import { ExercisePicker } from '../programs/ExercisePicker'
 import type { PickedExercise } from '../programs/ExercisePicker'
-import { kindForExerciseType } from '../programs/exerciseKind'
 import { useAuth } from '../../lib/useAuth'
 import { useAlternateExercises } from '../../data/alternateExercises'
+import type { ExerciseListItem } from '../../data/exerciseCatalog'
 
 export interface SubstituteSheetProps {
   currentExerciseId: string | null
@@ -11,11 +11,21 @@ export interface SubstituteSheetProps {
   onClose: () => void
 }
 
-/** Replace-an-exercise sheet: suggested alternates (shared muscles) on top, full-catalog search
- *  below. Both paths route to the same onPick the caller uses for replace. */
+/** Replace-an-exercise sheet: maps the shared-muscle alternates from useAlternateExercises
+ *  to ExerciseListItem and hands them to the embedded ExercisePicker as its Suggested
+ *  section ("Suggested alternates") — the picker itself owns rendering that section
+ *  (alongside Favorites/Recent/search), so this sheet no longer renders its own list. */
 export function SubstituteSheet({ currentExerciseId, currentName, onPick, onClose }: SubstituteSheetProps) {
   const { user } = useAuth()
-  const { data: alternates = [], isLoading } = useAlternateExercises(currentExerciseId, currentName, user?.id)
+  const { data: alternates = [] } = useAlternateExercises(currentExerciseId, currentName, user?.id)
+  const suggested: ExerciseListItem[] = alternates.map((a) => ({
+    id: a.id,
+    name: a.name,
+    exerciseType: a.exerciseType,
+    primaryMuscles: a.primaryMuscles,
+    equipment: a.equipment,
+  }))
+
   return (
     <div className="fixed inset-0 z-40 flex items-end bg-black/40" onClick={onClose}>
       <div
@@ -23,32 +33,7 @@ export function SubstituteSheet({ currentExerciseId, currentName, onPick, onClos
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-muted">Suggested alternates</h3>
-          {isLoading ? (
-            <p className="text-muted">Loading…</p>
-          ) : alternates.length === 0 ? (
-            <p className="text-sm text-muted">No suggestions — search below.</p>
-          ) : (
-            <ul className="space-y-2">
-              {alternates.map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() => onPick({ exerciseName: a.name, kind: kindForExerciseType(a.exerciseType), exerciseId: a.id })}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-bg px-4 py-3 text-left text-text hover:bg-surface-hover"
-                  >
-                    <span>{a.name}</span>
-                    <span className="shrink-0 text-xs text-muted">{a.sharedCount} shared</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="border-t border-border pt-4">
-          <ExercisePicker onPick={onPick} />
-        </div>
+        <ExercisePicker onPick={onPick} suggested={suggested} suggestedLabel="Suggested alternates" />
         <button type="button" onClick={onClose} className="w-full rounded-xl border border-border bg-bg py-3 text-text">
           Cancel
         </button>
