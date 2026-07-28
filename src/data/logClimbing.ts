@@ -4,6 +4,7 @@ import { getSupabase } from './supabase'
 export interface ClimbingSendInput {
   grade: string
   count: number
+  attempts: number
 }
 
 export interface LogClimbingInput {

@@ -9,7 +9,7 @@ vi.mock('./supabase', () => ({ getSupabase: () => ({ from }) }))
 
 function stub(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {}
-  for (const m of ['select', 'eq', 'in', 'is', 'not', 'order', 'limit']) chain[m] = () => chain
+  for (const m of ['select', 'eq', 'in', 'is', 'not', 'order', 'limit', 'gt']) chain[m] = () => chain
   ;(chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) => resolve(result)
   return chain
 }
@@ -36,5 +36,23 @@ describe('usePersonalRecords', () => {
     const d = result.current.data as { strength: { exerciseName: string }[]; climbingMaxGrade: number | null }
     expect(d.strength.map(r => r.exerciseName).sort()).toEqual(['Deadlift', 'Squat'])
     expect(d.climbingMaxGrade).toBe(5) // seeded V5 beats live V4
+  })
+
+  it('filters climbing_sends to sent grades (count > 0) when reading personal records', async () => {
+    const gtSpy = vi.fn()
+    const sendsChain = stub({ data: [{ grade: 'V7' }], error: null })
+    const origGt = sendsChain.gt as (...args: unknown[]) => unknown
+    sendsChain.gt = (...args: unknown[]) => { gtSpy(...args); return origGt(...args) }
+
+    from
+      .mockReturnValueOnce(stub({ data: [], error: null })) // personal_records
+      .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets
+      .mockReturnValueOnce(sendsChain) // climbing_sends
+
+    const { result } = renderHook(() => usePersonalRecords('u1'), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    // Regression guard: the climbing_sends query must filter to count > 0, or a
+    // projecting-only (never-sent) grade would fabricate a Progress-tab PR.
+    expect(gtSpy).toHaveBeenCalledWith('count', 0)
   })
 })

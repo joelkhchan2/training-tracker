@@ -107,22 +107,19 @@ describe('SessionDetailPage', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders a climbing detail with grade×count lines and total sends', () => {
+  it('renders a climbing detail with sent/tried lines and total sends + attempts', () => {
     useSessionDetail.mockReturnValue({
       data: {
         kind: 'climbing',
-        header,
-        sends: [
-          { grade: 'V4', count: 3 },
-          { grade: 'V2', count: 2 },
-        ],
-        totalSends: 5,
+        header: { discipline: 'climbing', date: '2026-07-27', sessionType: null, programVariant: null, programWeek: null, durationMinutes: null, bodyWeight: null, notes: null },
+        sends: [{ grade: 'V5', count: 2, attempts: 8 }, { grade: 'V3', count: 1, attempts: 1 }],
+        totalSends: 3,
+        totalAttempts: 9,
       },
       isLoading: false,
     })
     render(<SessionDetailPage />)
-    expect(screen.getByText('V4 × 3')).toBeInTheDocument()
-    expect(screen.getByText('V2 × 2')).toBeInTheDocument()
-    expect(screen.getByText('5 sends')).toBeInTheDocument()
+    expect(screen.getByText('V5 · 2 sent / 8 tried')).toBeInTheDocument()
+    expect(screen.getByText(/3 sends · 9 attempts/)).toBeInTheDocument()
   })
 })

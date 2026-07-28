@@ -68,4 +68,23 @@ describe('HistoryPage', () => {
     render(<HistoryPage />)
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
   })
+
+  it('renders a projecting-only climbing session without ×0', () => {
+    useSessionHistory.mockReturnValue({
+      data: [{ kind: 'climbing', id: 's1', date: '2026-07-27', breakdown: '', totalSends: 0, totalAttempts: 8 }],
+      isLoading: false,
+    })
+    render(<HistoryPage />)
+    expect(screen.getByText(/8 attempts · 0 sends/)).toBeInTheDocument()
+    expect(screen.queryByText(/×0/)).not.toBeInTheDocument()
+  })
+
+  it('renders a sent climbing session with breakdown + tried when attempts exceed sends', () => {
+    useSessionHistory.mockReturnValue({
+      data: [{ kind: 'climbing', id: 's2', date: '2026-07-27', breakdown: 'V4×1', totalSends: 1, totalAttempts: 4 }],
+      isLoading: false,
+    })
+    render(<HistoryPage />)
+    expect(screen.getByText(/V4×1 · 1 send · 4 tried/)).toBeInTheDocument()
+  })
 })

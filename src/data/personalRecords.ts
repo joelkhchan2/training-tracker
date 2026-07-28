@@ -141,6 +141,7 @@ export function usePersonalRecords(userId: string | undefined) {
         .from('climbing_sends')
         .select('grade')
         .eq('user_id', userId as string)
+        .gt('count', 0)
       if (cErr) throw cErr
 
       const seeded: SeededStrengthRow[] = []

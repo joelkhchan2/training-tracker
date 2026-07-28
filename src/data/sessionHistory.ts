@@ -27,6 +27,7 @@ export interface ClimbingHistoryRow {
   date: string
   breakdown: string
   totalSends: number
+  totalAttempts: number
 }
 
 export type HistoryRow = CardioHistoryRow | StrengthHistoryRow | ClimbingHistoryRow
@@ -34,18 +35,21 @@ export type HistoryRow = CardioHistoryRow | StrengthHistoryRow | ClimbingHistory
 type HistorySession = Pick<SessionRow, 'id' | 'discipline' | 'date' | 'session_type' | 'duration_minutes'>
 type HistoryActivity = Pick<CardioActivityRow, 'activity' | 'duration_minutes' | 'distance_km'>
 
-/** Pure: renders per-grade climbing send counts as a highest-grade-first summary
- *  ("V4×3, V3×2") and the total send count. Unparseable grades are dropped. */
+/** Pure: renders SENT grades (count > 0) as a highest-grade-first summary ("V4×3, V3×2") and the
+ *  session's total sends + attempts. Zero-send (projecting) grades are excluded from the string
+ *  (no "×0"); the view uses totalAttempts to describe a projecting-only session. Unparseable
+ *  grades are dropped. */
 export function buildClimbingBreakdown(
-  grades: { grade: string; count: number }[],
-): { breakdown: string; totalSends: number } {
+  grades: { grade: string; count: number; attempts: number }[],
+): { breakdown: string; totalSends: number; totalAttempts: number } {
   const parsed = grades
-    .map(g => ({ n: parseVGrade(g.grade), count: g.count }))
-    .filter((g): g is { n: number; count: number } => g.n !== null)
+    .map((g) => ({ n: parseVGrade(g.grade), count: g.count, attempts: g.attempts }))
+    .filter((g): g is { n: number; count: number; attempts: number } => g.n !== null)
     .sort((a, b) => b.n - a.n)
-  const breakdown = parsed.map(g => `V${g.n}×${g.count}`).join(', ')
+  const breakdown = parsed.filter((g) => g.count > 0).map((g) => `V${g.n}×${g.count}`).join(', ')
   const totalSends = parsed.reduce((sum, g) => sum + g.count, 0)
-  return { breakdown, totalSends }
+  const totalAttempts = parsed.reduce((sum, g) => sum + g.attempts, 0)
+  return { breakdown, totalSends, totalAttempts }
 }
 
 /** Pure: turns already-fetched sessions (ordered newest-first) + their joined cardio
@@ -54,7 +58,7 @@ export function buildHistoryRows(
   sessions: HistorySession[],
   cardioBySession: Map<string, HistoryActivity>,
   setCountBySession: Map<string, number>,
-  climbingBySession: Map<string, { grade: string; count: number }[]> = new Map(),
+  climbingBySession: Map<string, { grade: string; count: number; attempts: number }[]> = new Map(),
 ): HistoryRow[] {
   const rows: HistoryRow[] = []
   for (const s of sessions) {
@@ -80,8 +84,8 @@ export function buildHistoryRows(
         setCount: setCountBySession.get(s.id) ?? 0,
       })
     } else if (s.discipline === 'climbing') {
-      const { breakdown, totalSends } = buildClimbingBreakdown(climbingBySession.get(s.id) ?? [])
-      rows.push({ kind: 'climbing', id: s.id, date: s.date, breakdown, totalSends })
+      const { breakdown, totalSends, totalAttempts } = buildClimbingBreakdown(climbingBySession.get(s.id) ?? [])
+      rows.push({ kind: 'climbing', id: s.id, date: s.date, breakdown, totalSends, totalAttempts })
     }
   }
   return rows
@@ -132,17 +136,17 @@ export function useSessionHistory(userId: string | undefined) {
       }
 
       const climbingIds = sessions.filter(s => s.discipline === 'climbing').map(s => s.id)
-      const climbingBySession = new Map<string, { grade: string; count: number }[]>()
+      const climbingBySession = new Map<string, { grade: string; count: number; attempts: number }[]>()
       if (climbingIds.length > 0) {
         const { data: sends, error: cErr } = await supabase
           .from('climbing_sends')
-          .select('session_id, grade, count')
+          .select('session_id, grade, count, attempts')
           .in('session_id', climbingIds)
         if (cErr) throw cErr
         for (const row of sends ?? []) {
           const id = row.session_id as string
           const arr = climbingBySession.get(id) ?? []
-          arr.push({ grade: row.grade as string, count: row.count as number })
+          arr.push({ grade: row.grade as string, count: row.count as number, attempts: row.attempts as number })
           climbingBySession.set(id, arr)
         }
       }

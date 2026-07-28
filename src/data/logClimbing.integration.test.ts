@@ -108,4 +108,35 @@ describe.skipIf(!anon)('log_climbing RPC', () => {
       .from('climbing_sends').select('*').eq('session_id', aSession)
     expect(bSeesA).toEqual([]) // RLS
   })
+
+  it('stores attempts and clamps attempts up to count', async () => {
+    const { userId, client } = await makeUser(`climbatt_${Date.now()}@test.dev`)
+    const { data: res } = await client.rpc('log_climbing', {
+      p_client_id: `att-${Date.now()}`, p_date: '2026-07-27', p_notes: null,
+      // V4: more attempts than sends; V5: attempts omitted-too-low -> clamped up to count.
+      p_sends: [{ grade: 'V4', count: 1, attempts: 6 }, { grade: 'V5', count: 2, attempts: 0 }],
+    })
+    const sessionId = (res as { session_id: string }).session_id
+    const { data: rows } = await client
+      .from('climbing_sends').select('grade, count, attempts').eq('session_id', sessionId)
+    const byGrade = Object.fromEntries((rows ?? []).map(r => [r.grade, r]))
+    expect(byGrade['V4']).toMatchObject({ count: 1, attempts: 6 })
+    expect(byGrade['V5']).toMatchObject({ count: 2, attempts: 2 }) // clamped up
+    expect(userId).toBeTruthy()
+  })
+
+  it('saves a projecting-only session (attempts, zero sends) and sets no PR', async () => {
+    const { client } = await makeUser(`climbproj_${Date.now()}@test.dev`)
+    const { data: res, error } = await client.rpc('log_climbing', {
+      p_client_id: `proj-${Date.now()}`, p_date: '2026-07-27', p_notes: null,
+      p_sends: [{ grade: 'V7', count: 0, attempts: 8 }],
+    })
+    expect(error).toBeNull()
+    expect((res as { new_max_grade: number | null }).new_max_grade).toBeNull()
+    const sessionId = (res as { session_id: string }).session_id
+    const { data: rows } = await client
+      .from('climbing_sends').select('grade, count, attempts').eq('session_id', sessionId)
+    expect(rows).toHaveLength(1)
+    expect(rows![0]).toMatchObject({ grade: 'V7', count: 0, attempts: 8 })
+  })
 })
