@@ -12,7 +12,14 @@ const { useExerciseHistory } = vi.hoisted(() => ({
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../data/exerciseHistory', () => ({ useExerciseHistory }))
 
-const ex = { id: 'x1', exerciseId: null, exerciseName: 'Squat', kind: 'strength' as const, sets: [{ weight: 100, reps: 5, done: false }] }
+const ex = {
+  id: 'x1',
+  exerciseId: null,
+  exerciseName: 'Squat',
+  kind: 'strength' as const,
+  inputType: 'weighted' as const,
+  sets: [{ weight: 100, reps: 5, done: false, durationSeconds: null }],
+}
 
 describe('ExerciseCard', () => {
   it('fires onRemove and onReplace from the controls', () => {
@@ -43,7 +50,15 @@ describe('ExerciseCard', () => {
   })
 
   it('hides the weight field for a bodyweight exercise', () => {
-    render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    render(
+      <ExerciseCard
+        exIdx={0}
+        exercise={{ ...ex, kind: 'bodyweight', inputType: 'bodyweight' }}
+        exerciseId={null}
+        onRemove={vi.fn()}
+        onReplace={vi.fn()}
+      />,
+    )
     expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument()
   })
   it('excludes a done warmup set from the running volume hint', () => {
@@ -52,9 +67,10 @@ describe('ExerciseCard', () => {
       exerciseId: null,
       exerciseName: 'Squat',
       kind: 'strength' as const,
+      inputType: 'weighted' as const,
       sets: [
-        { weight: 100, reps: 5, done: true, isWarmup: true },
-        { weight: 100, reps: 5, done: true },
+        { weight: 100, reps: 5, done: true, isWarmup: true, durationSeconds: null },
+        { weight: 100, reps: 5, done: true, durationSeconds: null },
       ],
     }
     render(<ExerciseCard exIdx={0} exercise={warmupEx} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
@@ -112,7 +128,15 @@ describe('ExerciseCard', () => {
         isLoading: false,
       })
 
-      render(<ExerciseCard exIdx={0} exercise={{ ...ex, kind: 'bodyweight' }} exerciseId="ex-1" onRemove={vi.fn()} onReplace={vi.fn()} />)
+      render(
+        <ExerciseCard
+          exIdx={0}
+          exercise={{ ...ex, kind: 'bodyweight', inputType: 'bodyweight' }}
+          exerciseId="ex-1"
+          onRemove={vi.fn()}
+          onReplace={vi.fn()}
+        />,
+      )
 
       expect(screen.getByText('last: BW×8 · 2026-07-20')).toBeInTheDocument()
     })

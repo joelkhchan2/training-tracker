@@ -118,7 +118,7 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
 
         <div className="space-y-2">
           {exercise.sets.map((set, setIdx) => (
-            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} hideWeight={exercise.kind === 'bodyweight'} />
+            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} inputType={exercise.inputType} />
           ))}
         </div>
 
