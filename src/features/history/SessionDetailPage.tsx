@@ -64,9 +64,11 @@ function Body({ detail }: { detail: SessionDetail }) {
   return (
     <Card className="space-y-1">
       {detail.sends.map((s, i) => (
-        <p key={i} className="text-sm text-muted">{s.grade} × {s.count}</p>
+        <p key={i} className="text-sm text-muted">{s.grade} · {s.count} sent / {s.attempts} tried</p>
       ))}
-      <p className="mt-1 text-sm text-text">{detail.totalSends} send{detail.totalSends === 1 ? '' : 's'}</p>
+      <p className="mt-1 text-sm text-text">
+        {detail.totalSends} send{detail.totalSends === 1 ? '' : 's'} · {detail.totalAttempts} attempt{detail.totalAttempts === 1 ? '' : 's'}
+      </p>
     </Card>
   )
 }

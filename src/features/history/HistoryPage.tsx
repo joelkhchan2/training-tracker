@@ -32,7 +32,13 @@ function StrengthRow({ row }: { row: StrengthHistoryRow }) {
 }
 
 function ClimbingRow({ row }: { row: ClimbingHistoryRow }) {
-  const detail = [row.breakdown || null, `${row.totalSends} send${row.totalSends === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
+  const summary = row.totalSends === 0
+    ? `${row.totalAttempts} attempt${row.totalAttempts === 1 ? '' : 's'} · 0 sends`
+    : [
+        `${row.totalSends} send${row.totalSends === 1 ? '' : 's'}`,
+        row.totalAttempts > row.totalSends ? `${row.totalAttempts} tried` : null,
+      ].filter(Boolean).join(' · ')
+  const detail = [row.breakdown || null, summary].filter(Boolean).join(' · ')
   return (
     <>
       <p className="font-medium text-text">Climbing</p>
