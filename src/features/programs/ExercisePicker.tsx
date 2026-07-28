@@ -82,7 +82,7 @@ export function ExercisePicker({ onPick }: ExercisePickerProps) {
             <li key={result.id}>
               <button
                 type="button"
-                onClick={() => onPick({ exerciseName: result.name, kind: kindForExerciseType(result.exercise_type), exerciseId: result.id })}
+                onClick={() => onPick({ exerciseName: result.name, kind: kindForExerciseType(result.exerciseType), exerciseId: result.id })}
                 className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-left text-text hover:bg-surface-hover"
               >
                 {result.name}

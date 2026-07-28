@@ -7,7 +7,7 @@ const { useExerciseSearch } = vi.hoisted(() => ({ useExerciseSearch: vi.fn() }))
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch }))
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
 
-interface FakeResult { id: string; name: string; exercise_type: string | null }
+interface FakeResult { id: string; name: string; exerciseType: string | null; primaryMuscles: string | null; equipment: string | null }
 
 /** Wires the mocked hook to only return `results` once the picker has searched
  *  the exact `term` — i.e. it exercises the picker's search-on-submit wiring
@@ -28,7 +28,7 @@ function search(term: string) {
 
 describe('ExercisePicker', () => {
   it('shows matching catalog results after searching a term', () => {
-    stubSearch('squ', [{ id: 'ex-squat', name: 'Squat', exercise_type: 'weighted' }])
+    stubSearch('squ', [{ id: 'ex-squat', name: 'Squat', exerciseType: 'weighted', primaryMuscles: null, equipment: null }])
     render(<ExercisePicker onPick={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'Squat' })).not.toBeInTheDocument()
@@ -39,7 +39,7 @@ describe('ExercisePicker', () => {
   })
 
   it('calls onPick with the exercise name, kind "strength", and the result id as exerciseId for a non-bodyweight catalog row', () => {
-    stubSearch('squ', [{ id: 'ex-squat', name: 'Squat', exercise_type: 'weighted' }])
+    stubSearch('squ', [{ id: 'ex-squat', name: 'Squat', exerciseType: 'weighted', primaryMuscles: null, equipment: null }])
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
 
@@ -50,7 +50,7 @@ describe('ExercisePicker', () => {
   })
 
   it('calls onPick with kind "bodyweight" and the result id as exerciseId for a bodyweight catalog row', () => {
-    stubSearch('pul', [{ id: 'ex-pullup', name: 'Pull-up', exercise_type: 'bodyweight' }])
+    stubSearch('pul', [{ id: 'ex-pullup', name: 'Pull-up', exerciseType: 'bodyweight', primaryMuscles: null, equipment: null }])
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
 

@@ -8,7 +8,7 @@ import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import type { PrescribedExercise } from '../../domain/types'
 import type { LinearProgressionConfig } from '../../domain/types'
 import type { ActiveWorkoutBundle } from '../../data/queries'
-import type { ExerciseSearchResult } from '../../data/exerciseCatalog'
+import type { ExerciseListItem } from '../../data/exerciseCatalog'
 
 const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate, fetchLastSetsByExercise, useExerciseSearch } = vi.hoisted(() => {
   const mockMutate = vi.fn()
@@ -18,7 +18,7 @@ const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate, fetchLastSet
     useSaveWorkout: vi.fn(() => ({ mutate: mockMutate, isPending: false })),
     mockMutate,
     fetchLastSetsByExercise: vi.fn(),
-    useExerciseSearch: vi.fn((): { data: ExerciseSearchResult[] } => ({ data: [] })),
+    useExerciseSearch: vi.fn((): { data: ExerciseListItem[] } => ({ data: [] })),
   }
 })
 
@@ -371,7 +371,7 @@ describe('WorkoutPage — drag sensors + insert-in-place', () => {
 
   it('renders a "+ Add exercise here" affordance above each card; picking from it inserts at that index', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
-    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exercise_type: 'weighted' }] })
+    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exerciseType: 'weighted', primaryMuscles: null, equipment: null }] })
     renderAtWorkout()
 
     const gapButtons = screen.getAllByRole('button', { name: '+ Add exercise here' })
@@ -386,7 +386,7 @@ describe('WorkoutPage — drag sensors + insert-in-place', () => {
 
   it('the trailing "+ Add exercise" button still appends via addExercise', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
-    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exercise_type: 'weighted' }] })
+    useExerciseSearch.mockReturnValue({ data: [{ id: 'ex-fp', name: 'Face Pulls', exerciseType: 'weighted', primaryMuscles: null, equipment: null }] })
     renderAtWorkout()
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
@@ -600,7 +600,7 @@ describe('WorkoutPage — rpe/warmup threading and session timer/notes/bodyweigh
   })
 })
 
-const legPressResult = { id: 'ex-lp', name: 'Leg Press', exercise_type: 'weighted' as const }
+const legPressResult: ExerciseListItem = { id: 'ex-lp', name: 'Leg Press', exerciseType: 'weighted', primaryMuscles: null, equipment: null }
 
 /** Opens the replace sheet for exercise 0 (Squat) and clicks the "Leg Press" search result,
  *  which is how `ExercisePicker` invokes `onPick({ exerciseName, kind, exerciseId })` for a
@@ -666,8 +666,8 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
 
   it('drops a stale fetch from an earlier swap when a second swap lands first (race guard keys on exerciseId, not the preserved slot id)', async () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
-    const exBResult = { id: 'ex-b', name: 'Exercise B', exercise_type: 'weighted' as const }
-    const exCResult = { id: 'ex-c', name: 'Exercise C', exercise_type: 'weighted' as const }
+    const exBResult: ExerciseListItem = { id: 'ex-b', name: 'Exercise B', exerciseType: 'weighted', primaryMuscles: null, equipment: null }
+    const exCResult: ExerciseListItem = { id: 'ex-c', name: 'Exercise C', exerciseType: 'weighted', primaryMuscles: null, equipment: null }
     useExerciseSearch.mockReturnValue({ data: [exBResult, exCResult] })
 
     let resolveB!: (v: Record<string, { weight: number | null; reps: number | null }[]>) => void

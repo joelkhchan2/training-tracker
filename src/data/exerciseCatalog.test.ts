@@ -44,7 +44,24 @@ const { getSupabase, __setSupabase } = vi.hoisted(() => {
 
 vi.mock('./supabase', () => ({ getSupabase }))
 
-const SQUAT = { id: 'ex-squat', name: 'Squat', exercise_type: 'weighted' as const, canonical_id: null }
+// Raw supabase row (snake_case, as the DB returns it) vs. the ExerciseListItem the hook
+// must map it to (camelCase) — these are deliberately different objects so a test that
+// forgets to map would fail on shape, not just field values.
+const SQUAT_ROW = {
+  id: 'ex-squat',
+  name: 'Squat',
+  exercise_type: 'weighted' as const,
+  canonical_id: null,
+  primary_muscles: 'quadriceps, glutes',
+  equipment: 'barbell',
+}
+const SQUAT_ITEM = {
+  id: 'ex-squat',
+  name: 'Squat',
+  exerciseType: 'weighted' as const,
+  primaryMuscles: 'quadriceps, glutes',
+  equipment: 'barbell',
+}
 
 function createWrapper() {
   const queryClient = new QueryClient()
@@ -57,7 +74,7 @@ function createWrapper() {
 describe('useExerciseSearch', () => {
   it('stays disabled (no fetch) for a blank/whitespace-only term', () => {
     const calls: QueryCall[] = []
-    __setSupabase(makeSupabase([SQUAT], calls))
+    __setSupabase(makeSupabase([SQUAT_ROW], calls))
     const { Wrapper } = createWrapper()
 
     const { result } = renderHook(() => useExerciseSearch('   ', 'user-1'), { wrapper: Wrapper })
@@ -68,7 +85,7 @@ describe('useExerciseSearch', () => {
 
   it('stays disabled (no fetch) when userId is undefined', () => {
     const calls: QueryCall[] = []
-    __setSupabase(makeSupabase([SQUAT], calls))
+    __setSupabase(makeSupabase([SQUAT_ROW], calls))
     const { Wrapper } = createWrapper()
 
     const { result } = renderHook(() => useExerciseSearch('squat', undefined), { wrapper: Wrapper })
@@ -77,27 +94,29 @@ describe('useExerciseSearch', () => {
     expect(calls).toHaveLength(0)
   })
 
-  it('queries active rows scoped to global-or-own, name ilike the term, capped at 25', async () => {
+  it('queries active rows scoped to global-or-own, name ilike the term, capped at 25, and maps to ExerciseListItem', async () => {
     const calls: QueryCall[] = []
-    __setSupabase(makeSupabase([SQUAT], calls))
+    __setSupabase(makeSupabase([SQUAT_ROW], calls))
     const { Wrapper } = createWrapper()
 
     const { result } = renderHook(() => useExerciseSearch('squat', 'user-1'), { wrapper: Wrapper })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
+    const selectCall = calls.find(c => c.method === 'select')
     const eqCall = calls.find(c => c.method === 'eq')
     const isCall = calls.find(c => c.method === 'is')
     const orCall = calls.find(c => c.method === 'or')
     const ilikeCall = calls.find(c => c.method === 'ilike')
     const limitCall = calls.find(c => c.method === 'limit')
 
+    expect(selectCall?.args).toEqual(['id, name, exercise_type, primary_muscles, equipment'])
     expect(eqCall?.args).toEqual(['is_active', true])
     expect(isCall?.args).toEqual(['canonical_id', null])
     expect(orCall?.args[0]).toBe('user_id.is.null,user_id.eq.user-1')
     expect(ilikeCall?.args).toEqual(['name', '%squat%'])
     expect(limitCall?.args).toEqual([25])
-    expect(result.current.data).toEqual([SQUAT])
+    expect(result.current.data).toEqual([SQUAT_ITEM])
   })
 
   it('excludes alias rows (canonical_id set) from the query filters, only canonical rows returned', async () => {
@@ -106,7 +125,7 @@ describe('useExerciseSearch', () => {
     // that enforces that is present alongside is_active, matching the brief's
     // "alias rows excluded, canonical rows returned" requirement.
     const calls: QueryCall[] = []
-    __setSupabase(makeSupabase([SQUAT], calls))
+    __setSupabase(makeSupabase([SQUAT_ROW], calls))
     const { Wrapper } = createWrapper()
 
     const { result } = renderHook(() => useExerciseSearch('squat', 'user-1'), { wrapper: Wrapper })
@@ -115,11 +134,11 @@ describe('useExerciseSearch', () => {
 
     const isCall = calls.find(c => c.method === 'is')
     expect(isCall?.args).toEqual(['canonical_id', null])
-    expect(result.current.data).toEqual([SQUAT])
+    expect(result.current.data).toEqual([SQUAT_ITEM])
   })
 
   it('fetches under the exact query key [exerciseSearch, term, userId]', async () => {
-    __setSupabase(makeSupabase([SQUAT]))
+    __setSupabase(makeSupabase([SQUAT_ROW]))
     const { Wrapper, queryClient } = createWrapper()
 
     const { result } = renderHook(() => useExerciseSearch('squat', 'user-1'), { wrapper: Wrapper })
