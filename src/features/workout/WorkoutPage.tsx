@@ -339,7 +339,7 @@ export function WorkoutPage() {
           </div>
         }
       >
-        <div className="space-y-4 pb-24">
+        <div className="space-y-3 pb-24">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
               {exercises.map((exercise, exIdx) => (

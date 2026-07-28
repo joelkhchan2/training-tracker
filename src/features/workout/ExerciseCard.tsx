@@ -60,12 +60,12 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
 
   return (
     <div ref={setNodeRef} style={style}>
-      <Card data-testid={`exercise-card-${exIdx}`} className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
+      <Card data-testid={`exercise-card-${exIdx}`} className="space-y-2">
+        <div className="flex items-start justify-between gap-3">
           <button
             type="button"
             aria-label={`Reorder ${exercise.exerciseName}`}
-            className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted"
+            className="flex h-9 w-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted"
             {...attributes}
             {...listeners}
           >
@@ -75,7 +75,7 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
             type="button"
             onClick={onReplace}
             aria-label={`Replace ${exercise.exerciseName}`}
-            className="flex-1 truncate text-left text-lg font-semibold text-text underline decoration-dotted underline-offset-4"
+            className="flex-1 break-words text-left text-base font-semibold text-text underline decoration-dotted underline-offset-4"
           >
             {exercise.exerciseName}
           </button>

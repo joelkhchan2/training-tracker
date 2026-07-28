@@ -16,6 +16,13 @@ describe('SetRow', () => {
     expect(screen.getByLabelText('Weight')).toBeInTheDocument()
     expect(screen.getByLabelText('Reps')).toBeInTheDocument()
   })
+  it('sizes its NumberFields down via inputClassName (text-xl, not the shared default text-3xl)', () => {
+    render(<SetRow exIdx={0} setIdx={0} set={baseSet} />)
+    expect(screen.getByLabelText('Weight')).toHaveClass('text-xl')
+    expect(screen.getByLabelText('Weight')).not.toHaveClass('text-3xl')
+    expect(screen.getByLabelText('Reps')).toHaveClass('text-xl')
+    expect(screen.getByLabelText('Reps')).not.toHaveClass('text-3xl')
+  })
   it('hides the Weight field when hideWeight is set', () => {
     render(<SetRow exIdx={0} setIdx={0} set={baseSet} hideWeight />)
     expect(screen.queryByLabelText('Weight')).not.toBeInTheDocument()
