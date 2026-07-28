@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ExercisePickerSheet } from './ExercisePickerSheet'
 
+const { useCommonExercises } = vi.hoisted(() => ({ useCommonExercises: vi.fn(() => ({ data: [] })) }))
+
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('../../data/exerciseCatalog', () => ({ useExerciseSearch: () => ({ data: [] }) }))
 // ExercisePicker now calls these two hooks itself; this test harness has no
@@ -11,6 +13,7 @@ vi.mock('../../data/favoriteExercises', () => ({
   useToggleFavorite: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('../../data/recentExercises', () => ({ useRecentExercises: () => ({ data: [] }) }))
+vi.mock('../../data/commonExercises', () => ({ useCommonExercises }))
 
 describe('ExercisePickerSheet', () => {
   it('routes a custom pick to onPick and can be closed', () => {
@@ -22,5 +25,15 @@ describe('ExercisePickerSheet', () => {
     expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Kayak', kind: 'strength' })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('passes useCommonExercises data to the picker as Suggested, labeled "Common"', () => {
+    useCommonExercises.mockReturnValue({
+      data: [{ id: 'ex-fp', name: 'Face Pulls', exerciseType: 'weighted', primaryMuscles: null, equipment: null }],
+    })
+    render(<ExercisePickerSheet onPick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByText('Common')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Face Pulls' })).toBeInTheDocument()
   })
 })

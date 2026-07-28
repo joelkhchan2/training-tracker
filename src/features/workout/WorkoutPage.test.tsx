@@ -57,6 +57,7 @@ vi.mock('../../data/favoriteExercises', () => ({
   useToggleFavorite: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('../../data/recentExercises', () => ({ useRecentExercises: () => ({ data: [] }) }))
+vi.mock('../../data/commonExercises', () => ({ useCommonExercises: () => ({ data: [] }) }))
 vi.mock('../../data/resolveDraftExercises', () => ({
   resolveExercisesByName: vi.fn(async () => ({ 'Face Pulls': 'ex-facepulls' })),
 }))
