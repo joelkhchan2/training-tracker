@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { describe, it, expect } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
+import { buildClimbingRecord } from './personalRecords'
 const url = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321'
 const anon = process.env.VITE_SUPABASE_ANON_KEY
 async function makeUser(email: string) {
@@ -27,5 +28,38 @@ describe.skipIf(!anon)('personal records RLS', () => {
       const { data: bSees } = await b.client.from(table).select('*').eq('user_id', a.userId)
       expect(bSees).toEqual([]) // RLS: B sees none of A's rows
     }
+  })
+
+  it('ignores a projecting-only (count=0) grade when deriving the climbing max-grade PR', async () => {
+    const { client, userId } = await makeUser(`prclimb_${Date.now()}@test.dev`)
+
+    // Real send at a modest grade -> this is the only session that should ever set/feed a PR.
+    const { error: sendErr } = await client.rpc('log_climbing', {
+      p_client_id: `send-${Date.now()}`, p_date: '2026-07-26', p_notes: null,
+      p_sends: [{ grade: 'V3', count: 1, attempts: 1 }],
+    })
+    expect(sendErr).toBeNull()
+
+    // Separate projecting-only session at a HIGHER grade — attempted, never sent.
+    const { error: projErr } = await client.rpc('log_climbing', {
+      p_client_id: `proj-${Date.now()}`, p_date: '2026-07-26', p_notes: null,
+      p_sends: [{ grade: 'V7', count: 0, attempts: 8 }],
+    })
+    expect(projErr).toBeNull()
+
+    // Read personal records the same way usePersonalRecords does: seeded max_v_grade PR row
+    // plus live climbing_sends grades, filtered to count > 0 (the fix under test).
+    const { data: prs } = await client
+      .from('personal_records').select('value').eq('user_id', userId).eq('pr_type', 'max_v_grade')
+    const seededMaxGrade = prs && prs.length > 0 ? Number(prs[0].value) : null
+
+    const { data: sends } = await client
+      .from('climbing_sends').select('grade').eq('user_id', userId).gt('count', 0)
+    const liveGrades = (sends ?? []).map((r) => r.grade as string)
+
+    // The projecting V7 must never surface as a PR: not via the RPC's own PR row, and not
+    // via the raw climbing_sends read that feeds buildClimbingRecord on the Progress tab.
+    expect(liveGrades).toEqual(['V3'])
+    expect(buildClimbingRecord(seededMaxGrade, liveGrades)).toBe(3)
   })
 })
