@@ -60,6 +60,16 @@ describe('ExercisePicker', () => {
     expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Pull-up', kind: 'bodyweight', exerciseId: 'ex-pullup' })
   })
 
+  it('hides the custom-exercise form until "+ Custom exercise" is tapped', () => {
+    render(<ExercisePicker onPick={vi.fn()} />)
+
+    expect(screen.queryByLabelText('Custom exercise name')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
+
+    expect(screen.getByLabelText('Custom exercise name')).toBeInTheDocument()
+  })
+
   it('add-custom affordance calls onPick with the typed name and selected kind, without touching the catalog', () => {
     // No supabase mock is wired up at all here — if the picker created a catalog
     // row itself (rather than staying resolution-free) this test would blow up
@@ -67,6 +77,7 @@ describe('ExercisePicker', () => {
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
 
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Zercher Squat' } })
     fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'bodyweight' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
@@ -78,6 +89,7 @@ describe('ExercisePicker', () => {
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
 
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Sled Push' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
 
@@ -88,6 +100,7 @@ describe('ExercisePicker', () => {
     const onPick = vi.fn()
     render(<ExercisePicker onPick={onPick} />)
 
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
 
     expect(onPick).not.toHaveBeenCalled()

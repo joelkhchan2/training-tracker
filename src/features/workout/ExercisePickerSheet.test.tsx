@@ -9,6 +9,7 @@ describe('ExercisePickerSheet', () => {
   it('routes a custom pick to onPick and can be closed', () => {
     const onPick = vi.fn(); const onClose = vi.fn()
     render(<ExercisePickerSheet onPick={onPick} onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Kayak' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
     expect(onPick).toHaveBeenCalledWith({ exerciseName: 'Kayak', kind: 'strength' })

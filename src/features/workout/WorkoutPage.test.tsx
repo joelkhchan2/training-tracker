@@ -711,6 +711,7 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     renderAtWorkout()
 
     fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
     fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Sled Push' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
 
