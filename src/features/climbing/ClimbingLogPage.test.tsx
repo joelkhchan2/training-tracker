@@ -47,8 +47,8 @@ describe('ClimbingLogPage', () => {
     expect(mutate).toHaveBeenCalledTimes(1)
     const [payload] = mutate.mock.calls[0]
     expect(payload.sends).toEqual([
-      { grade: 'V0', count: 2 },
-      { grade: 'V4', count: 1 },
+      { grade: 'V0', count: 2, attempts: 2 },
+      { grade: 'V4', count: 1, attempts: 1 },
     ])
     expect(typeof payload.clientId).toBe('string')
     expect(payload.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
