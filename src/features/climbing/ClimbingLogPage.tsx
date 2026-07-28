@@ -51,7 +51,7 @@ export function ClimbingLogPage() {
       return
     }
     setError(null)
-    const sends = GRADES.filter(g => (counts[g] ?? 0) > 0).map(g => ({ grade: formatVGrade(g), count: counts[g] }))
+    const sends = GRADES.filter(g => (counts[g] ?? 0) > 0).map(g => ({ grade: formatVGrade(g), count: counts[g], attempts: counts[g] }))
     logClimbing.mutate(
       { clientId, date, notes: notes.trim() || null, sends },
       {
