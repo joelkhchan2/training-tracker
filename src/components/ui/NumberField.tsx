@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { cn } from '../../lib/cn'
 
 export interface NumberFieldProps {
@@ -12,7 +12,17 @@ export interface NumberFieldProps {
   className?: string
   id?: string
   hideSteppers?: boolean
+  /** Additive: merged onto the input's own text-size/weight classes (default
+   *  `text-3xl font-bold`). Lets one caller (the workout SetRow) request a
+   *  smaller size without shrinking the number on the other five screens
+   *  that share this component. */
+  inputClassName?: string
 }
+
+// A *complete* number: digits, an optional leading '-', an optional '.digits'
+// tail. Partial in-progress states ('', '-', '.', '102.') deliberately do NOT
+// match, so they update the buffer without committing.
+const COMPLETE_NUMBER = /^-?\d+(\.\d+)?$/
 
 function clamp(value: number, min: number, max?: number): number {
   let next = Math.max(min, value)
@@ -28,7 +38,15 @@ function roundToStep(value: number): number {
 
 /** Large numeric input for weight/reps entry mid-workout: big legible text,
  *  a mobile decimal keyboard, and +/- steppers sized for sweaty-hands
- *  tapping. Controlled — the caller owns `value` and receives numbers back. */
+ *  tapping. Controlled — the caller owns `value` and receives numbers back.
+ *
+ *  The input renders an internal string `buffer`, not `value` directly, so
+ *  the field can go transiently empty/partial ('', '-', '.', '102.') while
+ *  typing. It commits (via the clamp/round path) only when the buffer is a
+ *  *complete* number; a partial buffer never emits `NaN` and never gets
+ *  silently reverted mid-edit. `focused` gates syncing the buffer from an
+ *  external `value` change (prefill, stepper, reset) so that sync never
+ *  clobbers an in-progress edit like "102." back to "102". */
 export function NumberField({
   label,
   value,
@@ -40,19 +58,42 @@ export function NumberField({
   className,
   id,
   hideSteppers = false,
+  inputClassName,
 }: NumberFieldProps) {
   const autoId = useId()
   const inputId = id ?? autoId
 
+  const [buffer, setBuffer] = useState(() => String(value))
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    // Can't derive this during render: `focused` is driven by DOM focus/blur
+    // events, not a prop, so there's no render-time signal to diff against.
+    // Controlled buffer must resync from an external `value` change
+    // (prefill/stepper/reset) whenever the user isn't actively mid-edit.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!focused) setBuffer(String(value))
+  }, [value, focused])
+
   const commit = (next: number) => onChange(clamp(roundToStep(next), min, max))
 
   const handleTextChange = (raw: string) => {
-    // Allow the field to be transiently empty/partial while typing without
-    // forcing it back to a number on every keystroke.
-    if (raw === '' || raw === '-' || raw === '.') return
-    const parsed = Number(raw)
-    if (Number.isNaN(parsed)) return
-    commit(parsed)
+    setBuffer(raw)
+    if (!COMPLETE_NUMBER.test(raw)) return // partial — buffer-only, no commit
+    commit(Number(raw))
+  }
+
+  const handleBlur = () => {
+    setFocused(false)
+    if (!COMPLETE_NUMBER.test(buffer)) {
+      // Empty or partial ('-', '.', '102.') left on blur — never leave state NaN.
+      commit(min)
+      setBuffer(String(clamp(roundToStep(min), min, max)))
+    } else {
+      // Re-sync to the canonical (clamped/rounded) string in case the raw
+      // buffer was outside [min,max] and the commit path adjusted it.
+      setBuffer(String(clamp(roundToStep(Number(buffer)), min, max)))
+    }
   }
 
   const stepperClasses = cn(
@@ -83,12 +124,16 @@ export function NumberField({
           id={inputId}
           type="text"
           inputMode="decimal"
-          value={value}
+          value={buffer}
+          placeholder="0"
           disabled={disabled}
+          onFocus={() => setFocused(true)}
+          onBlur={handleBlur}
           onChange={(event) => handleTextChange(event.target.value)}
           className={cn(
             'min-w-0 flex-1 rounded-xl border border-border bg-surface text-center',
-            'text-3xl font-bold tabular-nums text-text',
+            inputClassName ?? 'text-3xl font-bold',
+            'tabular-nums text-text',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             'disabled:opacity-40',
           )}
