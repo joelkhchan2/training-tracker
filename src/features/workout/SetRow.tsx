@@ -1,60 +1,65 @@
+import { DurationField } from '../../components/ui/DurationField'
 import { NumberField } from '../../components/ui/NumberField'
 import { cn } from '../../lib/cn'
 import { useSessionStore } from './sessionStore'
-import type { SessionSet } from './sessionStore'
+import type { ExerciseInputType, SessionSet } from './sessionStore'
 
 export interface SetRowProps {
   exIdx: number
   setIdx: number
   set: SessionSet
-  /** Hides the Weight field, e.g. for a bodyweight exercise where a weight entry is meaningless. */
-  hideWeight?: boolean
+  /** Which fields this exercise's sets are logged with. Drives whether Weight/Reps/
+   *  Duration render, and gates the AMRAP/FSL badges — meaningless outside 'weighted'
+   *  (there's no reps target to compare a duration against). */
+  inputType: ExerciseInputType
 }
 
-/** One editable set within an exercise: weight + reps entry, a done toggle,
- *  and a remove action. Sized for mid-workout, sweaty-hands tapping — every
- *  interactive control here is at least 48px. */
-export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
+/** One editable set within an exercise: the fields `inputType` calls for, a done toggle,
+ *  and a remove action. Sized for mid-workout, sweaty-hands tapping — every interactive
+ *  control here is at least 48px. */
+export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
   const updateSet = useSessionStore((s) => s.updateSet)
   const toggleDone = useSessionStore((s) => s.toggleDone)
   const removeSet = useSessionStore((s) => s.removeSet)
 
   const setNumber = setIdx + 1
+  const showWeight = inputType === 'weighted' || inputType === 'weighted_time'
+  const showDuration = inputType === 'timed' || inputType === 'weighted_time'
+  const showBadges = inputType === 'weighted'
 
   return (
     <div
       data-testid={`set-row-${exIdx}-${setIdx}`}
       className={cn('flex flex-col gap-1 rounded-xl px-2 py-1 transition-colors', set.done && 'bg-accent/10')}
     >
-      {set.isAmrap ? (
+      {set.isAmrap && showBadges ? (
         <span className="ml-12 inline-flex w-fit items-center rounded-full border border-danger bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
           AMRAP &middot; target {set.targetReps}
         </span>
       ) : null}
 
-      {/* Grid, not flex: fixed 3rem tracks for the set label + done/remove
-          buttons, and minmax(0,1fr) tracks for the weight/reps fields. The
-          minmax lower bound of 0 means the field tracks shrink instead of
-          forcing the row (and the whole page) wider than the viewport — the
-          structural, can't-regress version of the min-w-0 flex fix. */}
+      {/* Grid, not flex: fixed 3rem tracks for the set label + done/remove buttons, and
+          minmax(0,1fr) tracks for the weight/reps-or-duration fields. The 5-col template
+          (weighted/weighted_time) vs 4-col template (bodyweight/timed) is a content swap
+          inside the same two grids — not a new layout. */}
       <div
         className={cn(
           'grid items-end gap-1.5',
-          hideWeight
-            ? 'grid-cols-[3rem_minmax(0,1fr)_3rem_3rem]'
-            : 'grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_3rem_3rem]',
+          showWeight
+            ? 'grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)_3rem_3rem]'
+            : 'grid-cols-[3rem_minmax(0,1fr)_3rem_3rem]',
         )}
       >
         <div className="flex flex-col items-start gap-1 pb-3">
           <span className="text-sm font-medium text-muted">Set {setNumber}</span>
-          {set.isFsl ? (
+          {set.isFsl && showBadges ? (
             <span className="inline-flex rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold text-accent">
               FSL
             </span>
           ) : null}
         </div>
 
-        {hideWeight ? null : (
+        {showWeight ? (
           <NumberField
             label="Weight"
             value={set.weight ?? 0}
@@ -63,14 +68,24 @@ export function SetRow({ exIdx, setIdx, set, hideWeight }: SetRowProps) {
             hideSteppers
             inputClassName="text-xl font-bold"
           />
+        ) : null}
+
+        {showDuration ? (
+          <DurationField
+            label="Duration"
+            valueSeconds={set.durationSeconds}
+            onChange={(durationSeconds) => updateSet(exIdx, setIdx, { durationSeconds })}
+            inputClassName="text-xl font-bold"
+          />
+        ) : (
+          <NumberField
+            label="Reps"
+            value={set.reps ?? 0}
+            onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
+            hideSteppers
+            inputClassName="text-xl font-bold"
+          />
         )}
-        <NumberField
-          label="Reps"
-          value={set.reps ?? 0}
-          onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
-          hideSteppers
-          inputClassName="text-xl font-bold"
-        />
 
         <button
           type="button"
