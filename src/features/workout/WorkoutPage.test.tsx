@@ -819,3 +819,18 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     expect(screen.getByText('Suggested alternates')).toBeInTheDocument()
   })
 })
+
+describe('WorkoutPage — timer popup', () => {
+  it('opens TimerPopup from the session timer button and closes it via Done', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    expect(screen.queryByRole('dialog', { name: 'Adjust workout timer' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust workout timer' }))
+    expect(screen.getByRole('dialog', { name: 'Adjust workout timer' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog', { name: 'Adjust workout timer' })).not.toBeInTheDocument()
+  })
+})

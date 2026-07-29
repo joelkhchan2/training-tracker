@@ -668,3 +668,17 @@ describe('updateSet durationSeconds carry-forward', () => {
     expect(sets[2].durationSeconds).toBeNull() // distinct prescribed target — no carry
   })
 })
+
+describe('setStartedAt', () => {
+  it('overwrites startedAt while a session is active', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useSessionStore.getState().setStartedAt('2026-07-12T01:00:00.000Z')
+    expect(useSessionStore.getState().startedAt).toBe('2026-07-12T01:00:00.000Z')
+  })
+
+  it('is a no-op when there is no active session (startedAt is null)', () => {
+    expect(useSessionStore.getState().startedAt).toBeNull()
+    useSessionStore.getState().setStartedAt('2026-07-12T01:00:00.000Z')
+    expect(useSessionStore.getState().startedAt).toBeNull()
+  })
+})
