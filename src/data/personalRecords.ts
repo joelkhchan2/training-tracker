@@ -44,6 +44,20 @@ export interface LiveDurationRow {
   movementPattern: string | null
 }
 
+export interface CardioRecord {
+  activity: string
+  bestDistanceKm: number                 // 0 = none
+  bestDurationMinutes: number            // 0 = none
+  bestPaceDurationMinutes: number | null // paired with bestPaceDistanceKm; null = no valid pace row
+  bestPaceDistanceKm: number | null
+}
+
+export interface LiveCardioRow {
+  activity: string
+  durationMinutes: number | null
+  distanceKm: number | null
+}
+
 interface Acc {
   exerciseId: string
   name: string
@@ -154,6 +168,64 @@ export function buildClimbingRecord(seededMaxGrade: number | null, liveGrades: s
     if (n != null && n > best) best = n
   }
   return best < 0 ? null : best
+}
+
+interface CardioAcc {
+  activity: string
+  bestDistanceKm: number
+  bestDurationMinutes: number
+  bestPaceSecondsPerKm: number | null
+  bestPaceDurationMinutes: number | null
+  bestPaceDistanceKm: number | null
+}
+
+/** Pure: per-activity cardio PRs computed live from cardio_activities rows, no seeded-row
+ *  reconciliation (cardio has no seeded PR history — see spec). Each field is independently
+ *  "unset": an activity with only duration logged still produces a duration PR with no
+ *  distance/pace. Best pace only considers rows where BOTH distance_km > 0 AND
+ *  duration_minutes > 0 — formatPace only guards distance, so a duration_minutes: 0 row must be
+ *  excluded here or it would wrongly compute and win a 0:00 pace. Sorted by bestDistanceKm desc. */
+export function buildCardioRecords(rows: LiveCardioRow[]): CardioRecord[] {
+  const acc = new Map<string, CardioAcc>()
+  for (const r of rows) {
+    if (!r.activity) continue
+    let a = acc.get(r.activity)
+    if (!a) {
+      a = {
+        activity: r.activity,
+        bestDistanceKm: 0,
+        bestDurationMinutes: 0,
+        bestPaceSecondsPerKm: null,
+        bestPaceDurationMinutes: null,
+        bestPaceDistanceKm: null,
+      }
+      acc.set(r.activity, a)
+    }
+    if (r.distanceKm != null && r.distanceKm > a.bestDistanceKm) a.bestDistanceKm = r.distanceKm
+    if (r.durationMinutes != null && r.durationMinutes > a.bestDurationMinutes) a.bestDurationMinutes = r.durationMinutes
+    if (r.distanceKm != null && r.distanceKm > 0 && r.durationMinutes != null && r.durationMinutes > 0) {
+      const secondsPerKm = (r.durationMinutes * 60) / r.distanceKm
+      if (a.bestPaceSecondsPerKm == null || secondsPerKm < a.bestPaceSecondsPerKm) {
+        a.bestPaceSecondsPerKm = secondsPerKm
+        a.bestPaceDurationMinutes = r.durationMinutes
+        a.bestPaceDistanceKm = r.distanceKm
+      }
+    }
+  }
+
+  const out: CardioRecord[] = []
+  for (const a of acc.values()) {
+    if (a.bestDistanceKm <= 0 && a.bestDurationMinutes <= 0 && a.bestPaceDurationMinutes == null) continue // nothing recorded
+    out.push({
+      activity: a.activity,
+      bestDistanceKm: a.bestDistanceKm,
+      bestDurationMinutes: a.bestDurationMinutes,
+      bestPaceDurationMinutes: a.bestPaceDurationMinutes,
+      bestPaceDistanceKm: a.bestPaceDistanceKm,
+    })
+  }
+  out.sort((x, y) => y.bestDistanceKm - x.bestDistanceKm)
+  return out
 }
 
 /** Reads seeded personal_records + live strength_sets/climbing_sends (all owner-scoped by RLS) and

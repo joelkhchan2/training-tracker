@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildStrengthRecords, buildClimbingRecord, filterSortRecords, type StrengthRecord } from './personalRecords'
+import { buildStrengthRecords, buildClimbingRecord, buildCardioRecords, filterSortRecords, type StrengthRecord } from './personalRecords'
 
 describe('buildStrengthRecords', () => {
   it('keeps a seeded-only exercise that has no live sets (preserves old all-time PR)', () => {
@@ -160,5 +160,109 @@ describe('filterSortRecords', () => {
   it('sorts by name A-Z', () => {
     const out = filterSortRecords(records, { query: '', pattern: 'all', sort: 'name' })
     expect(out.map(r => r.exerciseName)).toEqual(['Bench Press', 'Curl', 'Overhead Press', 'Squat'])
+  })
+})
+
+describe('buildCardioRecords', () => {
+  it('a single activity with only distance rows sets bestDistanceKm and leaves duration/pace unset', () => {
+    const rows = [
+      { activity: 'Run', distanceKm: 5, durationMinutes: null },
+      { activity: 'Run', distanceKm: 8, durationMinutes: null },
+    ]
+    const [r] = buildCardioRecords(rows)
+    expect(r.bestDistanceKm).toBe(8)
+    expect(r.bestDurationMinutes).toBe(0)
+    expect(r.bestPaceDurationMinutes).toBeNull()
+    expect(r.bestPaceDistanceKm).toBeNull()
+  })
+
+  it('a single activity with only duration rows (no distance) sets bestDurationMinutes and leaves distance/pace unset', () => {
+    const rows = [
+      { activity: 'Bike', distanceKm: null, durationMinutes: 45 },
+    ]
+    const [r] = buildCardioRecords(rows)
+    expect(r.bestDurationMinutes).toBe(45)
+    expect(r.bestDistanceKm).toBe(0)
+    expect(r.bestPaceDurationMinutes).toBeNull()
+    expect(r.bestPaceDistanceKm).toBeNull()
+  })
+
+  it('best pace is its own independent comparison, not derived from the largest distance or duration row', () => {
+    const rows = [
+      { activity: 'Run', distanceKm: 10, durationMinutes: 60 }, // pace 360s/km, but wins distance+duration
+      { activity: 'Run', distanceKm: 5, durationMinutes: 20 },  // pace 240s/km, faster, smaller distance/duration
+    ]
+    const [r] = buildCardioRecords(rows)
+    expect(r.bestDistanceKm).toBe(10)
+    expect(r.bestDurationMinutes).toBe(60)
+    expect(r.bestPaceDurationMinutes).toBe(20)
+    expect(r.bestPaceDistanceKm).toBe(5)
+  })
+
+  it('a row with distance_km: 0 never wins the distance max and never contributes a pace', () => {
+    const rows = [
+      { activity: 'Row', distanceKm: 0, durationMinutes: 30 },
+    ]
+    const [r] = buildCardioRecords(rows)
+    expect(r.bestDistanceKm).toBe(0)
+    expect(r.bestDurationMinutes).toBe(30)
+    expect(r.bestPaceDurationMinutes).toBeNull()
+    expect(r.bestPaceDistanceKm).toBeNull()
+  })
+
+  it('a row with duration_minutes: 0 and distance_km > 0 does NOT win the pace minimum (would otherwise compute a bogus 0:00 pace)', () => {
+    // formatPace only guards distance_km <= 0, not duration_minutes <= 0 — buildCardioRecords
+    // must apply its own duration_minutes > 0 guard so this row can't win the pace comparison.
+    const rows = [
+      { activity: 'Swim', distanceKm: 2, durationMinutes: 0 },
+    ]
+    const [r] = buildCardioRecords(rows)
+    expect(r.bestDistanceKm).toBe(2)
+    expect(r.bestPaceDurationMinutes).toBeNull()
+    expect(r.bestPaceDistanceKm).toBeNull()
+  })
+
+  it('two different activity strings produce two separate, independently-aggregated CardioRecords', () => {
+    const rows = [
+      { activity: 'Run', distanceKm: 5, durationMinutes: 30 },
+      { activity: 'Row', distanceKm: 3, durationMinutes: 20 },
+    ]
+    const out = buildCardioRecords(rows)
+    expect(out.map(r => r.activity).sort()).toEqual(['Row', 'Run'])
+    const run = out.find(r => r.activity === 'Run')
+    const row = out.find(r => r.activity === 'Row')
+    expect(run?.bestDistanceKm).toBe(5)
+    expect(row?.bestDistanceKm).toBe(3)
+  })
+
+  it('sorts multiple activities by bestDistanceKm descending', () => {
+    const rows = [
+      { activity: 'Swim', distanceKm: 1, durationMinutes: 20 },
+      { activity: 'Bike', distanceKm: 40, durationMinutes: 90 },
+      { activity: 'Run', distanceKm: 10, durationMinutes: 50 },
+    ]
+    const out = buildCardioRecords(rows)
+    expect(out.map(r => r.activity)).toEqual(['Bike', 'Run', 'Swim'])
+  })
+
+  it('skips a row with a falsy activity string', () => {
+    const rows = [
+      { activity: '', distanceKm: 5, durationMinutes: 30 },
+      { activity: 'Run', distanceKm: 2, durationMinutes: 10 },
+    ]
+    const out = buildCardioRecords(rows)
+    expect(out).toHaveLength(1)
+    expect(out[0].activity).toBe('Run')
+  })
+
+  it('drops an activity entirely if it ends up with nothing recorded (all zero/falsy fields)', () => {
+    const rows = [
+      { activity: 'GhostActivity', distanceKm: 0, durationMinutes: 0 },
+    ]
+    expect(buildCardioRecords(rows)).toEqual([])
+  })
+
+  it('returns [] for no rows', () => {
+    expect(buildCardioRecords([])).toEqual([])
   })
 })
