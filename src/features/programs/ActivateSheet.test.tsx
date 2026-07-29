@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { ActivateSheet } from './ActivateSheet'
 import { PRESETS } from '../../domain/presets'
 import type { PresetMeta } from '../../domain/presets'
+import { usePrefs } from '../settings/usePrefs'
 
 const { mockNavigate, useActivateProgram, mockMutate } = vi.hoisted(() => {
   const mockMutate = vi.fn()
@@ -200,5 +201,24 @@ describe('ActivateSheet', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('network down')
     expect(screen.getByLabelText('Squat')).toHaveValue('225')
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+})
+
+describe('ActivateSheet — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('shows kg-converted, kg-labelled maxes and still activates with lb values', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    renderSheet({
+      preset: fiveThreeOnePreset,
+      existingTrainingMaxes: { squat: 225, benchPress: 185, barbellDeadlift: 315, overheadPress: 115 },
+    })
+    // 225 lb -> 102.1 kg
+    expect(screen.getByLabelText('Squat (kg)')).toHaveValue('102.1')
+
+    fireEvent.change(screen.getByLabelText('Squat (kg)'), { target: { value: '100' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Activate' }))
+    const [payload] = mockMutate.mock.calls[0]
+    expect(payload.trainingMaxes.squat).toBe(220.5) // fromDisplayWeight(100, 'kg')
   })
 })
