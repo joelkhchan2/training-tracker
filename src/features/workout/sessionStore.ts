@@ -203,6 +203,10 @@ export interface SessionActions {
   setNotes: (notes: string) => void
   setBodyWeight: (bodyWeight: number | null) => void
   setInputType: (exIdx: number, inputType: ExerciseInputType) => void
+  /** Overwrites `startedAt` with a corrected ISO timestamp (the TimerPopup's Set/±1/Reset
+   *  controls). No-op while there's no active session (`startedAt` already null) — there's
+   *  nothing to correct and no timer is rendered to have opened this popup in the first place. */
+  setStartedAt: (iso: string) => void
   reset: () => void
 }
 
@@ -401,6 +405,9 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set((state) => ({
           exercises: state.exercises.map((ex, i) => (i === exIdx ? { ...ex, inputType } : ex)),
         }))
+      },
+      setStartedAt: (iso) => {
+        set((state) => (state.startedAt === null ? {} : { startedAt: iso }))
       },
 
       reset: () => set({ ...initialState }),
