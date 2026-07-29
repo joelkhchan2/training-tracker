@@ -21,7 +21,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('usePersonalRecords', () => {
   beforeEach(() => from.mockReset())
 
-  it('reconciles seeded personal_records with live sets/sends', async () => {
+  it('reconciles seeded personal_records with live sets/sends, and reads cardio_activities live', async () => {
     from
       .mockReturnValueOnce(stub({ data: [
         { exercise_id: 'dl', pr_type: 'e1rm', value: 440, weight: 405, reps: 3, exercises: { name: 'Deadlift' } },
@@ -32,11 +32,22 @@ describe('usePersonalRecords', () => {
       ], error: null })) // strength_sets
       .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets (duration query)
       .mockReturnValueOnce(stub({ data: [{ grade: 'V4' }], error: null })) // climbing_sends
+      .mockReturnValueOnce(stub({ data: [
+        { activity: 'Run', duration_minutes: 30, distance_km: 5 },
+      ], error: null })) // cardio_activities
     const { result } = renderHook(() => usePersonalRecords('u1'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    const d = result.current.data as { strength: { exerciseName: string }[]; climbingMaxGrade: number | null }
+    const d = result.current.data as {
+      strength: { exerciseName: string }[]
+      climbingMaxGrade: number | null
+      cardio: { activity: string; bestDistanceKm: number }[]
+    }
     expect(d.strength.map(r => r.exerciseName).sort()).toEqual(['Deadlift', 'Squat'])
     expect(d.climbingMaxGrade).toBe(5) // seeded V5 beats live V4
+    expect(d.cardio).toEqual([{
+      activity: 'Run', bestDistanceKm: 5, bestDurationMinutes: 30,
+      bestPaceDurationMinutes: 30, bestPaceDistanceKm: 5,
+    }])
   })
 
   it('filters climbing_sends to sent grades (count > 0) when reading personal records', async () => {
@@ -50,6 +61,7 @@ describe('usePersonalRecords', () => {
       .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets
       .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets (duration query)
       .mockReturnValueOnce(sendsChain) // climbing_sends
+      .mockReturnValueOnce(stub({ data: [], error: null })) // cardio_activities
 
     const { result } = renderHook(() => usePersonalRecords('u1'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))

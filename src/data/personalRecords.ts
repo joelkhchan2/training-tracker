@@ -234,7 +234,7 @@ export function usePersonalRecords(userId: string | undefined) {
   return useQuery({
     queryKey: ['personalRecords', userId],
     enabled: !!userId,
-    queryFn: async (): Promise<{ strength: StrengthRecord[]; climbingMaxGrade: number | null }> => {
+    queryFn: async (): Promise<{ strength: StrengthRecord[]; climbingMaxGrade: number | null; cardio: CardioRecord[] }> => {
       const supabase = getSupabase()
 
       const { data: prs, error: prErr } = await supabase
@@ -274,6 +274,16 @@ export function usePersonalRecords(userId: string | undefined) {
         .gt('count', 0)
       if (cErr) throw cErr
 
+      // No join through sessions, no session_id filter — mirrors how strength_sets/climbing_sends
+      // are already read directly by user_id for an all-time aggregate in this hook (RLS scopes
+      // every row to its owner regardless). This is deliberately not sessionHistory.ts's
+      // session-scoped join pattern; PRs need the user's entire cardio history.
+      const { data: cardioRows, error: cardioErr } = await supabase
+        .from('cardio_activities')
+        .select('activity, duration_minutes, distance_km')
+        .eq('user_id', userId as string)
+      if (cardioErr) throw cardioErr
+
       const seeded: SeededStrengthRow[] = []
       let seededMaxGrade: number | null = null
       for (const r of (prs ?? []) as unknown as {
@@ -300,9 +310,14 @@ export function usePersonalRecords(userId: string | undefined) {
 
       const liveGrades = ((sends ?? []) as { grade: string }[]).map((r) => r.grade)
 
+      const liveCardio: LiveCardioRow[] = ((cardioRows ?? []) as {
+        activity: string; duration_minutes: number | null; distance_km: number | null
+      }[]).map((r) => ({ activity: r.activity, durationMinutes: r.duration_minutes, distanceKm: r.distance_km }))
+
       return {
         strength: buildStrengthRecords(seeded, live, liveDurations),
         climbingMaxGrade: buildClimbingRecord(seededMaxGrade, liveGrades),
+        cardio: buildCardioRecords(liveCardio),
       }
     },
   })
