@@ -38,10 +38,12 @@ export interface SessionSet {
   /** Marks a warmup set: saved with is_warmup=true but excluded from tonnage/PR/progression. */
   isWarmup?: boolean
   /** Duration for a timed/weighted_time exercise's set, in seconds; null when unused
-   *  (weighted/bodyweight) or not yet typed in. Like weight/reps' carry-forward, a typed
-   *  duration carries forward to later not-yet-done sets only when that later set has no
-   *  distinct prescribed target of its own (`prescribedWeight`/`prescribedReps` both
-   *  undefined — i.e. a purely ad-hoc set) — see `updateSet` below. */
+   *  (weighted/bodyweight) or not yet typed in. Carries forward to later not-yet-done
+   *  sets via `updateSet`'s carry-forward gate: when the later set has a
+   *  `prescribedDurationSeconds`, that alone decides (matching value carries forward,
+   *  differing value does not); otherwise it falls back to the ad-hoc rule (carries
+   *  forward only when that set has no prescribed weight/reps of its own) — see
+   *  `updateSet` below. */
   durationSeconds: number | null
 }
 

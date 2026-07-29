@@ -41,6 +41,7 @@ export interface LiveDurationRow {
   name: string
   weight: number | null
   durationSeconds: number
+  movementPattern: string | null
 }
 
 interface Acc {
@@ -100,6 +101,7 @@ export function buildStrengthRecords(
   for (const d of liveDurations) {
     const a = get(d.exerciseId, d.name)
     if (d.durationSeconds > a.liveDuration) { a.liveDuration = d.durationSeconds; a.liveDurationWeight = d.weight }
+    if (d.movementPattern != null) a.movementPattern = d.movementPattern
   }
 
   for (const s of seeded) {
@@ -222,7 +224,7 @@ export function usePersonalRecords(userId: string | undefined) {
         exercise_id: string | null; weight: number | null; duration_seconds: number; exercises: { name: string; movement_pattern: string | null } | null
       }[])
         .filter((r) => r.exercise_id)
-        .map((r) => ({ exerciseId: r.exercise_id as string, name: r.exercises?.name ?? 'Exercise', weight: r.weight, durationSeconds: r.duration_seconds }))
+        .map((r) => ({ exerciseId: r.exercise_id as string, name: r.exercises?.name ?? 'Exercise', weight: r.weight, durationSeconds: r.duration_seconds, movementPattern: r.exercises?.movement_pattern ?? null }))
 
       const liveGrades = ((sends ?? []) as { grade: string }[]).map((r) => r.grade)
 

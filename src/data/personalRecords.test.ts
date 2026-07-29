@@ -61,8 +61,8 @@ describe('buildStrengthRecords', () => {
 
   it('an exercise with only timed/weighted_time live rows produces bestDuration>0 while bestE1rm/bestVolume stay 0', () => {
     const liveDurations = [
-      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8 },
-      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 12 },
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8, movementPattern: null },
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 12, movementPattern: null },
     ]
     const [r] = buildStrengthRecords([], [], liveDurations)
     expect(r.bestDuration).toBe(12)
@@ -71,12 +71,12 @@ describe('buildStrengthRecords', () => {
   })
 
   it('a weighted_time row carries its weight into bestDurationWeight; a pure timed row leaves it null', () => {
-    const weightedTime = [{ exerciseId: 'hang', name: 'Weighted Dead Hang', weight: 25, durationSeconds: 30 }]
+    const weightedTime = [{ exerciseId: 'hang', name: 'Weighted Dead Hang', weight: 25, durationSeconds: 30, movementPattern: null }]
     const [withWeight] = buildStrengthRecords([], [], weightedTime)
     expect(withWeight.bestDuration).toBe(30)
     expect(withWeight.bestDurationWeight).toBe(25)
 
-    const bodyweightTimed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8 }]
+    const bodyweightTimed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8, movementPattern: null }]
     const [noWeight] = buildStrengthRecords([], [], bodyweightTimed)
     expect(noWeight.bestDuration).toBe(8)
     expect(noWeight.bestDurationWeight).toBeNull()
@@ -84,7 +84,7 @@ describe('buildStrengthRecords', () => {
 
   it('reconciles a seeded max_duration row against live the same way e1rm does (larger wins, weight carried from the winning side)', () => {
     const seeded = [{ exerciseId: 'flp', name: 'Front Lever Progression', prType: 'max_duration' as const, value: 15, weight: null, reps: null }]
-    const liveBeatsSeed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 20 }]
+    const liveBeatsSeed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 20, movementPattern: null }]
 
     const [beatenBySeed] = buildStrengthRecords(seeded, [], [])
     expect(beatenBySeed.bestDuration).toBe(15)
@@ -92,6 +92,23 @@ describe('buildStrengthRecords', () => {
     const [beatsSeed] = buildStrengthRecords(seeded, [], liveBeatsSeed)
     expect(beatsSeed.bestDuration).toBe(20)
     expect(beatsSeed.bestDurationWeight).toBeNull() // live side won, and its weight is null
+  })
+
+  it('carries movementPattern from a duration-only row (e.g. Front Lever) instead of leaving it null/Other', () => {
+    const liveDurations = [
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 12, movementPattern: 'pull' },
+    ]
+    const [r] = buildStrengthRecords([], [], liveDurations)
+    expect(r.movementPattern).toBe('pull')
+  })
+
+  it('does not overwrite a real movementPattern with a null one from a later duration row', () => {
+    const liveDurations = [
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8, movementPattern: 'pull' },
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 12, movementPattern: null },
+    ]
+    const [r] = buildStrengthRecords([], [], liveDurations)
+    expect(r.movementPattern).toBe('pull')
   })
 })
 
