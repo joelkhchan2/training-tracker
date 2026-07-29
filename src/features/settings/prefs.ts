@@ -1,3 +1,5 @@
+import type { WeightUnit } from '../../domain/weight'
+
 export type ConcreteThemeId =
   | 'midnight' | 'navy' | 'gold' | 'evergreen' | 'ember' | 'amoled' | 'contrast' | 'daylight' | 'yuletide'
 export type ThemeId = ConcreteThemeId | 'system'
@@ -10,6 +12,7 @@ export interface Prefs {
   theme: ThemeId
   fontFamily: FontId
   fontScale: number
+  weightUnit: WeightUnit
   weekStartDay: WeekStartDay
   restTimerDefaultSeconds: number
   restTimerHaptics: boolean
@@ -21,6 +24,7 @@ export const DEFAULT_PREFS: Prefs = {
   theme: 'system',
   fontFamily: 'system',
   fontScale: 1,
+  weightUnit: 'lb',
   weekStartDay: 'monday',
   restTimerDefaultSeconds: 120,
   restTimerHaptics: true,
@@ -77,6 +81,7 @@ export function readPrefs(storage: Pick<Storage, 'getItem'> = localStorage): Pre
       theme: p.theme ?? DEFAULT_PREFS.theme,
       fontFamily: p.fontFamily ?? DEFAULT_PREFS.fontFamily,
       fontScale: typeof p.fontScale === 'number' ? p.fontScale : DEFAULT_PREFS.fontScale,
+      weightUnit: p.weightUnit === 'lb' || p.weightUnit === 'kg' ? p.weightUnit : DEFAULT_PREFS.weightUnit,
       weekStartDay: p.weekStartDay === 'monday' || p.weekStartDay === 'sunday' ? p.weekStartDay : DEFAULT_PREFS.weekStartDay,
       restTimerDefaultSeconds:
         typeof p.restTimerDefaultSeconds === 'number' && Number.isFinite(p.restTimerDefaultSeconds) && p.restTimerDefaultSeconds > 0

@@ -1,5 +1,7 @@
 import type { DetectedPR, LinearProgressionAction, PrType } from '../../domain'
+import { formatWeight, round1, toDisplayWeight, type WeightUnit } from '../../domain'
 import { Button } from '../../components/ui/Button'
+import { usePrefs } from '../settings/usePrefs'
 
 /** Post-save progression result for one linear-scheme lift, ready for display. Built by
  *  `WorkoutPage` from `useSaveWorkout`'s `progressionOutcomes` (exerciseName/action/nextWeight
@@ -32,24 +34,27 @@ const PR_LABELS: Record<PrType, string> = {
 
 /** e.g. "🎉 Squat — new e1RM 265 (was 250)", or without the "(was …)" clause
  *  when there was no prior record for that exercise/type. */
-function formatPr(pr: DetectedPR): string {
+function formatPr(pr: DetectedPR, unit: WeightUnit): string {
   const label = PR_LABELS[pr.prType]
-  const was = pr.oldValue != null ? ` (was ${pr.oldValue})` : ''
-  return `🎉 ${pr.exerciseName} — new ${label} ${pr.newValue}${was}`
+  // e1rm/volume are weights; max_v_grade is a climbing grade and must NOT be converted.
+  const fmt = (v: number) => (pr.prType === 'max_v_grade' ? `${v}` : formatWeight(v, unit))
+  const was = pr.oldValue != null ? ` (was ${fmt(pr.oldValue)})` : ''
+  return `🎉 ${pr.exerciseName} — new ${label} ${fmt(pr.newValue)}${was}`
 }
 
 /** e.g. "Squat 100 → 105 (+5)" for an increase, "Bench Press held (2/3 fails)" for a hold
  *  (or plain "held" when the fails count isn't known), "Deadlift deload → 90" for a deload. */
-function formatProgressionOutcome(outcome: ProgressionOutcomeDisplay): string {
+function formatProgressionOutcome(outcome: ProgressionOutcomeDisplay, unit: WeightUnit): string {
   const { exerciseName, action, previousWeight, nextWeight, fails, failsBeforeDeload } = outcome
 
   if (action === 'increase' || action === 'increase-double') {
-    const delta = nextWeight - previousWeight
+    // Delta from the CONVERTED endpoints, not the raw lb inputs, so it matches what is displayed.
+    const delta = round1(toDisplayWeight(nextWeight, unit) - toDisplayWeight(previousWeight, unit))
     const sign = delta >= 0 ? '+' : ''
-    return `${exerciseName} ${previousWeight} → ${nextWeight} (${sign}${delta})`
+    return `${exerciseName} ${formatWeight(previousWeight, unit)} → ${formatWeight(nextWeight, unit)} (${sign}${delta})`
   }
   if (action === 'deload') {
-    return `${exerciseName} deload → ${nextWeight}`
+    return `${exerciseName} deload → ${formatWeight(nextWeight, unit)}`
   }
   const failsPart = fails != null && failsBeforeDeload != null ? ` (${fails}/${failsBeforeDeload} fails)` : ''
   return `${exerciseName} held${failsPart}`
@@ -66,6 +71,7 @@ export function SummarySheet({
   progressionOutcomes = [],
   onClose,
 }: SummarySheetProps) {
+  const unit = usePrefs((s) => s.weightUnit)
   return (
     <div
       role="dialog"
@@ -81,7 +87,9 @@ export function SummarySheet({
 
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="rounded-xl border border-border bg-bg p-3">
-            <div className="text-lg font-bold text-text">{tonnage.toLocaleString()}</div>
+            <div className="text-lg font-bold text-text">
+              {unit === 'kg' ? `${toDisplayWeight(tonnage, unit).toLocaleString()} kg` : tonnage.toLocaleString()}
+            </div>
             <div className="text-xs text-muted">tonnage</div>
           </div>
           <div className="rounded-xl border border-border bg-bg p-3">
@@ -98,7 +106,7 @@ export function SummarySheet({
           <ul className="space-y-1">
             {prs.map((pr, i) => (
               <li key={`${pr.exerciseName}-${pr.prType}-${i}`} className="text-sm font-medium text-text">
-                {formatPr(pr)}
+                {formatPr(pr, unit)}
               </li>
             ))}
           </ul>
@@ -108,7 +116,7 @@ export function SummarySheet({
           <ul className="space-y-1">
             {progressionOutcomes.map((outcome, i) => (
               <li key={`${outcome.exerciseName}-${i}`} className="text-sm font-medium text-text">
-                {formatProgressionOutcome(outcome)}
+                {formatProgressionOutcome(outcome, unit)}
               </li>
             ))}
           </ul>

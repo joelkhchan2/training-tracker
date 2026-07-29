@@ -6,6 +6,7 @@ import { Card } from '../../components/ui/Card'
 import { NumberField } from '../../components/ui/NumberField'
 import { TextField } from '../../components/ui/TextField'
 import { Textarea } from '../../components/ui/Textarea'
+import { WeightField } from '../../components/ui/WeightField'
 import { useSaveProgram, useUpdateProgram } from '../../data/saveProgram'
 import { getSupabase } from '../../data/supabase'
 import type { ProgramDayRow, ProgramExerciseRow, ProgramRow } from '../../data/types'
@@ -304,11 +305,11 @@ export function BuilderPage() {
                             className="flex-1"
                           />
                           {ex.kind === 'strength' ? (
-                            <NumberField
+                            <WeightField
                               label="Weight"
-                              value={set.weight ?? 0}
-                              onChange={(weight) => updateSetWeight(dayIdx, exIdx, setIdx, weight)}
-                              step={5}
+                              valueLb={set.weight ?? 0}
+                              onChangeLb={(weight) => updateSetWeight(dayIdx, exIdx, setIdx, weight)}
+                              stepLb={5}
                               className="flex-1"
                             />
                           ) : null}

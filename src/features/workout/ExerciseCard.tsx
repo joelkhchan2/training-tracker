@@ -11,6 +11,8 @@ import { SetRow } from './SetRow'
 import { ExerciseHistorySheet } from './ExerciseHistorySheet'
 import { useSessionStore } from './sessionStore'
 import type { ExerciseInputType, SessionExercise } from './sessionStore'
+import { formatWeight, type WeightUnit } from '../../domain'
+import { usePrefs } from '../settings/usePrefs'
 
 export interface ExerciseCardProps {
   exIdx: number
@@ -41,13 +43,13 @@ function doneVolume(exercise: SessionExercise): number {
  *  "W×R" when any qualifying set has a weight, or, for a purely bodyweight session, the
  *  set with the most reps as "BW×R". Returns null only when the session has no non-warmup
  *  set with a rep count at all. */
-function topSet(session: ExerciseHistorySession): string | null {
+function topSet(session: ExerciseHistorySession, unit: WeightUnit): string | null {
   const candidates = session.sets.filter((s) => !s.isWarmup && s.reps != null)
   if (candidates.length === 0) return null
   const withWeight = candidates.filter((s) => s.weight != null)
   if (withWeight.length > 0) {
     const best = withWeight.reduce((a, b) => (b.weight! > a.weight! ? b : a))
-    return `${best.weight}×${best.reps}`
+    return `${formatWeight(best.weight!, unit)}×${best.reps}`
   }
   const best = candidates.reduce((a, b) => (b.reps! > a.reps! ? b : a))
   return `BW×${best.reps}`
@@ -64,8 +66,9 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
   const [historyOpen, setHistoryOpen] = useState(false)
   const { user } = useAuth()
   const { data: history } = useExerciseHistory(exerciseId, user?.id)
+  const weightUnit = usePrefs((s) => s.weightUnit)
   const last = history?.[0]
-  const lastTop = last ? topSet(last) : null
+  const lastTop = last ? topSet(last, weightUnit) : null
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -89,7 +92,7 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
             {exercise.exerciseName}
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted">{volume > 0 ? `${volume} vol` : '—'}</span>
+            <span className="text-sm text-muted">{volume > 0 ? `${formatWeight(volume, weightUnit)} vol` : '—'}</span>
             <button
               type="button"
               onClick={onReplace}

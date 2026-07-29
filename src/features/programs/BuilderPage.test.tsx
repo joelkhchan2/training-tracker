@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { BuilderPage } from './BuilderPage'
 import type { PickedExercise } from './ExercisePicker'
 import type { ProgramDraft } from '../../domain/programDraft'
+import { usePrefs } from '../settings/usePrefs'
 
 const { mockNavigate, useSaveProgram, useUpdateProgram, mockSaveMutate, mockUpdateMutate } = vi.hoisted(() => {
   const mockSaveMutate = vi.fn()
@@ -300,5 +301,28 @@ describe('BuilderPage — /programs/:id/edit', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('update failed')
     expect(screen.getByLabelText('Program name')).toHaveValue('My Program')
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+})
+
+describe('BuilderPage — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('shows kg-labelled weight fields and saves lb-canonical weights', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    renderNew()
+
+    fireEvent.change(screen.getByLabelText('Program name'), { target: { value: 'KG Plan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    const day = screen.getByTestId('day-0')
+    fireEvent.click(within(day).getByRole('button', { name: 'Add exercise' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Bench Press' }))
+
+    const exercise = screen.getByTestId('exercise-0-0')
+    fireEvent.change(within(exercise).getByLabelText('Reps'), { target: { value: '5' } })
+    fireEvent.change(within(exercise).getByLabelText('Weight (kg)'), { target: { value: '60' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save program' }))
+    const [payload] = mockSaveMutate.mock.calls[0]
+    expect(payload.draft.days[0].exercises[0].sets[0].weight).toBe(132.3) // fromDisplayWeight(60, 'kg')
   })
 })

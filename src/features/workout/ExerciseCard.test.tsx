@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExerciseCard } from './ExerciseCard'
 import { useSessionStore } from './sessionStore'
+import { usePrefs } from '../settings/usePrefs'
 import type { ExerciseHistorySession } from '../../data/exerciseHistory'
 
 const { useExerciseHistory } = vi.hoisted(() => ({
@@ -175,5 +176,35 @@ describe('ExerciseCard', () => {
     // Scoped to `span` because the RPE dropdown (added since this brief was written) also
     // renders a literal '—' as its unset-value option text.
     expect(screen.getByText('—', { selector: 'span' })).toBeInTheDocument()
+  })
+})
+
+describe('ExerciseCard — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('the "last:" top-set hint shows the converted, kg-suffixed weight', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    useExerciseHistory.mockReturnValue({
+      data: [
+        {
+          sessionId: 's1', date: '2026-07-20', e1rm: 165, volume: 465,
+          sets: [{ weight: 155, reps: 3, isWarmup: false }, { weight: 45, reps: 8, isWarmup: true }],
+        },
+      ],
+      isLoading: false,
+    })
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId="ex-1" onRemove={vi.fn()} onReplace={vi.fn()} />)
+    expect(screen.getByText('last: 70.3 kg×3 · 2026-07-20')).toBeInTheDocument() // 155 lb -> 70.3 kg
+  })
+
+  it('the running "vol" hint shows the converted, kg-suffixed volume', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    const doneEx = {
+      id: 'x', exerciseId: null, exerciseName: 'Squat', kind: 'strength' as const, inputType: 'weighted' as const,
+      sets: [{ weight: 100, reps: 5, done: true, durationSeconds: null }],
+    }
+    render(<ExerciseCard exIdx={0} exercise={doneEx} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    // doneVolume = 100*5 = 500 lb -> formatWeight(500, 'kg') = "226.8 kg"
+    expect(screen.getByText('226.8 kg vol')).toBeInTheDocument()
   })
 })

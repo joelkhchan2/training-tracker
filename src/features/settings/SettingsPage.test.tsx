@@ -12,6 +12,7 @@ const signOut = vi.fn()
 const setTheme = vi.fn()
 const setFontFamily = vi.fn()
 const setFontScale = vi.fn()
+const setWeightUnit = vi.fn()
 const setWeekStartDay = vi.fn()
 const setRestTimerDefaultSeconds = vi.fn()
 const setRestTimerHaptics = vi.fn()
@@ -20,9 +21,11 @@ const setShowRpe = vi.fn()
 const { prefsState } = vi.hoisted(() => ({
   prefsState: {
     theme: 'navy', fontFamily: 'system', fontScale: 1,
+    weightUnit: 'lb',
     weekStartDay: 'monday', restTimerDefaultSeconds: 120, restTimerHaptics: true, showRpe: true,
   } as {
     theme: string; fontFamily: string; fontScale: number
+    weightUnit: string
     weekStartDay: string; restTimerDefaultSeconds: number; restTimerHaptics: boolean; showRpe: boolean
   },
 }))
@@ -34,6 +37,7 @@ vi.mock('./usePrefs', () => ({
     selector: (
       s: typeof prefsState & {
         setTheme: typeof setTheme; setFontFamily: typeof setFontFamily; setFontScale: typeof setFontScale
+        setWeightUnit: typeof setWeightUnit
         setWeekStartDay: typeof setWeekStartDay; setRestTimerDefaultSeconds: typeof setRestTimerDefaultSeconds
         setRestTimerHaptics: typeof setRestTimerHaptics; setShowRpe: typeof setShowRpe
       },
@@ -42,6 +46,7 @@ vi.mock('./usePrefs', () => ({
     selector({
       ...prefsState,
       setTheme, setFontFamily, setFontScale,
+      setWeightUnit,
       setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe,
     }),
 }))
@@ -54,6 +59,7 @@ beforeEach(() => {
   setTheme.mockReset()
   setFontFamily.mockReset()
   setFontScale.mockReset()
+  setWeightUnit.mockReset()
   setWeekStartDay.mockReset()
   setRestTimerDefaultSeconds.mockReset()
   setRestTimerHaptics.mockReset()
@@ -61,6 +67,7 @@ beforeEach(() => {
   prefsState.theme = 'navy'
   prefsState.fontFamily = 'system'
   prefsState.fontScale = 1
+  prefsState.weightUnit = 'lb'
   prefsState.weekStartDay = 'monday'
   prefsState.restTimerDefaultSeconds = 120
   prefsState.restTimerHaptics = true
@@ -162,6 +169,28 @@ describe('SettingsPage — Appearance', () => {
 })
 
 describe('SettingsPage — Logging', () => {
+  it('renders the Weight unit control with lb active by default', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Weight unit' }))
+    expect(group.getByRole('button', { name: 'lb' })).toHaveAttribute('aria-pressed', 'true')
+    expect(group.getByRole('button', { name: 'kg' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('tapping kg calls setWeightUnit', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Weight unit' }))
+    fireEvent.click(group.getByRole('button', { name: 'kg' }))
+    expect(setWeightUnit).toHaveBeenCalledWith('kg')
+  })
+
+  it('reflects weightUnit=kg as the pressed option', () => {
+    prefsState.weightUnit = 'kg'
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Weight unit' }))
+    expect(group.getByRole('button', { name: 'kg' })).toHaveAttribute('aria-pressed', 'true')
+    expect(group.getByRole('button', { name: 'lb' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('renders Week start options with the no-effect-yet caption, Monday active by default', () => {
     render(<SettingsPage />)
     const group = within(screen.getByRole('group', { name: 'Week start' }))

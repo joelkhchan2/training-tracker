@@ -1,6 +1,8 @@
 import { useAuth } from '../../lib/useAuth'
 import { useExerciseHistory } from '../../data/exerciseHistory'
 import { Sparkline } from './Sparkline'
+import { formatWeight } from '../../domain'
+import { usePrefs } from '../settings/usePrefs'
 
 export interface ExerciseHistorySheetProps {
   exerciseId: string
@@ -13,6 +15,7 @@ export interface ExerciseHistorySheetProps {
 export function ExerciseHistorySheet({ exerciseId, exerciseName, onClose }: ExerciseHistorySheetProps) {
   const { user } = useAuth()
   const { data: sessions = [], isLoading } = useExerciseHistory(exerciseId, user?.id)
+  const unit = usePrefs((s) => s.weightUnit)
   const e1rms = sessions.map((s) => s.e1rm).filter((v) => v > 0).reverse() // oldest→newest for the sparkline
 
   return (
@@ -38,7 +41,7 @@ export function ExerciseHistorySheet({ exerciseId, exerciseName, onClose }: Exer
                   <span className="font-medium text-text">{s.date}</span>
                   <span className="text-muted">
                     {s.e1rm > 0
-                      ? `e1RM ${s.e1rm} · ${s.volume} vol`
+                      ? `e1RM ${formatWeight(s.e1rm, unit)} · ${formatWeight(s.volume, unit)} vol`
                       : `${s.sets
                           .filter((x) => !x.isWarmup && x.reps != null)
                           .reduce((n, x) => n + (x.reps ?? 0), 0)} reps`}
@@ -47,7 +50,7 @@ export function ExerciseHistorySheet({ exerciseId, exerciseName, onClose }: Exer
                 <div className="mt-1 text-sm text-muted">
                   {s.sets
                     .filter((x) => x.reps != null)
-                    .map((x) => (x.weight != null ? `${x.weight}×${x.reps}` : `BW×${x.reps}`))
+                    .map((x) => (x.weight != null ? `${formatWeight(x.weight, unit)}×${x.reps}` : `BW×${x.reps}`))
                     .join(', ')}
                 </div>
               </li>

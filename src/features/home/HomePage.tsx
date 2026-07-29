@@ -8,33 +8,8 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useTodaysPrescription } from '../workout/useTodaysPrescription'
 import { useSessionStore } from '../workout/sessionStore'
-import type { PrescribedSet } from '../../domain/types'
-import { formatDuration } from '../../domain/duration'
-
-/** Compact, readable summary of a prescribed exercise's sets, e.g.
- *  "6×5 @ 135/155/175" for reps, or "4×0:08" for a timed scheme. Consecutive sets
- *  sharing the same target (reps, or duration for a timed scheme) are grouped
- *  together. Exported for direct unit testing (see HomePage.test.tsx). */
-// eslint-disable-next-line react-refresh/only-export-components
-export function formatSetsHint(sets: PrescribedSet[]): string {
-  const groups: { reps?: number; durationSeconds?: number; count: number; weights: number[] }[] = []
-  for (const s of sets) {
-    const last = groups[groups.length - 1]
-    if (last && last.reps === s.reps && last.durationSeconds === s.durationSeconds) {
-      last.count += 1
-      if (s.weight != null) last.weights.push(s.weight)
-    } else {
-      groups.push({ reps: s.reps, durationSeconds: s.durationSeconds, count: 1, weights: s.weight != null ? [s.weight] : [] })
-    }
-  }
-  return groups
-    .map(g => {
-      const weightPart = g.weights.length > 0 ? ` @ ${[...new Set(g.weights)].join('/')}` : ''
-      const target = g.durationSeconds != null ? formatDuration(g.durationSeconds) : g.reps
-      return `${g.count}×${target}${weightPart}`
-    })
-    .join(', ')
-}
+import { formatSetsHint } from './formatSetsHint'
+import { usePrefs } from '../settings/usePrefs'
 
 export function HomePage() {
   const { signOut, user } = useAuth()
@@ -42,6 +17,7 @@ export function HomePage() {
   const startFromPrescription = useSessionStore(s => s.startFromPrescription)
   const { loading, hasProgram, dayName, dayIndex, label, prescription } = useTodaysPrescription()
   const { data: bundle } = useActiveWorkout(user?.id)
+  const weightUnit = usePrefs(s => s.weightUnit)
   const [starting, setStarting] = useState(false)
 
   const signOutLink = (
@@ -119,7 +95,7 @@ export function HomePage() {
           {prescription.map((ex, i) => (
             <div key={`${ex.exerciseName}-${i}`} className="flex items-baseline justify-between gap-3">
               <span className="font-medium text-text">{ex.exerciseName}</span>
-              <span className="text-sm text-muted">{formatSetsHint(ex.sets)}</span>
+              <span className="text-sm text-muted">{formatSetsHint(ex.sets, weightUnit)}</span>
             </div>
           ))}
         </Card>

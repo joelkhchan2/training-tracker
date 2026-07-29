@@ -35,32 +35,37 @@ describe('groupStrengthSets', () => {
 
 describe('formatSet', () => {
   it('renders weight×reps', () => {
-    expect(formatSet({ weight: 60, reps: 5, rpe: null, isWarmup: false, durationSeconds: null })).toBe('60×5')
+    expect(formatSet({ weight: 60, reps: 5, rpe: null, isWarmup: false, durationSeconds: null }, 'lb')).toBe('60×5')
   })
   it('renders BW×reps when weight is null', () => {
-    expect(formatSet({ weight: null, reps: 8, rpe: null, isWarmup: false, durationSeconds: null })).toBe('BW×8')
+    expect(formatSet({ weight: null, reps: 8, rpe: null, isWarmup: false, durationSeconds: null }, 'lb')).toBe('BW×8')
   })
   it('renders 0×reps when weight is 0 (matches ExerciseHistorySheet)', () => {
-    expect(formatSet({ weight: 0, reps: 8, rpe: null, isWarmup: false, durationSeconds: null })).toBe('0×8')
+    expect(formatSet({ weight: 0, reps: 8, rpe: null, isWarmup: false, durationSeconds: null }, 'lb')).toBe('0×8')
   })
   it('appends @rpe when present', () => {
-    expect(formatSet({ weight: 100, reps: 3, rpe: 9, isWarmup: false, durationSeconds: null })).toBe('100×3 @9')
+    expect(formatSet({ weight: 100, reps: 3, rpe: 9, isWarmup: false, durationSeconds: null }, 'lb')).toBe('100×3 @9')
   })
   it('drops ×reps when reps is null', () => {
-    expect(formatSet({ weight: 100, reps: null, rpe: null, isWarmup: false, durationSeconds: null })).toBe('100')
-    expect(formatSet({ weight: null, reps: null, rpe: null, isWarmup: false, durationSeconds: null })).toBe('BW')
+    expect(formatSet({ weight: 100, reps: null, rpe: null, isWarmup: false, durationSeconds: null }, 'lb')).toBe('100')
+    expect(formatSet({ weight: null, reps: null, rpe: null, isWarmup: false, durationSeconds: null }, 'lb')).toBe('BW')
   })
   it('renders a bare duration for a timed set (no separator — the whole value)', () => {
-    expect(formatSet({ weight: null, reps: null, rpe: null, isWarmup: false, durationSeconds: 90 })).toBe('1:30')
+    expect(formatSet({ weight: null, reps: null, rpe: null, isWarmup: false, durationSeconds: 90 }, 'lb')).toBe('1:30')
   })
   it('renders "weight × duration" for a weighted_time set', () => {
-    expect(formatSet({ weight: 45, reps: null, rpe: null, isWarmup: false, durationSeconds: 45 })).toBe('45 × 0:45')
+    expect(formatSet({ weight: 45, reps: null, rpe: null, isWarmup: false, durationSeconds: 45 }, 'lb')).toBe('45 × 0:45')
   })
   it('appends @rpe on a timed set', () => {
-    expect(formatSet({ weight: null, reps: null, rpe: 8, isWarmup: false, durationSeconds: 90 })).toBe('1:30 @8')
+    expect(formatSet({ weight: null, reps: null, rpe: 8, isWarmup: false, durationSeconds: 90 }, 'lb')).toBe('1:30 @8')
   })
   it('appends @rpe on a weighted_time set', () => {
-    expect(formatSet({ weight: 45, reps: null, rpe: 8, isWarmup: false, durationSeconds: 45 })).toBe('45 × 0:45 @8')
+    expect(formatSet({ weight: 45, reps: null, rpe: 8, isWarmup: false, durationSeconds: 45 }, 'lb')).toBe('45 × 0:45 @8')
+  })
+  it('converts the weight in kg mode (reps, duration, and @rpe unchanged)', () => {
+    expect(formatSet({ weight: 100, reps: 5, rpe: null, isWarmup: false, durationSeconds: null }, 'kg')).toBe('45.4 kg×5')
+    expect(formatSet({ weight: 45, reps: null, rpe: null, isWarmup: false, durationSeconds: 45 }, 'kg')).toBe('20.4 kg × 0:45')
+    expect(formatSet({ weight: null, reps: 8, rpe: null, isWarmup: false, durationSeconds: null }, 'kg')).toBe('BW×8')
   })
 })
 

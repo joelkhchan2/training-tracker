@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { OneRepMaxCalculatorPage } from './OneRepMaxCalculatorPage'
+import { usePrefs } from '../settings/usePrefs'
 
 const nav = vi.fn()
 
@@ -30,5 +31,17 @@ describe('OneRepMaxCalculatorPage', () => {
     render(<OneRepMaxCalculatorPage />)
     fireEvent.click(screen.getByLabelText('Back'))
     expect(nav).toHaveBeenCalledWith('/progress')
+  })
+})
+
+describe('OneRepMaxCalculatorPage — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('shows the kg-converted estimate and a kg-labelled weight input', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    render(<OneRepMaxCalculatorPage />)
+    // default weight 100 lb -> 45.4 kg; epley e1RM = 116.6667 lb -> round1 116.7 -> 52.9 kg
+    expect(screen.getByLabelText('Weight (kg)')).toHaveValue('45.4')
+    expect(screen.getByText('52.9 kg')).toBeInTheDocument()
   })
 })

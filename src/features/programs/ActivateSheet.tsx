@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
-import { NumberField } from '../../components/ui/NumberField'
+import { WeightField } from '../../components/ui/WeightField'
 import type { PresetMeta } from '../../domain/presets'
 import { useActivateProgram } from '../../data/activateProgram'
 
@@ -97,12 +97,12 @@ export function ActivateSheet({ preset, existingTrainingMaxes, onClose }: Activa
               Enter your current training maxes — percentages for each session are calculated from these.
             </p>
             {preset.tmKeys.map(key => (
-              <NumberField
+              <WeightField
                 key={key}
                 label={labelForKey(key)}
-                value={maxes[key] ?? 0}
-                onChange={(value) => setMaxes(prev => ({ ...prev, [key]: value }))}
-                step={5}
+                valueLb={maxes[key] ?? 0}
+                onChangeLb={(value) => setMaxes(prev => ({ ...prev, [key]: value }))}
+                stepLb={5}
                 disabled={activateProgram.isPending}
               />
             ))}
@@ -113,12 +113,12 @@ export function ActivateSheet({ preset, existingTrainingMaxes, onClose }: Activa
               Enter your starting weight for each lift — linear progression begins from here.
             </p>
             {preset.startingWeightLifts.map(lift => (
-              <NumberField
+              <WeightField
                 key={lift.exerciseName}
                 label={lift.label}
-                value={startingWeights[lift.exerciseName] ?? 0}
-                onChange={(value) => setStartingWeights(prev => ({ ...prev, [lift.exerciseName]: value }))}
-                step={5}
+                valueLb={startingWeights[lift.exerciseName] ?? 0}
+                onChangeLb={(value) => setStartingWeights(prev => ({ ...prev, [lift.exerciseName]: value }))}
+                stepLb={5}
                 disabled={activateProgram.isPending}
               />
             ))}

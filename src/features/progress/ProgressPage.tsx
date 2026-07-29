@@ -6,15 +6,17 @@ import { formatDuration } from '../../domain/duration'
 import { useAuth } from '../../lib/useAuth'
 import { usePersonalRecords, filterSortRecords } from '../../data/personalRecords'
 import type { StrengthRecord, CardioRecord } from '../../data/personalRecords'
-import { formatPace } from '../../domain'
+import { formatPace, formatWeight } from '../../domain'
+import { usePrefs } from '../settings/usePrefs'
 
 function RecordCard({ r }: { r: StrengthRecord }) {
+  const unit = usePrefs(s => s.weightUnit)
   const e1rm = r.bestE1rm > 0
-    ? `e1RM ${r.bestE1rm}${r.bestE1rmWeight != null && r.bestE1rmReps != null ? ` · ${r.bestE1rmWeight}×${r.bestE1rmReps}` : ''}`
+    ? `e1RM ${formatWeight(r.bestE1rm, unit)}${r.bestE1rmWeight != null && r.bestE1rmReps != null ? ` · ${formatWeight(r.bestE1rmWeight, unit)}×${r.bestE1rmReps}` : ''}`
     : null
-  const vol = r.bestVolume > 0 ? `vol ${r.bestVolume}` : null
+  const vol = r.bestVolume > 0 ? `vol ${formatWeight(r.bestVolume, unit)}` : null
   const dur = r.bestDuration > 0
-    ? `hold ${formatDuration(r.bestDuration)}${r.bestDurationWeight != null ? ` · ${r.bestDurationWeight} lb` : ''}`
+    ? `hold ${formatDuration(r.bestDuration)}${r.bestDurationWeight != null ? ` · ${formatWeight(r.bestDurationWeight, unit)}` : ''}`
     : null
   const detail = [e1rm, vol, dur].filter(Boolean).join('  ·  ')
   return (

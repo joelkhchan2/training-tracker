@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ExerciseHistorySheet } from './ExerciseHistorySheet'
+import { usePrefs } from '../settings/usePrefs'
 
 const { useExerciseHistory } = vi.hoisted(() => ({ useExerciseHistory: vi.fn() }))
 
@@ -59,5 +60,21 @@ describe('ExerciseHistorySheet', () => {
     expect(screen.getByText('BW×8, BW×6')).toBeInTheDocument()
     expect(screen.getByText('14 reps')).toBeInTheDocument()
     expect(screen.queryByText(/e1RM 0/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ExerciseHistorySheet — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('converts the e1RM/volume line and the per-set weights', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    useExerciseHistory.mockReturnValue({
+      data: [{ sessionId: 's2', date: '2026-07-20', sets: [{ weight: 155, reps: 3, isWarmup: false }], e1rm: 165, volume: 465 }],
+      isLoading: false,
+    })
+    render(<ExerciseHistorySheet exerciseId="ex-1" exerciseName="Squat" onClose={vi.fn()} />)
+    // 165 -> 74.8 kg, 465 -> 210.9 kg, 155 -> 70.3 kg
+    expect(screen.getByText('e1RM 74.8 kg · 210.9 kg vol')).toBeInTheDocument()
+    expect(screen.getByText('70.3 kg×3')).toBeInTheDocument()
   })
 })

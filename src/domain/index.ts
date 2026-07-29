@@ -1,6 +1,7 @@
 export * from './types'
 export * from './programDraft'
 export * from './oneRepMax'
+export * from './weight'
 export * from './duration'
 export * from './programEngine'
 export * from './linearProgression'

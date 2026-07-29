@@ -161,6 +161,33 @@ describe('SetRow — showRpe gate', () => {
   })
 })
 
+describe('SetRow — weight unit (kg)', () => {
+  afterEach(() => {
+    usePrefs.setState({ weightUnit: 'lb' })
+  })
+
+  it('shows the converted, kg-labelled weight and writes lb back to the store', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    const prescription: PrescribedExercise[] = [
+      { exerciseName: 'Bench Press', tmKey: 'bench', sets: [{ weight: 100, reps: 5 }] },
+    ]
+    useSessionStore.getState().startFromPrescription(prescription, {
+      sessionType: 'A', dayName: 'Day 1', dayIndex: 0, clientId: 'client-1', startedAt: new Date().toISOString(),
+    })
+
+    function Wrapper() {
+      const set = useSessionStore((s) => s.exercises[0].sets[0])
+      return <SetRow exIdx={0} setIdx={0} set={set} inputType="weighted" />
+    }
+    render(<Wrapper />)
+
+    expect(screen.getByLabelText('Weight (kg)')).toHaveValue('45.4') // toDisplayWeight(100, 'kg')
+
+    fireEvent.change(screen.getByLabelText('Weight (kg)'), { target: { value: '60' } })
+    expect(useSessionStore.getState().exercises[0].sets[0].weight).toBe(132.3) // fromDisplayWeight(60, 'kg')
+  })
+})
+
 describe('SetRow — AMRAP/FSL badge gating', () => {
   it('shows the AMRAP badge for a weighted AMRAP set', () => {
     const set = { weight: 100, reps: 8, done: false, isAmrap: true, targetReps: 8, durationSeconds: null }

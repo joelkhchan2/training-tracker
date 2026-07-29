@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { ProgressPage } from './ProgressPage'
+import { usePrefs } from '../settings/usePrefs'
 
 const { usePersonalRecords } = vi.hoisted(() => ({ usePersonalRecords: vi.fn() }))
 const { nav } = vi.hoisted(() => ({ nav: vi.fn() }))
@@ -143,7 +144,7 @@ describe('ProgressPage', () => {
       isLoading: false,
     })
     render(<ProgressPage />)
-    expect(screen.getByText((_, el) => el?.textContent === 'e1RM 150 · 130×5  ·  vol 2600  ·  hold 0:30 · 25 lb')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.textContent === 'e1RM 150 · 130×5  ·  vol 2600  ·  hold 0:30 · 25')).toBeInTheDocument()
   })
 
   it('renders the 1RM Calculator entry in the Tools section even with no records', () => {
@@ -174,6 +175,32 @@ describe('ProgressPage', () => {
     const toolsHeading = screen.getByText('Tools')
     const recordsHeading = screen.getByText('Personal records')
     expect(toolsHeading.compareDocumentPosition(recordsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('ProgressPage — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('converts e1RM, e1RM weight, volume, and hold weight (with kg suffix)', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    usePersonalRecords.mockReturnValue({
+      data: {
+        strength: [
+          {
+            exerciseId: 'ex-3', exerciseName: 'Weighted Dead Hang',
+            bestE1rm: 150, bestE1rmWeight: 130, bestE1rmReps: 5, bestVolume: 2600,
+            bestDuration: 30, bestDurationWeight: 25,
+          },
+        ],
+        climbingMaxGrade: null,
+      },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    // 150->68 kg, 130->59 kg, 2600->1179.3 kg, 25->11.3 kg
+    expect(
+      screen.getByText((_, el) => el?.textContent === 'e1RM 68 kg · 59 kg×5  ·  vol 1179.3 kg  ·  hold 0:30 · 11.3 kg'),
+    ).toBeInTheDocument()
   })
 })
 
