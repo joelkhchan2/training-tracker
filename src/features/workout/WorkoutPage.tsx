@@ -26,6 +26,7 @@ import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
 import { useRestTimer } from './restTimer'
 import { useSessionStore } from './sessionStore'
+import { usePrefs } from '../settings/usePrefs'
 import { reorderFromDragEnd } from './dragReorder'
 
 /** Formats a Date as a local-calendar YYYY-MM-DD string. Using
@@ -145,6 +146,7 @@ export function WorkoutPage() {
   const notes = useSessionStore((s) => s.notes)
   const bodyWeight = useSessionStore((s) => s.bodyWeight)
   const startRest = useRestTimer((s) => s.start)
+  const restTimerDefaultSeconds = usePrefs((s) => s.restTimerDefaultSeconds)
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -342,7 +344,7 @@ export function WorkoutPage() {
             {startedAt ? <SessionTimer startedAt={startedAt} onOpen={() => setTimerOpen(true)} /> : null}
             <button
               type="button"
-              onClick={() => startRest()}
+              onClick={() => startRest(restTimerDefaultSeconds)}
               aria-label="Start rest timer"
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text"
             >

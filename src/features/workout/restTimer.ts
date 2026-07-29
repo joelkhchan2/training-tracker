@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { usePrefs } from '../settings/usePrefs'
 
 const LS_KEY = 'tt-rest-timer-seconds'
 const DEFAULT_SECONDS = 120
@@ -63,7 +64,10 @@ export const useRestTimer = create<RestTimerState>((set, get) => ({
     set({ remaining })
     if (remaining <= 0) {
       clearTick()
-      navigator.vibrate?.([60, 40, 120])
+      // Cross-store read via .getState() (no hook) — tick() runs inside a setInterval
+      // callback at module scope, outside React lifecycle, matching how WorkoutPage reads
+      // useRestTimer.getState() directly for the same reason.
+      if (usePrefs.getState().restTimerHaptics) navigator.vibrate?.([60, 40, 120])
       // keep endAt briefly so the pill shows 0:00 + pulse, then auto-clear (unless restarted)
       setTimeout(() => { if (get().endAt === endAt) set({ endAt: null }) }, 3000)
     }
