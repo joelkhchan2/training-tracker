@@ -65,7 +65,7 @@ describe('usePrefs — persistApply spreads full state (regression guard for the
 
     const persisted = JSON.parse(localStorage.getItem('tt-prefs')!)
     expect(Object.keys(persisted).sort()).toEqual(
-      ['fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay'],
+      ['fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
     )
   })
 })
@@ -105,5 +105,30 @@ describe('usePrefs — new P1 setters', () => {
     expect(document.documentElement.style.getPropertyValue('--font-scale')).toBe(String(usePrefs.getState().fontScale))
     // no new dataset/style keys introduced by the new fields
     expect(document.documentElement.dataset.theme).toBeTruthy()
+  })
+})
+
+describe('usePrefs — weightUnit setter (P2)', () => {
+  beforeEach(() => {
+    usePrefs.setState(readPrefs())
+  })
+
+  it('setWeightUnit updates state and persists', () => {
+    usePrefs.getState().setWeightUnit('kg')
+    expect(usePrefs.getState().weightUnit).toBe('kg')
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).weightUnit).toBe('kg')
+  })
+
+  it('apply() remains a DOM no-op for weightUnit (no dataset/style mutation from a unit change)', () => {
+    // Prime the DOM to match current state first (mirrors what initPrefs() does at app boot).
+    // Without this, the outer beforeEach's dataset.theme = '' / removeAttribute('style') reset
+    // would make the "before" snapshot below an un-applied artifact rather than real DOM state,
+    // so the very first setter call in the test would always appear to "mutate" the DOM.
+    usePrefs.getState().setWeightUnit(usePrefs.getState().weightUnit)
+    const themeBefore = document.documentElement.dataset.theme
+    const scaleBefore = document.documentElement.style.getPropertyValue('--font-scale')
+    usePrefs.getState().setWeightUnit('kg')
+    expect(document.documentElement.dataset.theme).toBe(themeBefore)
+    expect(document.documentElement.style.getPropertyValue('--font-scale')).toBe(scaleBefore)
   })
 })

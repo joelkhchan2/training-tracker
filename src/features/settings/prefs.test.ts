@@ -37,11 +37,12 @@ describe('readPrefs / writePrefs', () => {
 })
 
 describe('readPrefs / writePrefs — P1 toggle fields', () => {
-  it('round-trips weekStartDay, restTimerDefaultSeconds, restTimerHaptics, showRpe via injected storage', () => {
+  it('round-trips weekStartDay, restTimerDefaultSeconds, restTimerHaptics, showRpe, weightUnit via injected storage', () => {
     const store: Record<string, string> = {}
     writePrefs(
       {
         theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
+        weightUnit: 'kg',
         weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
       },
       { setItem: (k, v) => { store[k] = v } },
@@ -49,6 +50,7 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
     const p = readPrefs({ getItem: (k) => store[k] ?? null })
     expect(p).toEqual({
       theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
+      weightUnit: 'kg',
       weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
     })
   })
@@ -83,6 +85,18 @@ describe('DEFAULT_PREFS — P1 fields', () => {
     expect(DEFAULT_PREFS.restTimerDefaultSeconds).toBe(120)
     expect(DEFAULT_PREFS.restTimerHaptics).toBe(true)
     expect(DEFAULT_PREFS.showRpe).toBe(true)
+  })
+})
+
+describe('prefs — weightUnit (P2)', () => {
+  it('DEFAULT_PREFS.weightUnit is lb', () => {
+    expect(DEFAULT_PREFS.weightUnit).toBe('lb')
+  })
+
+  it('defaults weightUnit to lb when absent, and falls back to lb for an unknown value', () => {
+    expect(readPrefs({ getItem: () => JSON.stringify({ theme: 'navy' }) }).weightUnit).toBe('lb')
+    expect(readPrefs({ getItem: () => JSON.stringify({ weightUnit: 'stone' }) }).weightUnit).toBe('lb')
+    expect(readPrefs({ getItem: () => JSON.stringify({ weightUnit: 'kg' }) }).weightUnit).toBe('kg')
   })
 })
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { applyPrefs, readPrefs, writePrefs, type FontId, type Prefs, type ThemeId, type WeekStartDay } from './prefs'
+import type { WeightUnit } from '../../domain/weight'
 
 function systemPrefersDark(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -29,6 +30,7 @@ interface PrefsState extends Prefs {
   setTheme: (theme: ThemeId) => void
   setFontFamily: (fontFamily: FontId) => void
   setFontScale: (fontScale: number) => void
+  setWeightUnit: (weightUnit: WeightUnit) => void
   setWeekStartDay: (weekStartDay: WeekStartDay) => void
   setRestTimerDefaultSeconds: (restTimerDefaultSeconds: number) => void
   setRestTimerHaptics: (restTimerHaptics: boolean) => void
@@ -52,6 +54,7 @@ export const usePrefs = create<PrefsState>((set, get) => {
       setTheme,
       setFontFamily,
       setFontScale,
+      setWeightUnit,
       setWeekStartDay,
       setRestTimerDefaultSeconds,
       setRestTimerHaptics,
@@ -68,6 +71,7 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setTheme: (theme) => persistApply({ theme }),
     setFontFamily: (fontFamily) => persistApply({ fontFamily }),
     setFontScale: (fontScale) => persistApply({ fontScale }),
+    setWeightUnit: (weightUnit) => persistApply({ weightUnit }),
     setWeekStartDay: (weekStartDay) => persistApply({ weekStartDay }),
     setRestTimerDefaultSeconds: (restTimerDefaultSeconds) => persistApply({ restTimerDefaultSeconds }),
     setRestTimerHaptics: (restTimerHaptics) => persistApply({ restTimerHaptics }),
