@@ -12,16 +12,38 @@ const signOut = vi.fn()
 const setTheme = vi.fn()
 const setFontFamily = vi.fn()
 const setFontScale = vi.fn()
+const setWeekStartDay = vi.fn()
+const setRestTimerDefaultSeconds = vi.fn()
+const setRestTimerHaptics = vi.fn()
+const setShowRpe = vi.fn()
 
 const { prefsState } = vi.hoisted(() => ({
-  prefsState: { theme: 'navy', fontFamily: 'system', fontScale: 1 } as { theme: string; fontFamily: string; fontScale: number },
+  prefsState: {
+    theme: 'navy', fontFamily: 'system', fontScale: 1,
+    weekStartDay: 'monday', restTimerDefaultSeconds: 120, restTimerHaptics: true, showRpe: true,
+  } as {
+    theme: string; fontFamily: string; fontScale: number
+    weekStartDay: string; restTimerDefaultSeconds: number; restTimerHaptics: boolean; showRpe: boolean
+  },
 }))
 
 vi.mock('../../data/profile', () => ({ useProfile, useUpdateDisciplines }))
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' }, signOut }) }))
 vi.mock('./usePrefs', () => ({
-  usePrefs: (selector: (s: typeof prefsState & { setTheme: typeof setTheme; setFontFamily: typeof setFontFamily; setFontScale: typeof setFontScale }) => unknown) =>
-    selector({ ...prefsState, setTheme, setFontFamily, setFontScale }),
+  usePrefs: (
+    selector: (
+      s: typeof prefsState & {
+        setTheme: typeof setTheme; setFontFamily: typeof setFontFamily; setFontScale: typeof setFontScale
+        setWeekStartDay: typeof setWeekStartDay; setRestTimerDefaultSeconds: typeof setRestTimerDefaultSeconds
+        setRestTimerHaptics: typeof setRestTimerHaptics; setShowRpe: typeof setShowRpe
+      },
+    ) => unknown,
+  ) =>
+    selector({
+      ...prefsState,
+      setTheme, setFontFamily, setFontScale,
+      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe,
+    }),
 }))
 
 const mutate = vi.fn()
@@ -32,9 +54,17 @@ beforeEach(() => {
   setTheme.mockReset()
   setFontFamily.mockReset()
   setFontScale.mockReset()
+  setWeekStartDay.mockReset()
+  setRestTimerDefaultSeconds.mockReset()
+  setRestTimerHaptics.mockReset()
+  setShowRpe.mockReset()
   prefsState.theme = 'navy'
   prefsState.fontFamily = 'system'
   prefsState.fontScale = 1
+  prefsState.weekStartDay = 'monday'
+  prefsState.restTimerDefaultSeconds = 120
+  prefsState.restTimerHaptics = true
+  prefsState.showRpe = true
   useUpdateDisciplines.mockReturnValue({ mutate, isPending: false })
   useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing'] }, isLoading: false })
 })
@@ -128,5 +158,76 @@ describe('SettingsPage — Appearance', () => {
     for (const s of SCALES) {
       expect(sizeGroup.getByRole('button', { name: s.label })).toBeInTheDocument()
     }
+  })
+})
+
+describe('SettingsPage — Logging', () => {
+  it('renders Week start options with the no-effect-yet caption, Monday active by default', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Week start' }))
+    expect(group.getByRole('button', { name: 'monday' })).toHaveAttribute('aria-pressed', 'true')
+    expect(group.getByRole('button', { name: 'sunday' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Used for weekly summaries when they ship — no effect yet.')).toBeInTheDocument()
+  })
+
+  it('tapping Sunday calls setWeekStartDay', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Week start' }))
+    fireEvent.click(group.getByRole('button', { name: 'sunday' }))
+    expect(setWeekStartDay).toHaveBeenCalledWith('sunday')
+  })
+
+  it('renders rest-timer presets with the current default marked active', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Rest timer default' }))
+    expect(group.getByRole('button', { name: '2:00' })).toHaveAttribute('aria-pressed', 'true')
+    expect(group.getByRole('button', { name: '1:30' })).toHaveAttribute('aria-pressed', 'false')
+    expect(group.getByRole('button', { name: '3:00' })).toBeInTheDocument()
+    expect(group.getByRole('button', { name: '5:00' })).toBeInTheDocument()
+  })
+
+  it('tapping a preset calls setRestTimerDefaultSeconds', () => {
+    render(<SettingsPage />)
+    const group = within(screen.getByRole('group', { name: 'Rest timer default' }))
+    fireEvent.click(group.getByRole('button', { name: '3:00' }))
+    expect(setRestTimerDefaultSeconds).toHaveBeenCalledWith(180)
+  })
+
+  it('entering a custom minutes:seconds value and pressing Set calls setRestTimerDefaultSeconds with the combined seconds', () => {
+    render(<SettingsPage />)
+    fireEvent.change(screen.getByLabelText('Custom minutes'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Custom seconds'), { target: { value: '15' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set' }))
+    expect(setRestTimerDefaultSeconds).toHaveBeenCalledWith(195)
+  })
+
+  it('does not call setRestTimerDefaultSeconds for a zero-length custom entry', () => {
+    render(<SettingsPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Set' }))
+    expect(setRestTimerDefaultSeconds).not.toHaveBeenCalled()
+  })
+
+  it('the haptics checkbox reflects restTimerHaptics and toggling calls setRestTimerHaptics', () => {
+    render(<SettingsPage />)
+    const checkbox = screen.getByLabelText('Vibrate when rest timer ends')
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    expect(setRestTimerHaptics).toHaveBeenCalledWith(false)
+  })
+
+  it('the showRpe checkbox reflects showRpe and toggling calls setShowRpe', () => {
+    render(<SettingsPage />)
+    const checkbox = screen.getByLabelText('Show RPE when logging sets')
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    expect(setShowRpe).toHaveBeenCalledWith(false)
+  })
+
+  it('reflects restTimerHaptics=false and showRpe=false as unchecked', () => {
+    prefsState.restTimerHaptics = false
+    prefsState.showRpe = false
+    render(<SettingsPage />)
+    expect(screen.getByLabelText('Vibrate when rest timer ends')).not.toBeChecked()
+    expect(screen.getByLabelText('Show RPE when logging sets')).not.toBeChecked()
   })
 })

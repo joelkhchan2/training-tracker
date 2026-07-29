@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -6,6 +7,7 @@ import { useProfile, useUpdateDisciplines } from '../../data/profile'
 import { cn } from '../../lib/cn'
 import { usePrefs } from './usePrefs'
 import { THEMES, FONTS, SCALES, fontStack, type ThemeId } from './prefs'
+import { formatElapsed } from '../workout/formatElapsed'
 import type { Discipline } from '../../domain'
 
 const DISCIPLINES: { key: Discipline; label: string }[] = [
@@ -29,6 +31,11 @@ interface ThemeOption {
 }
 
 const SYSTEM_OPTION: ThemeOption = { id: 'system', label: 'System', bg: SYSTEM_PREVIEW_BG, mode: 'auto' }
+
+// Mirrors RestTimerPill's own PRESETS — duplicated rather than imported/exported to keep
+// this Settings-only change scoped to a single file (RestTimerPill.tsx untouched).
+const REST_TIMER_PRESETS = [90, 120, 180, 300]
+const WEEK_START_DAYS = ['monday', 'sunday'] as const
 
 function ThemeSwatchButton({ option, active, onSelect }: { option: ThemeOption; active: boolean; onSelect: () => void }) {
   const accentColor = option.accent ?? (option.mode === 'light' ? '#111111' : '#ffffff')
@@ -65,6 +72,23 @@ export function SettingsPage() {
   const setTheme = usePrefs(s => s.setTheme)
   const setFontFamily = usePrefs(s => s.setFontFamily)
   const setFontScale = usePrefs(s => s.setFontScale)
+
+  const weekStartDay = usePrefs(s => s.weekStartDay)
+  const restTimerDefaultSeconds = usePrefs(s => s.restTimerDefaultSeconds)
+  const restTimerHaptics = usePrefs(s => s.restTimerHaptics)
+  const showRpe = usePrefs(s => s.showRpe)
+  const setWeekStartDay = usePrefs(s => s.setWeekStartDay)
+  const setRestTimerDefaultSeconds = usePrefs(s => s.setRestTimerDefaultSeconds)
+  const setRestTimerHaptics = usePrefs(s => s.setRestTimerHaptics)
+  const setShowRpe = usePrefs(s => s.setShowRpe)
+
+  const [customMin, setCustomMin] = useState('')
+  const [customSec, setCustomSec] = useState('')
+
+  function submitCustomRestDuration() {
+    const secs = (Number(customMin) || 0) * 60 + (Number(customSec) || 0)
+    if (secs > 0) setRestTimerDefaultSeconds(secs)
+  }
 
   const enabled = profile?.enabled_disciplines ?? []
 
@@ -158,6 +182,108 @@ export function SettingsPage() {
               })}
             </div>
           </div>
+        </Card>
+
+        <Card className="space-y-4">
+          <h2 className="text-lg font-semibold text-text">Logging</h2>
+
+          <div className="space-y-2" role="group" aria-label="Week start">
+            <h3 className="text-sm font-medium text-muted">Week start</h3>
+            <div className="flex flex-wrap gap-2">
+              {WEEK_START_DAYS.map((day) => {
+                const active = weekStartDay === day
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setWeekStartDay(day)}
+                    className={cn(
+                      'min-h-[44px] rounded-xl border border-border px-4 py-2 text-sm capitalize text-text transition-colors',
+                      active ? 'border-accent ring-2 ring-accent' : 'hover:border-accent/50',
+                    )}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted">Used for weekly summaries when they ship — no effect yet.</p>
+          </div>
+
+          <div className="space-y-2" role="group" aria-label="Rest timer default">
+            <h3 className="text-sm font-medium text-muted">Rest timer default</h3>
+            <div className="flex flex-wrap gap-2">
+              {REST_TIMER_PRESETS.map((p) => {
+                const active = restTimerDefaultSeconds === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setRestTimerDefaultSeconds(p)}
+                    className={cn(
+                      'min-h-[44px] rounded-xl border border-border px-4 py-2 text-sm text-text transition-colors',
+                      active ? 'border-accent ring-2 ring-accent' : 'hover:border-accent/50',
+                    )}
+                  >
+                    {formatElapsed(p)}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                aria-label="Custom minutes"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={customMin}
+                onChange={(e) => setCustomMin(e.target.value)}
+                placeholder="m"
+                className="w-14 rounded-lg border border-border bg-surface px-2 py-2 text-center text-sm text-text"
+              />
+              <span className="text-sm text-muted">:</span>
+              <input
+                aria-label="Custom seconds"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={59}
+                value={customSec}
+                onChange={(e) => setCustomSec(e.target.value)}
+                placeholder="s"
+                className="w-14 rounded-lg border border-border bg-surface px-2 py-2 text-center text-sm text-text"
+              />
+              <button
+                type="button"
+                onClick={submitCustomRestDuration}
+                className="min-h-[44px] rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent/50"
+              >
+                Set
+              </button>
+            </div>
+          </div>
+
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-text">Vibrate when rest timer ends</span>
+            <input
+              type="checkbox"
+              aria-label="Vibrate when rest timer ends"
+              checked={restTimerHaptics}
+              onChange={(e) => setRestTimerHaptics(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-text">Show RPE when logging sets</span>
+            <input
+              type="checkbox"
+              aria-label="Show RPE when logging sets"
+              checked={showRpe}
+              onChange={(e) => setShowRpe(e.target.checked)}
+            />
+          </label>
         </Card>
 
         <Button variant="secondary" fullWidth onClick={signOut}>
