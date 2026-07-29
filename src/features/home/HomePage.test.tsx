@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { HomePage, formatSetsHint } from './HomePage'
+import { HomePage } from './HomePage'
+import { formatSetsHint } from './formatSetsHint'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import { fiveThreeOne } from '../../domain'
 import { getPrescription } from '../../domain/programEngine'
@@ -49,17 +50,22 @@ const seededBundle: ActiveWorkoutBundle = {
 
 describe('formatSetsHint', () => {
   it('renders a straight rep scheme as count×reps', () => {
-    expect(formatSetsHint([{ reps: 5 }, { reps: 5 }, { reps: 5 }])).toBe('3×5')
+    expect(formatSetsHint([{ reps: 5 }, { reps: 5 }, { reps: 5 }], 'lb')).toBe('3×5')
   })
 
   it('groups a timed scheme by duration and formats via formatDuration', () => {
     expect(formatSetsHint([
       { durationSeconds: 8 }, { durationSeconds: 8 }, { durationSeconds: 8 }, { durationSeconds: 8 },
-    ])).toBe('4×0:08')
+    ], 'lb')).toBe('4×0:08')
   })
 
   it('does not crash on a mixed reps + duration list (defensive; should not occur in practice)', () => {
-    expect(() => formatSetsHint([{ reps: 5 }, { durationSeconds: 8 }])).not.toThrow()
+    expect(() => formatSetsHint([{ reps: 5 }, { durationSeconds: 8 }], 'lb')).not.toThrow()
+  })
+
+  it('formats prescribed weights through the unit (kg suffix per weight)', () => {
+    expect(formatSetsHint([{ reps: 5, weight: 135 }, { reps: 5, weight: 135 }], 'kg')).toBe('2×5 @ 61.2 kg')
+    expect(formatSetsHint([{ reps: 5, weight: 135 }, { reps: 5, weight: 135 }], 'lb')).toBe('2×5 @ 135')
   })
 })
 
