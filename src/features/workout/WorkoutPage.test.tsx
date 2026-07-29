@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import * as dndCore from '@dnd-kit/core'
 import { WorkoutPage } from './WorkoutPage'
 import { useSessionStore } from './sessionStore'
+import { useRestTimer } from './restTimer'
+import { usePrefs } from '../settings/usePrefs'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import type { PrescribedExercise } from '../../domain/types'
 import type { LinearProgressionConfig } from '../../domain/types'
@@ -832,5 +834,23 @@ describe('WorkoutPage — timer popup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('dialog', { name: 'Adjust workout timer' })).not.toBeInTheDocument()
+  })
+})
+
+describe('WorkoutPage — rest timer default wiring', () => {
+  afterEach(() => {
+    usePrefs.setState({ restTimerDefaultSeconds: 120 }) // restore default so later files aren't polluted
+  })
+
+  it('Start rest timer uses restTimerDefaultSeconds, not the timer\'s stale lastDuration', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useRestTimer.getState().start(45) // simulate a prior manual use that set lastDuration to 45
+    useRestTimer.getState().skip()
+    usePrefs.getState().setRestTimerDefaultSeconds(180)
+
+    renderAtWorkout()
+    fireEvent.click(screen.getByLabelText('Start rest timer'))
+
+    expect(useRestTimer.getState().remaining).toBe(180)
   })
 })

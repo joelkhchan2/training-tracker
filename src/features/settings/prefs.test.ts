@@ -26,9 +26,9 @@ describe('fontStack', () => {
 describe('readPrefs / writePrefs', () => {
   it('round-trips via injected storage', () => {
     const store: Record<string, string> = {}
-    writePrefs({ theme: 'gold', fontFamily: 'mono', fontScale: 1.2 }, { setItem: (k, v) => { store[k] = v } })
+    writePrefs({ ...DEFAULT_PREFS, theme: 'gold', fontFamily: 'mono', fontScale: 1.2 }, { setItem: (k, v) => { store[k] = v } })
     const p = readPrefs({ getItem: (k) => store[k] ?? null })
-    expect(p).toEqual({ theme: 'gold', fontFamily: 'mono', fontScale: 1.2 })
+    expect(p).toEqual({ ...DEFAULT_PREFS, theme: 'gold', fontFamily: 'mono', fontScale: 1.2 })
   })
   it('returns defaults on missing or malformed json', () => {
     expect(readPrefs({ getItem: () => null })).toEqual(DEFAULT_PREFS)
@@ -36,11 +36,61 @@ describe('readPrefs / writePrefs', () => {
   })
 })
 
+describe('readPrefs / writePrefs — P1 toggle fields', () => {
+  it('round-trips weekStartDay, restTimerDefaultSeconds, restTimerHaptics, showRpe via injected storage', () => {
+    const store: Record<string, string> = {}
+    writePrefs(
+      {
+        theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
+        weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+      },
+      { setItem: (k, v) => { store[k] = v } },
+    )
+    const p = readPrefs({ getItem: (k) => store[k] ?? null })
+    expect(p).toEqual({
+      theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
+      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+    })
+  })
+
+  it('defaults all four new fields when the stored blob has none of them', () => {
+    const p = readPrefs({ getItem: () => JSON.stringify({ theme: 'navy' }) })
+    expect(p.weekStartDay).toBe('monday')
+    expect(p.restTimerDefaultSeconds).toBe(120)
+    expect(p.restTimerHaptics).toBe(true)
+    expect(p.showRpe).toBe(true)
+  })
+
+  it('falls back to monday for an unknown weekStartDay value', () => {
+    expect(readPrefs({ getItem: () => JSON.stringify({ weekStartDay: 'tuesday' }) }).weekStartDay).toBe('monday')
+  })
+
+  it('falls back to 120 for a non-finite, zero, negative, or non-number restTimerDefaultSeconds', () => {
+    expect(readPrefs({ getItem: () => JSON.stringify({ restTimerDefaultSeconds: -5 }) }).restTimerDefaultSeconds).toBe(120)
+    expect(readPrefs({ getItem: () => JSON.stringify({ restTimerDefaultSeconds: 0 }) }).restTimerDefaultSeconds).toBe(120)
+    expect(readPrefs({ getItem: () => JSON.stringify({ restTimerDefaultSeconds: 'nope' }) }).restTimerDefaultSeconds).toBe(120)
+  })
+
+  it('falls back to true for a non-boolean restTimerHaptics or showRpe', () => {
+    expect(readPrefs({ getItem: () => JSON.stringify({ restTimerHaptics: 'no' }) }).restTimerHaptics).toBe(true)
+    expect(readPrefs({ getItem: () => JSON.stringify({ showRpe: 0 }) }).showRpe).toBe(true)
+  })
+})
+
+describe('DEFAULT_PREFS — P1 fields', () => {
+  it('matches the documented defaults', () => {
+    expect(DEFAULT_PREFS.weekStartDay).toBe('monday')
+    expect(DEFAULT_PREFS.restTimerDefaultSeconds).toBe(120)
+    expect(DEFAULT_PREFS.restTimerHaptics).toBe(true)
+    expect(DEFAULT_PREFS.showRpe).toBe(true)
+  })
+})
+
 describe('applyPrefs', () => {
   it('sets data-theme (resolved), font vars, and theme-color', () => {
     const root = { dataset: {} as { theme?: string }, style: { setProperty: vi.fn() } }
     const setMeta = vi.fn()
-    applyPrefs(root, setMeta, { theme: 'system', fontFamily: 'rounded', fontScale: 1.2 }, false)
+    applyPrefs(root, setMeta, { ...DEFAULT_PREFS, theme: 'system', fontFamily: 'rounded', fontScale: 1.2 }, false)
     expect(root.dataset.theme).toBe('daylight') // system + light
     expect(root.style.setProperty).toHaveBeenCalledWith('--font-scale', '1.2')
     expect(root.style.setProperty).toHaveBeenCalledWith('--font-sans', fontStack('rounded'))

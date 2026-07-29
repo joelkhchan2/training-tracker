@@ -19,6 +19,12 @@ export default tseslint.config(
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Allows `const { a, b, ...rest } = obj` where `a`/`b` are captured only to exclude
+      // them from `rest` (never read themselves) — used by usePrefs.ts's persistApply to
+      // strip store setter functions out of state before treating the remainder as Prefs.
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
   },
   {
     files: ['src/domain/**/*.{ts,tsx}'],

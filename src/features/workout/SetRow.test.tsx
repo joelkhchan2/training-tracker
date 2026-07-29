@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SetRow } from './SetRow'
 import { useSessionStore } from './sessionStore'
 import type { PrescribedExercise } from '../../domain/types'
+import { usePrefs } from '../settings/usePrefs'
 
 const baseSet = { weight: null, reps: 8, done: false, durationSeconds: null }
 
@@ -137,6 +138,26 @@ describe('SetRow — RPE and warmup (unaffected by inputType)', () => {
     fireEvent.change(screen.getByLabelText('Weight'), { target: { value: '155' } })
     const set = useSessionStore.getState().exercises[0].sets[0]
     expect(set.weight).toBe(155)
+  })
+})
+
+describe('SetRow — showRpe gate', () => {
+  afterEach(() => {
+    usePrefs.setState({ showRpe: true }) // restore default so later tests aren't polluted
+  })
+
+  it('hides the RPE control when showRpe is false, leaving the Warmup pill untouched', () => {
+    usePrefs.setState({ showRpe: false })
+    render(<SetRow exIdx={0} setIdx={0} set={{ weight: 100, reps: 5, done: false, durationSeconds: null }} inputType="weighted" />)
+
+    expect(screen.queryByLabelText('RPE')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /warmup/i })).toBeInTheDocument()
+  })
+
+  it('shows the RPE control when showRpe is true (default)', () => {
+    render(<SetRow exIdx={0} setIdx={0} set={{ weight: 100, reps: 5, done: false, durationSeconds: null }} inputType="weighted" />)
+
+    expect(screen.getByLabelText('RPE')).toBeInTheDocument()
   })
 })
 

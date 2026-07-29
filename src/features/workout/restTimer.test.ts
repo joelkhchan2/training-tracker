@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { computeRemaining, useRestTimer } from './restTimer'
+import { usePrefs } from '../settings/usePrefs'
 
 describe('computeRemaining', () => {
   it('is drift-resistant: derived from endAt - now', () => {
@@ -45,5 +46,41 @@ describe('useRestTimer', () => {
     const afterAddThirty = useRestTimer.getState().remaining
     vi.advanceTimersByTime(1_000) // interval must be running again for this to decrement
     expect(useRestTimer.getState().remaining).toBeLessThan(afterAddThirty)
+  })
+})
+
+describe('useRestTimer — restTimerHaptics gate', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    localStorage.clear()
+    useRestTimer.getState().skip()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    usePrefs.setState({ restTimerHaptics: true }) // restore default so later tests aren't polluted
+  })
+
+  it('vibrates on expiry when restTimerHaptics is true', () => {
+    usePrefs.setState({ restTimerHaptics: true })
+    const vibrate = vi.fn()
+    vi.stubGlobal('navigator', { ...navigator, vibrate })
+
+    useRestTimer.getState().start(2)
+    vi.advanceTimersByTime(2_250)
+
+    expect(vibrate).toHaveBeenCalledWith([60, 40, 120])
+  })
+
+  it('does not vibrate on expiry when restTimerHaptics is false', () => {
+    usePrefs.setState({ restTimerHaptics: false })
+    const vibrate = vi.fn()
+    vi.stubGlobal('navigator', { ...navigator, vibrate })
+
+    useRestTimer.getState().start(2)
+    vi.advanceTimersByTime(2_250)
+
+    expect(vibrate).not.toHaveBeenCalled()
   })
 })

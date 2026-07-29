@@ -4,14 +4,28 @@ export type ThemeId = ConcreteThemeId | 'system'
 export type FontId = 'system' | 'rounded' | 'mono'
 export type ScaleId = 'S' | 'M' | 'L'
 
+export type WeekStartDay = 'monday' | 'sunday'
+
 export interface Prefs {
   theme: ThemeId
   fontFamily: FontId
   fontScale: number
+  weekStartDay: WeekStartDay
+  restTimerDefaultSeconds: number
+  restTimerHaptics: boolean
+  showRpe: boolean
 }
 
 export const PREFS_KEY = 'tt-prefs'
-export const DEFAULT_PREFS: Prefs = { theme: 'system', fontFamily: 'system', fontScale: 1 }
+export const DEFAULT_PREFS: Prefs = {
+  theme: 'system',
+  fontFamily: 'system',
+  fontScale: 1,
+  weekStartDay: 'monday',
+  restTimerDefaultSeconds: 120,
+  restTimerHaptics: true,
+  showRpe: true,
+}
 
 export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seasonal'; mode: 'dark' | 'light'; bg: string; surface: string; accent: string }[] = [
   { id: 'midnight', label: 'Midnight', group: 'core', mode: 'dark', bg: '#0a0a0b', surface: '#17171a', accent: '#c3f53c' },
@@ -63,6 +77,13 @@ export function readPrefs(storage: Pick<Storage, 'getItem'> = localStorage): Pre
       theme: p.theme ?? DEFAULT_PREFS.theme,
       fontFamily: p.fontFamily ?? DEFAULT_PREFS.fontFamily,
       fontScale: typeof p.fontScale === 'number' ? p.fontScale : DEFAULT_PREFS.fontScale,
+      weekStartDay: p.weekStartDay === 'monday' || p.weekStartDay === 'sunday' ? p.weekStartDay : DEFAULT_PREFS.weekStartDay,
+      restTimerDefaultSeconds:
+        typeof p.restTimerDefaultSeconds === 'number' && Number.isFinite(p.restTimerDefaultSeconds) && p.restTimerDefaultSeconds > 0
+          ? p.restTimerDefaultSeconds
+          : DEFAULT_PREFS.restTimerDefaultSeconds,
+      restTimerHaptics: typeof p.restTimerHaptics === 'boolean' ? p.restTimerHaptics : DEFAULT_PREFS.restTimerHaptics,
+      showRpe: typeof p.showRpe === 'boolean' ? p.showRpe : DEFAULT_PREFS.showRpe,
     }
   } catch {
     return DEFAULT_PREFS
