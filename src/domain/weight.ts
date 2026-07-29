@@ -6,17 +6,18 @@ export type WeightUnit = 'lb' | 'kg'
 export const LB_PER_KG = 0.45359237
 
 /** lb → display unit. Identity in 'lb' (no rounding drift into today's raw-number display);
- *  round1-quantized in 'kg'. Non-finite input → 0 (matches the `Number(x) || 0` convention
- *  used in epley1RM). */
+ *  round1-quantized in 'kg'. Non-finite input → 0. */
 export function toDisplayWeight(lb: number, unit: WeightUnit): number {
-  const n = Number(lb) || 0
-  return unit === 'kg' ? round1(n * LB_PER_KG) : n
+  const n = Number(lb)
+  const safe = Number.isFinite(n) ? n : 0
+  return unit === 'kg' ? round1(safe * LB_PER_KG) : safe
 }
 
 /** display unit → lb. Identity in 'lb'; round1-quantized lb in 'kg'. Non-finite → 0. */
 export function fromDisplayWeight(displayValue: number, unit: WeightUnit): number {
-  const n = Number(displayValue) || 0
-  return unit === 'kg' ? round1(n / LB_PER_KG) : n
+  const n = Number(displayValue)
+  const safe = Number.isFinite(n) ? n : 0
+  return unit === 'kg' ? round1(safe / LB_PER_KG) : safe
 }
 
 /** Read-only formatting: a bare number in 'lb' (matching today's suffix-free convention),
