@@ -58,6 +58,14 @@ describe('TimerPopup', () => {
     expect(useSessionStore.getState().startedAt).toBe(startedAtForElapsed(NOW.getTime(), 0))
   })
 
+  it('+1 min then Set (without touching the field) preserves the shift, not the stale minutes', () => {
+    startSessionWithElapsedMinutes(10)
+    render(<TimerPopup onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '+1 min' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set' }))
+    expect(useSessionStore.getState().startedAt).toBe(startedAtForElapsed(NOW.getTime(), 660))
+  })
+
   it('Reset sets elapsed to 0', () => {
     startSessionWithElapsedMinutes(10)
     render(<TimerPopup onClose={vi.fn()} />)

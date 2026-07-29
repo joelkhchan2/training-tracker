@@ -38,10 +38,14 @@ export function TimerPopup({ onClose }: TimerPopupProps) {
     setStartedAt(startedAtForElapsed(Date.now(), minutes * 60))
   }
   function handleShift(deltaSeconds: number) {
-    setStartedAt(shiftedStartedAt(startedAt as string, Date.now(), deltaSeconds))
+    const nowMs = Date.now()
+    const newStartedAt = shiftedStartedAt(startedAt as string, nowMs, deltaSeconds)
+    setStartedAt(newStartedAt)
+    setMinutes(Math.round((nowMs - new Date(newStartedAt).getTime()) / 60000))
   }
   function handleReset() {
     setStartedAt(startedAtForElapsed(Date.now(), 0))
+    setMinutes(0)
   }
 
   return (
