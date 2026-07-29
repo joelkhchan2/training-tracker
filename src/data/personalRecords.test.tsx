@@ -30,6 +30,7 @@ describe('usePersonalRecords', () => {
       .mockReturnValueOnce(stub({ data: [
         { exercise_id: 's', session_id: 'x', weight: 315, reps: 3, exercises: { name: 'Squat' } },
       ], error: null })) // strength_sets
+      .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets (duration query)
       .mockReturnValueOnce(stub({ data: [{ grade: 'V4' }], error: null })) // climbing_sends
     const { result } = renderHook(() => usePersonalRecords('u1'), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -47,6 +48,7 @@ describe('usePersonalRecords', () => {
     from
       .mockReturnValueOnce(stub({ data: [], error: null })) // personal_records
       .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets
+      .mockReturnValueOnce(stub({ data: [], error: null })) // strength_sets (duration query)
       .mockReturnValueOnce(sendsChain) // climbing_sends
 
     const { result } = renderHook(() => usePersonalRecords('u1'), { wrapper })

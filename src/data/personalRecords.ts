@@ -9,13 +9,19 @@ export interface StrengthRecord {
   bestE1rmWeight: number | null
   bestE1rmReps: number | null
   bestVolume: number
+  /** Longest held duration (seconds) across timed/weighted_time sets; 0 = none,
+   *  matching bestE1rm/bestVolume's "0 = unset" convention. */
+  bestDuration: number
+  /** Weight logged alongside bestDuration (a weighted_time hold); null for a
+   *  bodyweight timed hold, or when bestDuration is unset. */
+  bestDurationWeight: number | null
   movementPattern: string | null
 }
 
 export interface SeededStrengthRow {
   exerciseId: string
   name: string
-  prType: 'e1rm' | 'volume'
+  prType: 'e1rm' | 'volume' | 'max_duration'
   value: number
   weight: number | null
   reps: number | null
@@ -30,6 +36,13 @@ export interface LiveStrengthRow {
   movementPattern?: string | null
 }
 
+export interface LiveDurationRow {
+  exerciseId: string
+  name: string
+  weight: number | null
+  durationSeconds: number
+}
+
 interface Acc {
   exerciseId: string
   name: string
@@ -41,13 +54,21 @@ interface Acc {
   seededE1rmWeight: number | null
   seededE1rmReps: number | null
   seededVolume: number
+  liveDuration: number
+  liveDurationWeight: number | null
+  seededDuration: number
+  seededDurationWeight: number | null
   movementPattern: string | null
 }
 
 /** Pure: reconcile seeded personal_records with live strength_sets, per exercise_id, keeping the
  *  larger of the two for both e1RM and best-single-session volume. Preserves older all-time PRs
  *  that predate the logged set history while still surfacing newer live PRs. Sorted by e1RM desc. */
-export function buildStrengthRecords(seeded: SeededStrengthRow[], live: LiveStrengthRow[]): StrengthRecord[] {
+export function buildStrengthRecords(
+  seeded: SeededStrengthRow[],
+  live: LiveStrengthRow[],
+  liveDurations: LiveDurationRow[] = [],
+): StrengthRecord[] {
   const acc = new Map<string, Acc>()
   const get = (exerciseId: string, name: string): Acc => {
     let a = acc.get(exerciseId)
@@ -57,6 +78,8 @@ export function buildStrengthRecords(seeded: SeededStrengthRow[], live: LiveStre
         liveE1rm: 0, liveE1rmWeight: null, liveE1rmReps: null,
         volumeBySession: new Map(),
         seededE1rm: 0, seededE1rmWeight: null, seededE1rmReps: null, seededVolume: 0,
+        liveDuration: 0, liveDurationWeight: null,
+        seededDuration: 0, seededDurationWeight: null,
         movementPattern: null,
       }
       acc.set(exerciseId, a)
@@ -74,12 +97,19 @@ export function buildStrengthRecords(seeded: SeededStrengthRow[], live: LiveStre
     if (r.movementPattern != null) a.movementPattern = r.movementPattern
   }
 
+  for (const d of liveDurations) {
+    const a = get(d.exerciseId, d.name)
+    if (d.durationSeconds > a.liveDuration) { a.liveDuration = d.durationSeconds; a.liveDurationWeight = d.weight }
+  }
+
   for (const s of seeded) {
     const a = get(s.exerciseId, s.name)
     if (s.prType === 'e1rm') {
       if (s.value > a.seededE1rm) { a.seededE1rm = s.value; a.seededE1rmWeight = s.weight; a.seededE1rmReps = s.reps }
-    } else {
+    } else if (s.prType === 'volume') {
       if (s.value > a.seededVolume) a.seededVolume = s.value
+    } else {
+      if (s.value > a.seededDuration) { a.seededDuration = s.value; a.seededDurationWeight = s.weight }
     }
   }
 
@@ -95,8 +125,20 @@ export function buildStrengthRecords(seeded: SeededStrengthRow[], live: LiveStre
     } else {
       bestE1rm = a.seededE1rm; bestE1rmWeight = a.seededE1rmWeight; bestE1rmReps = a.seededE1rmReps
     }
-    if (bestE1rm <= 0 && bestVolume <= 0) continue // nothing recorded for this exercise
-    out.push({ exerciseId: a.exerciseId, exerciseName: a.name || 'Exercise', bestE1rm, bestE1rmWeight, bestE1rmReps, bestVolume, movementPattern: a.movementPattern })
+    let bestDuration: number
+    let bestDurationWeight: number | null
+    if (a.liveDuration >= a.seededDuration) {
+      bestDuration = a.liveDuration; bestDurationWeight = a.liveDurationWeight
+    } else {
+      bestDuration = a.seededDuration; bestDurationWeight = a.seededDurationWeight
+    }
+    if (bestE1rm <= 0 && bestVolume <= 0 && bestDuration <= 0) continue // nothing recorded for this exercise
+    out.push({
+      exerciseId: a.exerciseId, exerciseName: a.name || 'Exercise',
+      bestE1rm, bestE1rmWeight, bestE1rmReps, bestVolume,
+      bestDuration, bestDurationWeight,
+      movementPattern: a.movementPattern,
+    })
   }
   out.sort((x, y) => y.bestE1rm - x.bestE1rm)
   return out
@@ -137,6 +179,20 @@ export function usePersonalRecords(userId: string | undefined) {
         .limit(5000)
       if (sErr) throw sErr
 
+      // Separate query, not a relaxed version of the one above: the e1RM/volume query's
+      // `.not('weight','is',null).not('reps','is',null)` filter structurally excludes
+      // every duration-bearing row (a `timed` row has weight=null, a `weighted_time`
+      // row has reps=null) — relaxing it would break epley1RM/tonnage's non-null
+      // assumptions.
+      const { data: durSets, error: dErr } = await supabase
+        .from('strength_sets')
+        .select('exercise_id, weight, duration_seconds, exercises(name, movement_pattern)')
+        .eq('user_id', userId as string)
+        .eq('is_warmup', false)
+        .not('duration_seconds', 'is', null)
+        .limit(5000)
+      if (dErr) throw dErr
+
       const { data: sends, error: cErr } = await supabase
         .from('climbing_sends')
         .select('grade')
@@ -151,7 +207,7 @@ export function usePersonalRecords(userId: string | undefined) {
       }[]) {
         if (r.pr_type === 'max_v_grade') {
           seededMaxGrade = seededMaxGrade == null ? Number(r.value) : Math.max(seededMaxGrade, Number(r.value))
-        } else if ((r.pr_type === 'e1rm' || r.pr_type === 'volume') && r.exercise_id) {
+        } else if ((r.pr_type === 'e1rm' || r.pr_type === 'volume' || r.pr_type === 'max_duration') && r.exercise_id) {
           seeded.push({ exerciseId: r.exercise_id, name: r.exercises?.name ?? 'Exercise', prType: r.pr_type, value: Number(r.value), weight: r.weight, reps: r.reps })
         }
       }
@@ -162,10 +218,16 @@ export function usePersonalRecords(userId: string | undefined) {
         .filter((r) => r.exercise_id)
         .map((r) => ({ exerciseId: r.exercise_id as string, name: r.exercises?.name ?? 'Exercise', sessionId: r.session_id, weight: r.weight, reps: r.reps, movementPattern: r.exercises?.movement_pattern ?? null }))
 
+      const liveDurations: LiveDurationRow[] = ((durSets ?? []) as unknown as {
+        exercise_id: string | null; weight: number | null; duration_seconds: number; exercises: { name: string; movement_pattern: string | null } | null
+      }[])
+        .filter((r) => r.exercise_id)
+        .map((r) => ({ exerciseId: r.exercise_id as string, name: r.exercises?.name ?? 'Exercise', weight: r.weight, durationSeconds: r.duration_seconds }))
+
       const liveGrades = ((sends ?? []) as { grade: string }[]).map((r) => r.grade)
 
       return {
-        strength: buildStrengthRecords(seeded, live),
+        strength: buildStrengthRecords(seeded, live, liveDurations),
         climbingMaxGrade: buildClimbingRecord(seededMaxGrade, liveGrades),
       }
     },

@@ -58,6 +58,41 @@ describe('buildStrengthRecords', () => {
     expect(squat?.movementPattern).toBe('squat')
     expect(deadlift?.movementPattern).toBeNull()
   })
+
+  it('an exercise with only timed/weighted_time live rows produces bestDuration>0 while bestE1rm/bestVolume stay 0', () => {
+    const liveDurations = [
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8 },
+      { exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 12 },
+    ]
+    const [r] = buildStrengthRecords([], [], liveDurations)
+    expect(r.bestDuration).toBe(12)
+    expect(r.bestE1rm).toBe(0)
+    expect(r.bestVolume).toBe(0)
+  })
+
+  it('a weighted_time row carries its weight into bestDurationWeight; a pure timed row leaves it null', () => {
+    const weightedTime = [{ exerciseId: 'hang', name: 'Weighted Dead Hang', weight: 25, durationSeconds: 30 }]
+    const [withWeight] = buildStrengthRecords([], [], weightedTime)
+    expect(withWeight.bestDuration).toBe(30)
+    expect(withWeight.bestDurationWeight).toBe(25)
+
+    const bodyweightTimed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 8 }]
+    const [noWeight] = buildStrengthRecords([], [], bodyweightTimed)
+    expect(noWeight.bestDuration).toBe(8)
+    expect(noWeight.bestDurationWeight).toBeNull()
+  })
+
+  it('reconciles a seeded max_duration row against live the same way e1rm does (larger wins, weight carried from the winning side)', () => {
+    const seeded = [{ exerciseId: 'flp', name: 'Front Lever Progression', prType: 'max_duration' as const, value: 15, weight: null, reps: null }]
+    const liveBeatsSeed = [{ exerciseId: 'flp', name: 'Front Lever Progression', weight: null, durationSeconds: 20 }]
+
+    const [beatenBySeed] = buildStrengthRecords(seeded, [], [])
+    expect(beatenBySeed.bestDuration).toBe(15)
+
+    const [beatsSeed] = buildStrengthRecords(seeded, [], liveBeatsSeed)
+    expect(beatsSeed.bestDuration).toBe(20)
+    expect(beatsSeed.bestDurationWeight).toBeNull() // live side won, and its weight is null
+  })
 })
 
 describe('buildClimbingRecord', () => {
@@ -76,10 +111,10 @@ describe('buildClimbingRecord', () => {
 
 describe('filterSortRecords', () => {
   const records: StrengthRecord[] = [
-    { exerciseId: 'sq', exerciseName: 'Squat', bestE1rm: 300, bestE1rmWeight: 275, bestE1rmReps: 3, bestVolume: 4000, movementPattern: 'squat' },
-    { exerciseId: 'bp', exerciseName: 'Bench Press', bestE1rm: 200, bestE1rmWeight: 185, bestE1rmReps: 3, bestVolume: 6000, movementPattern: 'push' },
-    { exerciseId: 'ohp', exerciseName: 'Overhead Press', bestE1rm: 120, bestE1rmWeight: 105, bestE1rmReps: 4, bestVolume: 2000, movementPattern: 'push' },
-    { exerciseId: 'cur', exerciseName: 'Curl', bestE1rm: 80, bestE1rmWeight: 60, bestE1rmReps: 8, bestVolume: 8000, movementPattern: null },
+    { exerciseId: 'sq', exerciseName: 'Squat', bestE1rm: 300, bestE1rmWeight: 275, bestE1rmReps: 3, bestVolume: 4000, bestDuration: 0, bestDurationWeight: null, movementPattern: 'squat' },
+    { exerciseId: 'bp', exerciseName: 'Bench Press', bestE1rm: 200, bestE1rmWeight: 185, bestE1rmReps: 3, bestVolume: 6000, bestDuration: 0, bestDurationWeight: null, movementPattern: 'push' },
+    { exerciseId: 'ohp', exerciseName: 'Overhead Press', bestE1rm: 120, bestE1rmWeight: 105, bestE1rmReps: 4, bestVolume: 2000, bestDuration: 0, bestDurationWeight: null, movementPattern: 'push' },
+    { exerciseId: 'cur', exerciseName: 'Curl', bestE1rm: 80, bestE1rmWeight: 60, bestE1rmReps: 8, bestVolume: 8000, bestDuration: 0, bestDurationWeight: null, movementPattern: null },
   ]
 
   it('empty opts returns input sorted by e1RM desc (reproduces current order)', () => {
