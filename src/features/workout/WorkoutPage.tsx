@@ -20,6 +20,7 @@ import { ExercisePickerSheet } from './ExercisePickerSheet'
 import { RestTimerPill } from './RestTimerPill'
 import { SessionMetaCard } from './SessionMetaCard'
 import { SessionTimer } from './SessionTimer'
+import { TimerPopup } from './TimerPopup'
 import { SubstituteSheet } from './SubstituteSheet'
 import { SummarySheet } from './SummarySheet'
 import type { ProgressionOutcomeDisplay, SummarySheetProps } from './SummarySheet'
@@ -149,6 +150,7 @@ export function WorkoutPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isResolving, setIsResolving] = useState(false)
   const [sheet, setSheet] = useState<{ mode: 'add'; index?: number } | { mode: 'replace'; exIdx: number } | null>(null)
+  const [timerOpen, setTimerOpen] = useState(false)
 
   // MouseSensor + TouchSensor (not PointerSensor): a TouchSensor registered alongside
   // PointerSensor never activates on touch (pointerdown wins the race before
@@ -337,7 +339,7 @@ export function WorkoutPage() {
         title={dayName ?? 'Workout'}
         right={
           <div className="flex items-center gap-2">
-            {startedAt ? <SessionTimer startedAt={startedAt} /> : null}
+            {startedAt ? <SessionTimer startedAt={startedAt} onOpen={() => setTimerOpen(true)} /> : null}
             <button
               type="button"
               onClick={() => startRest()}
@@ -396,6 +398,8 @@ export function WorkoutPage() {
       </AppShell>
 
       {summary ? <SummarySheet {...summary} onClose={handleSummaryClose} /> : null}
+
+      {timerOpen ? <TimerPopup onClose={() => setTimerOpen(false)} /> : null}
 
       <RestTimerPill />
 
