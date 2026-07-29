@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { formatDuration, formatPace, inferInputType, parseVGrade } from '../domain'
-import type { Discipline } from '../domain'
+import { formatDuration, formatPace, formatWeight, inferInputType, parseVGrade } from '../domain'
+import type { Discipline, WeightUnit } from '../domain'
 import { getSupabase } from './supabase'
 
 export interface DetailSet {
@@ -69,14 +69,15 @@ export function groupStrengthSets(
 
 /** Pure: a set's load, shaped by its inferred input type — "weight×reps" (or "BW×reps"
  *  when weight is null — matches ExerciseHistorySheet) for weighted/bodyweight, a bare
- *  "m:ss" for timed, "weight × m:ss" for weighted_time; "@rpe" appended when present. */
-export function formatSet(set: DetailSet): string {
+ *  "m:ss" for timed, "weight × m:ss" for weighted_time; "@rpe" appended when present.
+ *  Weights render through `formatWeight` in the caller's unit. */
+export function formatSet(set: DetailSet, unit: WeightUnit): string {
   const type = inferInputType(set)
   const base =
     type === 'timed' ? formatDuration(set.durationSeconds as number)
-    : type === 'weighted_time' ? `${set.weight} × ${formatDuration(set.durationSeconds as number)}`
-    : set.reps != null ? `${set.weight != null ? set.weight : 'BW'}×${set.reps}`
-    : (set.weight != null ? String(set.weight) : 'BW')
+    : type === 'weighted_time' ? `${formatWeight(set.weight as number, unit)} × ${formatDuration(set.durationSeconds as number)}`
+    : set.reps != null ? `${set.weight != null ? formatWeight(set.weight, unit) : 'BW'}×${set.reps}`
+    : (set.weight != null ? formatWeight(set.weight, unit) : 'BW')
   return set.rpe != null ? `${base} @${set.rpe}` : base
 }
 

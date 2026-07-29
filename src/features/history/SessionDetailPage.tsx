@@ -6,13 +6,16 @@ import { Button } from '../../components/ui/Button'
 import { useDeleteSession } from '../../data/sessionHistory'
 import { useSessionDetail, formatSet } from '../../data/sessionDetail'
 import type { SessionDetail, SessionHeader } from '../../data/sessionDetail'
+import { usePrefs } from '../settings/usePrefs'
+import { formatWeight } from '../../domain'
 
 function HeaderCard({ header }: { header: SessionHeader }) {
+  const unit = usePrefs(s => s.weightUnit)
   const meta = [
     header.sessionType,
     header.programVariant ? `${header.programVariant}${header.programWeek ? ` · wk ${header.programWeek}` : ''}` : null,
     header.durationMinutes != null ? `${header.durationMinutes} min` : null,
-    header.bodyWeight != null ? `BW ${header.bodyWeight}` : null,
+    header.bodyWeight != null ? `BW ${formatWeight(header.bodyWeight, unit)}` : null,
   ].filter(Boolean).join(' · ')
   return (
     <Card>
@@ -24,6 +27,7 @@ function HeaderCard({ header }: { header: SessionHeader }) {
 }
 
 function Body({ detail }: { detail: SessionDetail }) {
+  const unit = usePrefs(s => s.weightUnit)
   if (detail.kind === 'strength') {
     if (detail.exercises.length === 0) return <Card><p className="text-muted">Nothing recorded for this session.</p></Card>
     return (
@@ -35,7 +39,7 @@ function Body({ detail }: { detail: SessionDetail }) {
               {ex.sets.map((s, j) => (
                 <div key={j} className="flex items-center gap-3 text-sm">
                   <span className="w-12 shrink-0 text-muted">Set {j + 1}</span>
-                  <span className="text-text">{formatSet(s)}</span>
+                  <span className="text-text">{formatSet(s, unit)}</span>
                   {s.isWarmup ? <span className="rounded bg-surface-hover px-1.5 py-0.5 text-xs text-muted">Warm-up</span> : null}
                 </div>
               ))}

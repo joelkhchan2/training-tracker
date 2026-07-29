@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { SessionDetailPage } from './SessionDetailPage'
+import { usePrefs } from '../settings/usePrefs'
 
 const { useSessionDetail } = vi.hoisted(() => ({ useSessionDetail: vi.fn() }))
 const { useDeleteSession } = vi.hoisted(() => ({ useDeleteSession: vi.fn() }))
@@ -145,5 +146,24 @@ describe('SessionDetailPage', () => {
     render(<SessionDetailPage />)
     expect(screen.getByText('V5 · 2 sent / 8 tried')).toBeInTheDocument()
     expect(screen.getByText(/3 sends · 9 attempts/)).toBeInTheDocument()
+  })
+})
+
+describe('SessionDetailPage — kg mode', () => {
+  afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
+
+  it('converts weights in formatSet lines and the header BW', () => {
+    usePrefs.setState({ weightUnit: 'kg' })
+    useSessionDetail.mockReturnValue({
+      data: {
+        kind: 'strength',
+        header: { ...header, bodyWeight: 200 },
+        exercises: [{ exerciseName: 'Back Squat', sets: [{ weight: 100, reps: 5, rpe: null, isWarmup: false, durationSeconds: null }] }],
+      },
+      isLoading: false,
+    })
+    render(<SessionDetailPage />)
+    expect(screen.getByText('45.4 kg×5')).toBeInTheDocument()
+    expect(screen.getByText(/BW 90.7 kg/)).toBeInTheDocument() // 200 lb -> 90.7 kg
   })
 })
