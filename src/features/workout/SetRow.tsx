@@ -1,5 +1,6 @@
 import { DurationField } from '../../components/ui/DurationField'
 import { NumberField } from '../../components/ui/NumberField'
+import { WeightField } from '../../components/ui/WeightField'
 import { cn } from '../../lib/cn'
 import { usePrefs } from '../settings/usePrefs'
 import { useSessionStore } from './sessionStore'
@@ -62,11 +63,11 @@ export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
         </div>
 
         {showWeight ? (
-          <NumberField
+          <WeightField
             label="Weight"
-            value={set.weight ?? 0}
-            onChange={(weight) => updateSet(exIdx, setIdx, { weight })}
-            step={5}
+            valueLb={set.weight ?? 0}
+            onChangeLb={(weight) => updateSet(exIdx, setIdx, { weight })}
+            stepLb={5}
             hideSteppers
             inputClassName="text-xl font-bold"
           />
