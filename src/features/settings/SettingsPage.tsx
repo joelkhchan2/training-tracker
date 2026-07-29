@@ -36,6 +36,7 @@ const SYSTEM_OPTION: ThemeOption = { id: 'system', label: 'System', bg: SYSTEM_P
 // this Settings-only change scoped to a single file (RestTimerPill.tsx untouched).
 const REST_TIMER_PRESETS = [90, 120, 180, 300]
 const WEEK_START_DAYS = ['monday', 'sunday'] as const
+const WEIGHT_UNITS = ['lb', 'kg'] as const
 
 function ThemeSwatchButton({ option, active, onSelect }: { option: ThemeOption; active: boolean; onSelect: () => void }) {
   const accentColor = option.accent ?? (option.mode === 'light' ? '#111111' : '#ffffff')
@@ -72,6 +73,9 @@ export function SettingsPage() {
   const setTheme = usePrefs(s => s.setTheme)
   const setFontFamily = usePrefs(s => s.setFontFamily)
   const setFontScale = usePrefs(s => s.setFontScale)
+
+  const weightUnit = usePrefs(s => s.weightUnit)
+  const setWeightUnit = usePrefs(s => s.setWeightUnit)
 
   const weekStartDay = usePrefs(s => s.weekStartDay)
   const restTimerDefaultSeconds = usePrefs(s => s.restTimerDefaultSeconds)
@@ -186,6 +190,29 @@ export function SettingsPage() {
 
         <Card className="space-y-4">
           <h2 className="text-lg font-semibold text-text">Logging</h2>
+
+          <div className="space-y-2" role="group" aria-label="Weight unit">
+            <h3 className="text-sm font-medium text-muted">Weight unit</h3>
+            <div className="flex flex-wrap gap-2">
+              {WEIGHT_UNITS.map((u) => {
+                const active = weightUnit === u
+                return (
+                  <button
+                    key={u}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setWeightUnit(u)}
+                    className={cn(
+                      'min-h-[44px] rounded-xl border border-border px-4 py-2 text-sm text-text transition-colors',
+                      active ? 'border-accent ring-2 ring-accent' : 'hover:border-accent/50',
+                    )}
+                  >
+                    {u}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <div className="space-y-2" role="group" aria-label="Week start">
             <h3 className="text-sm font-medium text-muted">Week start</h3>
