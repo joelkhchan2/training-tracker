@@ -1,6 +1,7 @@
 import { DurationField } from '../../components/ui/DurationField'
 import { NumberField } from '../../components/ui/NumberField'
 import { cn } from '../../lib/cn'
+import { usePrefs } from '../settings/usePrefs'
 import { useSessionStore } from './sessionStore'
 import type { ExerciseInputType, SessionSet } from './sessionStore'
 
@@ -21,6 +22,7 @@ export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
   const updateSet = useSessionStore((s) => s.updateSet)
   const toggleDone = useSessionStore((s) => s.toggleDone)
   const removeSet = useSessionStore((s) => s.removeSet)
+  const showRpe = usePrefs((s) => s.showRpe)
 
   const setNumber = setIdx + 1
   const showWeight = inputType === 'weighted' || inputType === 'weighted_time'
@@ -130,22 +132,24 @@ export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
         >
           Warmup
         </button>
-        <label className="flex items-center gap-1 text-xs text-muted">
-          RPE
-          <select
-            aria-label="RPE"
-            value={set.rpe ?? ''}
-            onChange={(e) => updateSet(exIdx, setIdx, { rpe: e.target.value === '' ? null : Number(e.target.value) })}
-            className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <option value="">&mdash;</option>
-            {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showRpe ? (
+          <label className="flex items-center gap-1 text-xs text-muted">
+            RPE
+            <select
+              aria-label="RPE"
+              value={set.rpe ?? ''}
+              onChange={(e) => updateSet(exIdx, setIdx, { rpe: e.target.value === '' ? null : Number(e.target.value) })}
+              className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <option value="">&mdash;</option>
+              {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
     </div>
   )
