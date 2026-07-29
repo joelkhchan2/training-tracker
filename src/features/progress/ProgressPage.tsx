@@ -5,7 +5,8 @@ import { Card } from '../../components/ui/Card'
 import { formatDuration } from '../../domain/duration'
 import { useAuth } from '../../lib/useAuth'
 import { usePersonalRecords, filterSortRecords } from '../../data/personalRecords'
-import type { StrengthRecord } from '../../data/personalRecords'
+import type { StrengthRecord, CardioRecord } from '../../data/personalRecords'
+import { formatPace } from '../../domain'
 
 function RecordCard({ r }: { r: StrengthRecord }) {
   const e1rm = r.bestE1rm > 0
@@ -19,6 +20,21 @@ function RecordCard({ r }: { r: StrengthRecord }) {
   return (
     <Card>
       <p className="font-medium text-text">{r.exerciseName}</p>
+      {detail ? <p className="text-sm text-muted">{detail}</p> : null}
+    </Card>
+  )
+}
+
+function CardioRecordCard({ r }: { r: CardioRecord }) {
+  const dist = r.bestDistanceKm > 0 ? `${r.bestDistanceKm} km` : null
+  const pace = r.bestPaceDurationMinutes != null && r.bestPaceDistanceKm != null
+    ? formatPace(r.bestPaceDurationMinutes, r.bestPaceDistanceKm)
+    : null
+  const dur = r.bestDurationMinutes > 0 ? `${r.bestDurationMinutes} min` : null
+  const detail = [dist, pace ? `${pace} /km` : null, dur].filter(Boolean).join('  ·  ')
+  return (
+    <Card>
+      <p className="font-medium text-text">{r.activity}</p>
       {detail ? <p className="text-sm text-muted">{detail}</p> : null}
     </Card>
   )
@@ -39,7 +55,8 @@ export function ProgressPage() {
 
   const strength = useMemo(() => data?.strength ?? [], [data])
   const climbing = data?.climbingMaxGrade ?? null
-  const empty = strength.length === 0 && climbing == null
+  const cardio = data?.cardio ?? []
+  const empty = strength.length === 0 && climbing == null && cardio.length === 0
 
   const patternOptions = useMemo(() => {
     const distinct = new Set<string>()
@@ -59,6 +76,7 @@ export function ProgressPage() {
 
   const filterActive = query !== '' || pattern !== 'all'
   const showClimbing = climbing != null && pattern === 'all' && query === ''
+  const showCardio = cardio.length > 0 && pattern === 'all' && query === ''
 
   return (
     <AppShell title="Progress">
@@ -124,6 +142,12 @@ export function ProgressPage() {
                   <p className="font-medium text-text">Climbing</p>
                   <p className="text-sm text-muted">max V{climbing}</p>
                 </Card>
+              ) : null}
+              {showCardio ? (
+                <>
+                  <p className="text-sm font-medium text-muted">Cardio</p>
+                  {cardio.map(c => <CardioRecordCard key={c.activity} r={c} />)}
+                </>
               ) : null}
             </>
           )}
