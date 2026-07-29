@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type {
   Program, ProgramExercise, TrainingMaxes, Cursor,
-  Scheme, PercentageSet, FixedSet, LinearSet, LinearProgressionConfig,
+  Scheme, PercentageSet, FixedSet, LinearSet, LinearProgressionConfig, TimedSet,
 } from '../domain'
 import { getSupabase } from './supabase'
 import type {
@@ -100,6 +100,11 @@ export function normalizeScheme(raw: unknown, ctx: string): Scheme {
       return { type: 'fixed', sets: Array.isArray(raw.sets) ? (raw.sets as FixedSet[]) : [] }
     }
     return { type: 'linear', sets: raw.sets as LinearSet[], progression: raw.progression as unknown as LinearProgressionConfig }
+  }
+
+  if (raw.type === 'timed') {
+    if (!Array.isArray(raw.sets)) warn('timed scheme has a non-array `sets`; using no sets')
+    return { type: 'timed', sets: Array.isArray(raw.sets) ? (raw.sets as TimedSet[]) : [] }
   }
 
   warn(`unknown scheme type ${JSON.stringify(raw.type)}; rendering empty`)

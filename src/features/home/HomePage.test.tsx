@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { HomePage } from './HomePage'
+import { HomePage, formatSetsHint } from './HomePage'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import { fiveThreeOne } from '../../domain'
 import { getPrescription } from '../../domain/programEngine'
@@ -46,6 +46,22 @@ const seededBundle: ActiveWorkoutBundle = {
   workingWeights: {},
   workingWeightValues: {},
 }
+
+describe('formatSetsHint', () => {
+  it('renders a straight rep scheme as count×reps', () => {
+    expect(formatSetsHint([{ reps: 5 }, { reps: 5 }, { reps: 5 }])).toBe('3×5')
+  })
+
+  it('groups a timed scheme by duration and formats via formatDuration', () => {
+    expect(formatSetsHint([
+      { durationSeconds: 8 }, { durationSeconds: 8 }, { durationSeconds: 8 }, { durationSeconds: 8 },
+    ])).toBe('4×0:08')
+  })
+
+  it('does not crash on a mixed reps + duration list (defensive; should not occur in practice)', () => {
+    expect(() => formatSetsHint([{ reps: 5 }, { durationSeconds: 8 }])).not.toThrow()
+  })
+})
 
 describe('HomePage', () => {
   beforeEach(() => {

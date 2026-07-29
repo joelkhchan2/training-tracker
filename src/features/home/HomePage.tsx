@@ -9,25 +9,29 @@ import { Button } from '../../components/ui/Button'
 import { useTodaysPrescription } from '../workout/useTodaysPrescription'
 import { useSessionStore } from '../workout/sessionStore'
 import type { PrescribedSet } from '../../domain/types'
+import { formatDuration } from '../../domain/duration'
 
 /** Compact, readable summary of a prescribed exercise's sets, e.g.
- *  "6×5 @ 135/155/175" or "3×5" for a scheme with no assigned weight.
- *  Consecutive sets sharing a rep count are grouped together. */
-function formatSetsHint(sets: PrescribedSet[]): string {
-  const groups: { reps: number; count: number; weights: number[] }[] = []
+ *  "6×5 @ 135/155/175" for reps, or "4×0:08" for a timed scheme. Consecutive sets
+ *  sharing the same target (reps, or duration for a timed scheme) are grouped
+ *  together. Exported for direct unit testing (see HomePage.test.tsx). */
+// eslint-disable-next-line react-refresh/only-export-components
+export function formatSetsHint(sets: PrescribedSet[]): string {
+  const groups: { reps?: number; durationSeconds?: number; count: number; weights: number[] }[] = []
   for (const s of sets) {
     const last = groups[groups.length - 1]
-    if (last && last.reps === s.reps) {
+    if (last && last.reps === s.reps && last.durationSeconds === s.durationSeconds) {
       last.count += 1
       if (s.weight != null) last.weights.push(s.weight)
     } else {
-      groups.push({ reps: s.reps, count: 1, weights: s.weight != null ? [s.weight] : [] })
+      groups.push({ reps: s.reps, durationSeconds: s.durationSeconds, count: 1, weights: s.weight != null ? [s.weight] : [] })
     }
   }
   return groups
     .map(g => {
       const weightPart = g.weights.length > 0 ? ` @ ${[...new Set(g.weights)].join('/')}` : ''
-      return `${g.count}×${g.reps}${weightPart}`
+      const target = g.durationSeconds != null ? formatDuration(g.durationSeconds) : g.reps
+      return `${g.count}×${target}${weightPart}`
     })
     .join(', ')
 }

@@ -240,7 +240,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           inputType: 'weighted',
           sets: ex.sets.map((s, i) => ({
             weight: s.weight ?? null,
-            reps: s.reps,
+            reps: s.reps ?? null,
             done: false,
             isFsl: s.isFsl,
             isAmrap: s.isAmrap,

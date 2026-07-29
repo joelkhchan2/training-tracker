@@ -252,6 +252,15 @@ describe('normalizeScheme (DB->domain boundary hardening)', () => {
     expect(normalizeScheme(good, 'ctx')).toEqual(good)
   })
 
+  it('passes a well-formed timed scheme through unchanged', () => {
+    const good = { type: 'timed', sets: [{ seconds: 8 }, { seconds: 8 }] }
+    expect(normalizeScheme(good, 'ctx')).toEqual(good)
+  })
+
+  it('coerces a timed scheme with a non-array `sets` to empty sets (not to fixed)', () => {
+    expect(normalizeScheme({ type: 'timed', sets: 4 }, 'ctx')).toEqual({ type: 'timed', sets: [] })
+  })
+
   it('warns (observability) when it encounters an unknown scheme type', () => {
     normalizeScheme({ type: 'weird' }, 'MyProgram / SomeExercise')
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown scheme type'))
