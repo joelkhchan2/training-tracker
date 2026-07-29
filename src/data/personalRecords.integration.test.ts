@@ -22,7 +22,16 @@ describe.skipIf(!anon)('personal records RLS', () => {
     })
     expect(logErr).toBeNull()
 
-    for (const table of ['personal_records', 'climbing_sends']) {
+    // A also writes a cardio_activities row via log_cardio, so the loop below can prove RLS
+    // scopes this third table too. strength_sets remains a separate, pre-existing gap in this
+    // loop — not something this spec closes.
+    const { error: cardioLogErr } = await a.client.rpc('log_cardio', {
+      p_client_id: `cardio-${Date.now()}`, p_date: '2026-07-24', p_activity: 'Run',
+      p_duration_minutes: 30, p_distance_km: 5, p_notes: null,
+    })
+    expect(cardioLogErr).toBeNull()
+
+    for (const table of ['personal_records', 'climbing_sends', 'cardio_activities']) {
       const { data: aSees } = await a.client.from(table).select('*').eq('user_id', a.userId)
       expect((aSees ?? []).length).toBeGreaterThan(0) // A sees its own rows
       const { data: bSees } = await b.client.from(table).select('*').eq('user_id', a.userId)

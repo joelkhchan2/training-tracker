@@ -34,13 +34,47 @@ describe('ProgressPage', () => {
     expect(screen.getByText('Loading…')).toBeInTheDocument()
   })
 
-  it('renders the empty-state message when there are no records', () => {
+  it('renders the empty-state message when there are no records (including no cardio)', () => {
     usePersonalRecords.mockReturnValue({
-      data: { strength: [], climbingMaxGrade: null },
+      data: { strength: [], climbingMaxGrade: null, cardio: [] },
       isLoading: false,
     })
     render(<ProgressPage />)
     expect(screen.getByText('Log some workouts to see your records here.')).toBeInTheDocument()
+  })
+
+  it('does not show the empty state when only cardio records exist', () => {
+    usePersonalRecords.mockReturnValue({
+      data: {
+        strength: [],
+        climbingMaxGrade: null,
+        cardio: [{ activity: 'Run', bestDistanceKm: 5, bestDurationMinutes: 30, bestPaceDurationMinutes: null, bestPaceDistanceKm: null }],
+      },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    expect(screen.queryByText('Log some workouts to see your records here.')).not.toBeInTheDocument()
+    expect(screen.getByText('Run')).toBeInTheDocument()
+  })
+
+  it('renders a CardioRecordCard with the full detail line and omits unset segments', () => {
+    usePersonalRecords.mockReturnValue({
+      data: {
+        strength: [],
+        climbingMaxGrade: null,
+        cardio: [
+          { activity: 'Run', bestDistanceKm: 10, bestDurationMinutes: 60, bestPaceDurationMinutes: 20, bestPaceDistanceKm: 5 },
+          { activity: 'Row', bestDistanceKm: 0, bestDurationMinutes: 45, bestPaceDurationMinutes: null, bestPaceDistanceKm: null },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    expect(screen.getByText('Cardio')).toBeInTheDocument()
+    expect(screen.getByText('Run')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.textContent === '10 km  ·  4:00 /km  ·  60 min')).toBeInTheDocument()
+    expect(screen.getByText('Row')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.textContent === '45 min')).toBeInTheDocument()
   })
 
   it('renders a strength record and the climbing max grade', () => {
@@ -156,7 +190,11 @@ describe('ProgressPage — search/filter/sort', () => {
 
   beforeEach(() => {
     usePersonalRecords.mockReturnValue({
-      data: { strength: RECORDS, climbingMaxGrade: 6 },
+      data: {
+        strength: RECORDS,
+        climbingMaxGrade: 6,
+        cardio: [{ activity: 'Run', bestDistanceKm: 5, bestDurationMinutes: 30, bestPaceDurationMinutes: null, bestPaceDistanceKm: null }],
+      },
       isLoading: false,
     })
   })
@@ -188,11 +226,13 @@ describe('ProgressPage — search/filter/sort', () => {
     expect(screen.queryByText('Ab Wheel')).not.toBeInTheDocument()
   })
 
-  it('hides the climbing card once a search or movement filter is active', () => {
+  it('hides the climbing and cardio cards once a search or movement filter is active', () => {
     render(<ProgressPage />)
     expect(screen.getByText('Climbing')).toBeInTheDocument()
+    expect(screen.getByText('Cardio')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Search records'), { target: { value: 'bench' } })
     expect(screen.queryByText('Climbing')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cardio')).not.toBeInTheDocument()
   })
 
   it('reorders the list when sorting by Volume', () => {
