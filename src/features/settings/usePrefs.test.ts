@@ -50,3 +50,60 @@ describe('usePrefs — setFontScale', () => {
     expect(document.documentElement.style.getPropertyValue('--font-scale')).toBe('1.2')
   })
 })
+
+describe('usePrefs — persistApply spreads full state (regression guard for the hand-enumerated-fields bug)', () => {
+  beforeEach(() => {
+    usePrefs.setState(readPrefs())
+  })
+
+  it('setting showRpe does not drop a restTimerDefaultSeconds set immediately before it', () => {
+    usePrefs.getState().setRestTimerDefaultSeconds(180)
+    usePrefs.getState().setShowRpe(false)
+
+    expect(usePrefs.getState().restTimerDefaultSeconds).toBe(180)
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).restTimerDefaultSeconds).toBe(180)
+
+    const persisted = JSON.parse(localStorage.getItem('tt-prefs')!)
+    expect(Object.keys(persisted).sort()).toEqual(
+      ['fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay'],
+    )
+  })
+})
+
+describe('usePrefs — new P1 setters', () => {
+  beforeEach(() => {
+    usePrefs.setState(readPrefs())
+  })
+
+  it('setWeekStartDay updates state and persists', () => {
+    usePrefs.getState().setWeekStartDay('sunday')
+    expect(usePrefs.getState().weekStartDay).toBe('sunday')
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).weekStartDay).toBe('sunday')
+  })
+
+  it('setRestTimerDefaultSeconds updates state and persists', () => {
+    usePrefs.getState().setRestTimerDefaultSeconds(90)
+    expect(usePrefs.getState().restTimerDefaultSeconds).toBe(90)
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).restTimerDefaultSeconds).toBe(90)
+  })
+
+  it('setRestTimerHaptics updates state and persists', () => {
+    usePrefs.getState().setRestTimerHaptics(false)
+    expect(usePrefs.getState().restTimerHaptics).toBe(false)
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).restTimerHaptics).toBe(false)
+  })
+
+  it('setShowRpe updates state and persists', () => {
+    usePrefs.getState().setShowRpe(false)
+    expect(usePrefs.getState().showRpe).toBe(false)
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).showRpe).toBe(false)
+  })
+
+  it('apply() remains a no-op for the DOM w.r.t. the new fields', () => {
+    document.documentElement.removeAttribute('style')
+    usePrefs.getState().setRestTimerDefaultSeconds(200)
+    expect(document.documentElement.style.getPropertyValue('--font-scale')).toBe(String(usePrefs.getState().fontScale))
+    // no new dataset/style keys introduced by the new fields
+    expect(document.documentElement.dataset.theme).toBeTruthy()
+  })
+})
