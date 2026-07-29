@@ -24,6 +24,15 @@ export interface SessionSet {
    *  reps. Undefined for sets the user adds mid-session via `addSet`. */
   prescribedWeight?: number
   prescribedReps?: number
+  /** The original prescribed hold duration for this set (timed prescriptions only),
+   *  captured at prescription time and never mutated by editing. When defined, this is
+   *  the SOLE discriminator `updateSet`'s carry-forward gate uses for the
+   *  `durationSeconds` field — see `updateSet` below — because a timed prescribed set
+   *  never populates `prescribedWeight`/`prescribedReps` (both stay undefined), so
+   *  those two fields alone can't tell a straight timed prescription apart from an
+   *  ascending one. Undefined for a non-timed prescribed set or a set added mid-session
+   *  via `addSet`. */
+  prescribedDurationSeconds?: number
   /** Optional per-set RPE (6–10, 0.5 steps), null/undefined when not logged. */
   rpe?: number | null
   /** Marks a warmup set: saved with is_warmup=true but excluded from tonnage/PR/progression. */
@@ -228,29 +237,38 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       ...initialState,
 
       startFromPrescription: (prescription, meta) => {
-        const exercises: SessionExercise[] = prescription.map((ex) => ({
-          id: crypto.randomUUID(),
-          exerciseId: null,
-          exerciseName: ex.exerciseName,
-          kind: 'strength',
-          tmKey: ex.tmKey,
-          // Prescriptions are weight/reps-only (programs carry no exercise_type) — a
-          // prescribed exercise always defaults to 'weighted'. An ad-hoc override to
-          // timed/bodyweight/weighted_time happens on the card, mid-session.
-          inputType: 'weighted',
-          sets: ex.sets.map((s, i) => ({
-            weight: s.weight ?? null,
-            reps: s.reps ?? null,
-            done: false,
-            isFsl: s.isFsl,
-            isAmrap: s.isAmrap,
-            targetReps: s.targetReps,
-            prescriptionIndex: i,
-            prescribedWeight: s.weight,
-            prescribedReps: s.reps,
-            durationSeconds: null,
-          })),
-        }))
+        const exercises: SessionExercise[] = prescription.map((ex) => {
+          // Prescriptions are weight/reps-only UNLESS the scheme is 'timed' (Front
+          // Lever Progression, dead hangs, etc.) — derived per-exercise from the
+          // prescription's own set shape, mirroring inferInputType's "null-pattern,
+          // not a stored tag" philosophy, rather than threading a new type-tag field
+          // through PrescribedExercise. An ad-hoc override to any of the 4 types still
+          // happens on the card, mid-session.
+          const inputType: ExerciseInputType = ex.sets.some(s => s.durationSeconds != null)
+            ? 'timed'
+            : 'weighted'
+          return {
+            id: crypto.randomUUID(),
+            exerciseId: null,
+            exerciseName: ex.exerciseName,
+            kind: 'strength',
+            tmKey: ex.tmKey,
+            inputType,
+            sets: ex.sets.map((s, i) => ({
+              weight: s.weight ?? null,
+              reps: s.reps ?? null,
+              done: false,
+              isFsl: s.isFsl,
+              isAmrap: s.isAmrap,
+              targetReps: s.targetReps,
+              prescriptionIndex: i,
+              prescribedWeight: s.weight,
+              prescribedReps: s.reps,
+              prescribedDurationSeconds: s.durationSeconds,
+              durationSeconds: s.durationSeconds ?? null,
+            })),
+          }
+        })
         set({
           status: 'active',
           clientId: meta.clientId,
@@ -288,21 +306,23 @@ export const useSessionStore = create<SessionState & SessionActions>()(
                 if ('reps' in patch && s.prescribedReps === edited.prescribedReps) {
                   next = { ...next, reps: edited.reps }
                 }
-                // Duration has no prescribed value of its own to compare, so it
-                // mirrors the *intent* of the weight/reps gate directly: carry
-                // forward only to a later set with no distinct prescribed target at
-                // all (a purely ad-hoc set, e.g. a timed exercise added mid-session).
-                // On a multi-target *prescribed* exercise overridden to timed
-                // (Squat 135/5, 155/5, 175/3), every set has its own prescribedWeight/
-                // prescribedReps, so this gate blocks the carry — editing set 1's
-                // duration must not stamp a duration onto sets 2/3, which would
-                // otherwise make shapeSetForSave save 3 rows instead of 1 and
-                // silently resurrect prescribed sets the user never touched.
-                if (
-                  'durationSeconds' in patch &&
-                  s.prescribedWeight === undefined &&
-                  s.prescribedReps === undefined
-                ) {
+                // Duration carry-forward: prescribedDurationSeconds is the SOLE
+                // discriminator when defined — NOT OR'd onto the weight/reps check —
+                // because a timed prescribed set never populates prescribedWeight/
+                // prescribedReps (both stay undefined), so that check alone is always
+                // true for every timed set regardless of its own
+                // prescribedDurationSeconds. Replacing (not OR-ing) it here is what
+                // lets a straight timed prescription (shared prescribedDurationSeconds,
+                // e.g. 4x8s) propagate like any other straight set, while a
+                // hypothetical ascending timed scheme (distinct prescribedDurationSeconds
+                // per set) correctly does not. For a purely ad-hoc set (no timed
+                // prescription at all, prescribedDurationSeconds undefined), this falls
+                // back to the same weight/reps-undefined check the pre-existing
+                // behavior used, unchanged for that case.
+                const durationGateOk = s.prescribedDurationSeconds !== undefined
+                  ? s.prescribedDurationSeconds === edited.prescribedDurationSeconds
+                  : (s.prescribedWeight === undefined && s.prescribedReps === undefined)
+                if ('durationSeconds' in patch && durationGateOk) {
                   next = { ...next, durationSeconds: edited.durationSeconds }
                 }
                 return next

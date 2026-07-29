@@ -110,6 +110,40 @@ describe('startFromPrescription with an AMRAP set', () => {
   })
 })
 
+describe('startFromPrescription — timed prescriptions', () => {
+  const timedPrescription: PrescribedExercise[] = [
+    {
+      exerciseName: 'Front Lever Progression',
+      sets: [
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+      ],
+    },
+  ]
+
+  it('derives inputType "timed" and prefills durationSeconds/prescribedDurationSeconds per set', () => {
+    useSessionStore.getState().startFromPrescription(timedPrescription, meta)
+    const ex = useSessionStore.getState().exercises[0]
+    expect(ex.inputType).toBe('timed')
+    for (const s of ex.sets) {
+      expect(s.durationSeconds).toBe(8)
+      expect(s.prescribedDurationSeconds).toBe(8)
+      expect(s.weight).toBeNull()
+      expect(s.reps).toBeNull()
+    }
+  })
+
+  it('a normal weight/reps prescription is unaffected (regression: inputType stays weighted)', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    const ex = useSessionStore.getState().exercises[0]
+    expect(ex.inputType).toBe('weighted')
+    expect(ex.sets[0].durationSeconds).toBeNull()
+    expect(ex.sets[0].prescribedDurationSeconds).toBeUndefined()
+  })
+})
+
 describe('updateSet', () => {
   it('patches weight/reps on the target set only', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)
@@ -206,6 +240,47 @@ describe('updateSet smart carry-forward', () => {
     expect(sets[0].weight).toBe(100)
     expect(sets[1].weight).toBe(100)
     expect(sets[2].weight).toBe(95)
+  })
+})
+
+describe('updateSet duration carry-forward with prescribedDurationSeconds (sole discriminator)', () => {
+  const straightTimedPrescription: PrescribedExercise[] = [
+    {
+      exerciseName: 'Front Lever Progression',
+      sets: [
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+        { durationSeconds: 8 },
+      ],
+    },
+  ]
+
+  const ascendingTimedPrescription: PrescribedExercise[] = [
+    {
+      exerciseName: 'Front Lever Progression',
+      sets: [
+        { durationSeconds: 5 },
+        { durationSeconds: 8 },
+        { durationSeconds: 10 },
+      ],
+    },
+  ]
+
+  it('propagates a duration edit forward across a straight timed prescription (shared prescribedDurationSeconds)', () => {
+    useSessionStore.getState().startFromPrescription(straightTimedPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 9 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets.map(s => s.durationSeconds)).toEqual([9, 9, 9, 9])
+  })
+
+  it('does NOT propagate a duration edit across an ascending timed scheme (distinct prescribedDurationSeconds per set)', () => {
+    useSessionStore.getState().startFromPrescription(ascendingTimedPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { durationSeconds: 6 })
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets.map(s => s.durationSeconds)).toEqual([6, 8, 10])
   })
 })
 
