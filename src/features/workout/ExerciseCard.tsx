@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Select } from '../../components/ui/Select'
+import { CompactSelect } from '../../components/ui/CompactSelect'
 import { useAuth } from '../../lib/useAuth'
 import { useExerciseHistory } from '../../data/exerciseHistory'
 import type { ExerciseHistorySession } from '../../data/exerciseHistory'
@@ -119,12 +119,11 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
           </div>
         </div>
 
-        <Select
-          label="Log as"
+        <CompactSelect
+          ariaLabel="Log as"
           value={exercise.inputType}
           onChange={(value) => setInputType(exIdx, value as ExerciseInputType)}
           options={INPUT_TYPE_OPTIONS}
-          className="max-w-[14rem]"
         />
 
         {last && lastTop ? (
