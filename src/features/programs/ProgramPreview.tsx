@@ -1,5 +1,6 @@
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { formatDuration } from '../../domain/duration'
 import type { Discipline, Program, Scheme } from '../../domain/types'
 
 /** Common view-model `ProgramPreview` renders from: the fields shared by a built-in
@@ -29,6 +30,18 @@ export interface ProgramPreviewProps {
  *  scheme type rather than computing a (misleading, TM-less) weight. */
 function formatScheme(scheme: Scheme): string {
   if (scheme.type === 'percentage') return '%-based'
+  if (scheme.type === 'timed') {
+    // Defensive: scheme is jsonb from the DB, same guard as the reps branch below.
+    const sets = Array.isArray(scheme.sets) ? scheme.sets : []
+    if (sets.length === 0) return '—'
+    const groups: { seconds: number; count: number }[] = []
+    for (const s of sets) {
+      const last = groups[groups.length - 1]
+      if (last && last.seconds === s.seconds) last.count += 1
+      else groups.push({ seconds: s.seconds, count: 1 })
+    }
+    return groups.map(g => `${g.count} × ${formatDuration(g.seconds)}`).join(', ')
+  }
   // Defensive: scheme is jsonb from the DB, so a malformed/unknown-type row can have
   // a non-array (or missing) `sets`. Never let that white-screen the whole preview.
   const sets = Array.isArray(scheme.sets) ? scheme.sets : []

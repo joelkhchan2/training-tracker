@@ -193,6 +193,28 @@ describe('getPrescription (linear scheme)', () => {
   })
 })
 
+describe('getPrescription (timed scheme)', () => {
+  const timedProgram: Program = {
+    name: 'timed-test', discipline: 'strength',
+    days: [
+      { name: 'A', exercises: [{ exerciseName: 'Front Lever Progression', order: 0,
+        scheme: { type: 'timed', sets: [{ seconds: 8 }, { seconds: 8 }, { seconds: 8 }, { seconds: 8 }] } }] },
+    ],
+  }
+
+  it('produces a PrescribedSet per timed set with durationSeconds set and reps/weight omitted', () => {
+    const day = getPrescription(timedProgram, { dayIndex: 0, week: 1, cycle: 1 }, {})
+    const flp = day.find(e => e.exerciseName === 'Front Lever Progression')!
+    expect(flp.sets).toEqual([
+      { durationSeconds: 8 },
+      { durationSeconds: 8 },
+      { durationSeconds: 8 },
+      { durationSeconds: 8 },
+    ])
+    expect(flp.sets.every(s => s.reps === undefined && s.weight === undefined)).toBe(true)
+  })
+})
+
 describe('engine robustness to malformed jsonb data', () => {
   // `scheme` is a jsonb column, so a bad/legacy/hand-edited row can violate the TS
   // types at runtime. The engine must degrade to empty sets, never throw and crash
@@ -217,6 +239,11 @@ describe('engine robustness to malformed jsonb data', () => {
 
   it('getPrescription: fixed scheme with a null `sets` -> empty sets, no throw', () => {
     const out = getPrescription(oneExerciseProgram({ type: 'fixed', sets: null }), cursor, {})
+    expect(out[0].sets).toEqual([])
+  })
+
+  it('getPrescription: timed scheme with a non-array `sets` -> empty sets, no throw', () => {
+    const out = getPrescription(oneExerciseProgram({ type: 'timed', sets: 4 }), cursor, {})
     expect(out[0].sets).toEqual([])
   })
 

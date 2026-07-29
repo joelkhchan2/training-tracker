@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
+import { formatDuration } from '../../domain/duration'
 import { useAuth } from '../../lib/useAuth'
 import { usePersonalRecords, filterSortRecords } from '../../data/personalRecords'
 import type { StrengthRecord } from '../../data/personalRecords'
@@ -11,7 +12,10 @@ function RecordCard({ r }: { r: StrengthRecord }) {
     ? `e1RM ${r.bestE1rm}${r.bestE1rmWeight != null && r.bestE1rmReps != null ? ` · ${r.bestE1rmWeight}×${r.bestE1rmReps}` : ''}`
     : null
   const vol = r.bestVolume > 0 ? `vol ${r.bestVolume}` : null
-  const detail = [e1rm, vol].filter(Boolean).join('  ·  ')
+  const dur = r.bestDuration > 0
+    ? `hold ${formatDuration(r.bestDuration)}${r.bestDurationWeight != null ? ` · ${r.bestDurationWeight} lb` : ''}`
+    : null
+  const detail = [e1rm, vol, dur].filter(Boolean).join('  ·  ')
   return (
     <Card>
       <p className="font-medium text-text">{r.exerciseName}</p>

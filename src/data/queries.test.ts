@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import type { LinearProgressionConfig } from '../domain'
+import { getPrescription } from '../domain'
+import type { LinearProgressionConfig, Program } from '../domain'
 import { buildDomainProgram, buildWorkingWeights, fetchActiveWorkout, normalizeScheme } from './queries'
 import type {
   ExerciseProgressRow,
@@ -250,6 +251,26 @@ describe('normalizeScheme (DB->domain boundary hardening)', () => {
   it('passes a well-formed percentage scheme through unchanged', () => {
     const good = { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 0.65, reps: 5 }] }] }
     expect(normalizeScheme(good, 'ctx')).toEqual(good)
+  })
+
+  it('passes a well-formed timed scheme through unchanged', () => {
+    const good = { type: 'timed', sets: [{ seconds: 8 }, { seconds: 8 }] }
+    expect(normalizeScheme(good, 'ctx')).toEqual(good)
+  })
+
+  it('coerces a timed scheme with a non-array `sets` to empty sets (not to fixed)', () => {
+    expect(normalizeScheme({ type: 'timed', sets: 4 }, 'ctx')).toEqual({ type: 'timed', sets: [] })
+  })
+
+  it('round-trips a timed scheme from raw DB jsonb through normalizeScheme into a live prescription', () => {
+    const raw = { type: 'timed', sets: [{ seconds: 8 }, { seconds: 8 }] }
+    const scheme = normalizeScheme(raw, 'ctx')
+    const program: Program = {
+      name: 'Front Lever', discipline: 'strength',
+      days: [{ name: 'A', exercises: [{ exerciseName: 'Front Lever Progression', order: 0, scheme }] }],
+    }
+    const prescription = getPrescription(program, { dayIndex: 0, week: 1, cycle: 1 }, {})
+    expect(prescription[0].sets).toEqual([{ durationSeconds: 8 }, { durationSeconds: 8 }])
   })
 
   it('warns (observability) when it encounters an unknown scheme type', () => {

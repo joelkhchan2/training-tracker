@@ -22,10 +22,13 @@ export interface LinearProgressionConfig {
   doubleIncrement?: number
 }
 
+export interface TimedSet { seconds: number }
+
 export type Scheme =
   | { type: 'percentage'; tmKey: string; weeks: { sets: PercentageSet[] }[] }
   | { type: 'fixed'; sets: FixedSet[] }
   | { type: 'linear'; sets: LinearSet[]; progression: LinearProgressionConfig }
+  | { type: 'timed'; sets: TimedSet[] }
 
 export type ProgressionRule =
   | { type: 'cycle_tm_bump'; bumps: Record<string, number> }
@@ -49,7 +52,7 @@ export interface Program {
 /** Where the user is in a program: 0-based day, 1-based week, 1-based cycle. */
 export interface Cursor { dayIndex: number; week: number; cycle: number }
 
-export interface PrescribedSet { weight?: number; reps: number; isFsl?: boolean; isAmrap?: boolean; targetReps?: number }
+export interface PrescribedSet { weight?: number; reps?: number; durationSeconds?: number; isFsl?: boolean; isAmrap?: boolean; targetReps?: number }
 export interface PrescribedExercise { exerciseName: string; tmKey?: string; sets: PrescribedSet[] }
 
 // ----- Logging / analytics inputs -----

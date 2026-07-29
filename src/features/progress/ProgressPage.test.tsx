@@ -66,6 +66,52 @@ describe('ProgressPage', () => {
     expect(screen.getByText((_, el) => el?.textContent === 'max V6')).toBeInTheDocument()
   })
 
+  it('renders a timed "hold" PR segment', () => {
+    usePersonalRecords.mockReturnValue({
+      data: {
+        strength: [
+          {
+            exerciseId: 'ex-2',
+            exerciseName: 'Front Lever Progression',
+            bestE1rm: 0,
+            bestE1rmWeight: null,
+            bestE1rmReps: null,
+            bestVolume: 0,
+            bestDuration: 12,
+            bestDurationWeight: null,
+          },
+        ],
+        climbingMaxGrade: null,
+      },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    expect(screen.getByText((_, el) => el?.textContent === 'hold 0:12')).toBeInTheDocument()
+  })
+
+  it('joins the hold segment after e1RM/volume when all three are present, with weight when bestDurationWeight is set', () => {
+    usePersonalRecords.mockReturnValue({
+      data: {
+        strength: [
+          {
+            exerciseId: 'ex-3',
+            exerciseName: 'Weighted Dead Hang',
+            bestE1rm: 150,
+            bestE1rmWeight: 130,
+            bestE1rmReps: 5,
+            bestVolume: 2600,
+            bestDuration: 30,
+            bestDurationWeight: 25,
+          },
+        ],
+        climbingMaxGrade: null,
+      },
+      isLoading: false,
+    })
+    render(<ProgressPage />)
+    expect(screen.getByText((_, el) => el?.textContent === 'e1RM 150 · 130×5  ·  vol 2600  ·  hold 0:30 · 25 lb')).toBeInTheDocument()
+  })
+
   it('renders the 1RM Calculator entry in the Tools section even with no records', () => {
     usePersonalRecords.mockReturnValue({
       data: { strength: [], climbingMaxGrade: null },

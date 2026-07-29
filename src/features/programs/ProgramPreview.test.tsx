@@ -49,6 +49,35 @@ describe('ProgramPreview', () => {
     }
   })
 
+  it('renders a timed scheme summary as "count × m:ss"', () => {
+    const timedProgram: PreviewProgram = {
+      name: 'Front Lever',
+      description: '',
+      discipline: 'strength',
+      daysPerWeek: 1,
+      program: {
+        name: 'Front Lever',
+        discipline: 'strength',
+        days: [
+          {
+            name: 'Day A',
+            exercises: [
+              {
+                exerciseName: 'Front Lever Progression',
+                order: 0,
+                scheme: { type: 'timed', sets: [{ seconds: 8 }, { seconds: 8 }, { seconds: 8 }, { seconds: 8 }] },
+              },
+            ],
+          },
+        ],
+      },
+    }
+
+    render(<ProgramPreview program={timedProgram} onUse={vi.fn()} />)
+
+    expect(screen.getByText('4 × 0:08')).toBeInTheDocument()
+  })
+
   it('shows Edit only when onEdit is supplied (i.e. the viewer owns the program)', () => {
     const onEdit = vi.fn()
     const { rerender } = render(<ProgramPreview program={dbProgram} onUse={vi.fn()} />)

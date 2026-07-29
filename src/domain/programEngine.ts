@@ -66,9 +66,16 @@ export function getPrescription(
     } else if (ex.scheme.type === 'fixed') {
       const fixedSets = Array.isArray(ex.scheme.sets) ? ex.scheme.sets : []
       sets = fixedSets.map(s => ({ weight: s.weight, reps: s.reps }))
+    } else if (ex.scheme.type === 'timed') {
+      // A timed scheme has no weight/reps concept at all — every set is just a
+      // prescribed hold duration. `reps` is intentionally omitted (undefined), not
+      // faked as 0, matching PrescribedSet's null-pattern convention.
+      const timedSets = Array.isArray(ex.scheme.sets) ? ex.scheme.sets : []
+      sets = timedSets.map(s => ({ durationSeconds: s.seconds }))
     } else {
-      // 'linear' scheme: weight comes from the per-exercise working weight (progressed
-      // externally via applyLinearProgression), keyed by ex.tmKey if present else exerciseName.
+      // 'linear' scheme (the remaining catch-all): weight comes from the per-exercise
+      // working weight (progressed externally via applyLinearProgression), keyed by
+      // ex.tmKey if present else exerciseName.
       const key = ex.tmKey ?? ex.exerciseName
       const weight = workingWeights?.[key] ?? 0
       const linearSets = Array.isArray(ex.scheme.sets) ? ex.scheme.sets : []
