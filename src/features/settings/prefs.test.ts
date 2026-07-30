@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
-import { resolveTheme, fontStack, readPrefs, writePrefs, applyPrefs, THEMES, FONTS, DEFAULT_PREFS } from './prefs'
+import { resolveTheme, fontStack, readPrefs, writePrefs, applyPrefs, coercePrefs, unitsToWeightUnit, THEMES, FONTS, DEFAULT_PREFS, type Prefs } from './prefs'
 
 describe('resolveTheme', () => {
   it('maps system to midnight (dark) / daylight (light)', () => {
@@ -106,6 +106,48 @@ describe('prefs — weightUnit (P2)', () => {
     expect(readPrefs({ getItem: () => JSON.stringify({ theme: 'navy' }) }).weightUnit).toBe('lb')
     expect(readPrefs({ getItem: () => JSON.stringify({ weightUnit: 'stone' }) }).weightUnit).toBe('lb')
     expect(readPrefs({ getItem: () => JSON.stringify({ weightUnit: 'kg' }) }).weightUnit).toBe('kg')
+  })
+})
+
+describe('coercePrefs (extracted from readPrefs)', () => {
+  it('round-trips a full valid blob unchanged', () => {
+    const full: Prefs = {
+      theme: 'ember', fontFamily: 'inter', fontScale: 1.2, weightUnit: 'kg',
+      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+    }
+    expect(coercePrefs(full)).toEqual(full)
+  })
+
+  it('falls back per-field on a malformed/missing partial', () => {
+    expect(coercePrefs({})).toEqual(DEFAULT_PREFS)
+    expect(coercePrefs({ weekStartDay: 'tuesday' as never }).weekStartDay).toBe('monday')
+    expect(coercePrefs({ restTimerDefaultSeconds: -5 }).restTimerDefaultSeconds).toBe(120)
+    expect(coercePrefs({ restTimerHaptics: 'no' as never }).restTimerHaptics).toBe(true)
+    expect(coercePrefs({ showRpe: 0 as never }).showRpe).toBe(true)
+    expect(coercePrefs({ weightUnit: 'stone' as never }).weightUnit).toBe('lb')
+  })
+})
+
+describe('readPrefs — still passes unchanged after delegating to coercePrefs', () => {
+  it('round-trips via injected storage (regression guard for the extraction)', () => {
+    const store: Record<string, string> = {}
+    writePrefs({ ...DEFAULT_PREFS, theme: 'gold', weightUnit: 'kg' }, { setItem: (k, v) => { store[k] = v } })
+    expect(readPrefs({ getItem: (k) => store[k] ?? null })).toEqual({ ...DEFAULT_PREFS, theme: 'gold', weightUnit: 'kg' })
+  })
+  it('still returns defaults on malformed json (the try/catch around JSON.parse stays in readPrefs)', () => {
+    expect(readPrefs({ getItem: () => '{bad' })).toEqual(DEFAULT_PREFS)
+  })
+})
+
+describe('unitsToWeightUnit', () => {
+  it("maps 'lbs' to 'lb' and 'kg' to 'kg'", () => {
+    expect(unitsToWeightUnit('lbs')).toBe('lb')
+    expect(unitsToWeightUnit('kg')).toBe('kg')
+  })
+  it('falls back to lb for null, undefined, or a bogus value', () => {
+    expect(unitsToWeightUnit(null)).toBe('lb')
+    expect(unitsToWeightUnit(undefined)).toBe('lb')
+    expect(unitsToWeightUnit('stone' as never)).toBe('lb')
   })
 })
 
