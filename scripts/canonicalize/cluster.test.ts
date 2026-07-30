@@ -228,4 +228,58 @@ describe('clusterExercises — equipment-prefix secondary key -> uncertain', () 
     expect(equipmentGroups).toHaveLength(1)
     expect(equipmentGroups[0].members.map(m => m.id).sort()).toEqual(['y1', 'y2'])
   })
+
+  it('does not re-emit a row already resolved into a primary MergeFamily when a third, differently-keyed row shares its equipment-stripped key (cross-tier dedupe)', () => {
+    // a1/a2 collide on the primary hard key ("pull ups") and form a
+    // searchOnly MergeFamily. a3 ("Bodyweight Pull Ups") also strips down
+    // to the same secondary key "pull ups" via the `bodyweight` equipment
+    // prefix, so naively grouping by secondary key alone would produce
+    // [a1, a2, a3] as an uncertain group — re-surfacing a1/a2 even though
+    // they're already slated for auto-merge in searchOnly. That must not
+    // happen: a row can never appear in both a MergeFamily and an
+    // `uncertain` group.
+    const rows = [
+      row('a1', 'Pull-ups'),
+      row('a2', 'Pull Ups'),
+      row('a3', 'Bodyweight Pull Ups'),
+    ]
+    const result = clusterExercises(rows, new Set())
+
+    expect(result.searchOnly).toHaveLength(1)
+    expect([result.searchOnly[0].canonicalId, ...result.searchOnly[0].aliasIds].sort()).toEqual(['a1', 'a2'])
+
+    const equipmentGroups = result.uncertain.filter(g => g.reason === 'equipment-prefix')
+    for (const group of equipmentGroups) {
+      expect(group.members.map(m => m.id)).not.toContain('a1')
+      expect(group.members.map(m => m.id)).not.toContain('a2')
+    }
+
+    assertNoIdAppearsInMoreThanOneTier(result)
+  })
 })
+
+/**
+ * Cross-tier safety net: every exercise id must appear in at most one of
+ * {a MergeFamily (historyTouching/searchOnly), junk, an uncertain group}.
+ * A row appearing in two tiers would give a reviewer inconsistent
+ * recommendations about the same row (e.g. "auto-merge this" AND
+ * "ambiguous, needs review").
+ */
+function assertNoIdAppearsInMoreThanOneTier(result: ReturnType<typeof clusterExercises>): void {
+  const seen = new Map<string, string>()
+  const record = (id: string, tier: string) => {
+    const existingTier = seen.get(id)
+    if (existingTier !== undefined) {
+      throw new Error(`id "${id}" appears in both "${existingTier}" and "${tier}"`)
+    }
+    seen.set(id, tier)
+  }
+  for (const family of [...result.historyTouching, ...result.searchOnly]) {
+    record(family.canonicalId, 'MergeFamily')
+    for (const aliasId of family.aliasIds) record(aliasId, 'MergeFamily')
+  }
+  for (const j of result.junk) record(j.id, 'junk')
+  for (const group of result.uncertain) {
+    for (const m of group.members) record(m.id, 'uncertain')
+  }
+}

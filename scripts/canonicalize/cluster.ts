@@ -216,13 +216,21 @@ export function clusterExercises(
     }
   }
 
+  const primaryKeyById = new Map<string, string>()
   const byPrimaryKey = new Map<string, ClusterableExercise[]>()
   for (const row of nonJunk) {
     const key = hardNormalizeExerciseName(row.name)
+    primaryKeyById.set(row.id, key)
     const group = byPrimaryKey.get(key) ?? []
     group.push(row)
     byPrimaryKey.set(key, group)
   }
+
+  // Ids already resolved into a primary-key family (any tier) — the
+  // equipment-prefix pass below must never re-emit these, or a reviewer
+  // could see the same row simultaneously recommended for auto-merge
+  // (historyTouching/searchOnly) AND flagged ambiguous (uncertain).
+  const consumedByPrimaryFamily = new Set<string>()
 
   const historyTouching: MergeFamily[] = []
   const searchOnly: MergeFamily[] = []
@@ -234,12 +242,23 @@ export function clusterExercises(
     } else {
       searchOnly.push(family)
     }
+    consumedByPrimaryFamily.add(family.canonicalId)
+    for (const aliasId of family.aliasIds) consumedByPrimaryFamily.add(aliasId)
   }
 
   // Equipment-prefix secondary key: candidates whose PRIMARY hard keys
   // differ (so they were never grouped as a family above) but whose
   // equipment-stripped keys collide. Route to uncertain — never auto-merge
-  // different implements/angles.
+  // different implements/angles. Junk rows never reach this pass at all
+  // (they were filtered out of `nonJunk` above). Any row already consumed
+  // by a primary-key family is stripped from each group at the MEMBER
+  // level, not just skipped when the whole group reduces to one family: a
+  // secondary-key group can otherwise mix an already-paired primary family
+  // with a third, differently-keyed row, and that third row would get
+  // re-emitted alongside the already-merged pair — a row must never appear
+  // in both a MergeFamily and an uncertain group. Once the consumed members
+  // are removed, if fewer than 2 (or fewer than 2 distinct primary keys)
+  // remain, there is nothing left worth flagging and the group is dropped.
   const bySecondaryKey = new Map<string, ClusterableExercise[]>()
   for (const row of nonJunk) {
     const key = equipmentAwareKey(row.name)
@@ -250,13 +269,16 @@ export function clusterExercises(
   }
 
   for (const group of bySecondaryKey.values()) {
-    if (group.length < 2) continue
-    const distinctPrimaryKeys = new Set(group.map(r => hardNormalizeExerciseName(r.name)))
+    const survivors = group.filter(r => !consumedByPrimaryFamily.has(r.id))
+    if (survivors.length < 2) continue
+    const distinctPrimaryKeys = new Set(
+      survivors.map(r => primaryKeyById.get(r.id) ?? hardNormalizeExerciseName(r.name)),
+    )
     if (distinctPrimaryKeys.size < 2) continue // already the same primary-key family - not new information
     uncertain.push({
       reason: 'equipment-prefix',
-      members: group.map(r => ({ id: r.id, name: r.name })),
-      note: `These names share a movement after stripping a leading equipment word, but differ enough (implement/angle) to require human review, not auto-merge: ${group.map(r => r.name).join(', ')}.`,
+      members: survivors.map(r => ({ id: r.id, name: r.name })),
+      note: `These names share a movement after stripping a leading equipment word, but differ enough (implement/angle) to require human review, not auto-merge: ${survivors.map(r => r.name).join(', ')}.`,
     })
   }
 
