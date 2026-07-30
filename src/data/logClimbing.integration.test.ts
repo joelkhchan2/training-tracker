@@ -139,4 +139,42 @@ describe.skipIf(!anon)('log_climbing RPC', () => {
     expect(rows).toHaveLength(1)
     expect(rows![0]).toMatchObject({ grade: 'V7', count: 0, attempts: 8 })
   })
+
+  it('advances program_state.cursor when p_next_cursor is passed, gated by last_advance_key', async () => {
+    const { client, userId } = await makeUser(`climb_adv_${Date.now()}@test.dev`)
+    await client.from('program_state').insert({
+      user_id: userId, cursor: { dayIndex: 0, week: 1, cycle: 1 }, last_advance_key: null,
+    })
+
+    await client.rpc('log_climbing', {
+      p_client_id: `kadv-${Date.now()}`, p_date: '2026-07-30', p_notes: null,
+      p_sends: [{ grade: 'V4', count: 1 }],
+      p_next_cursor: { dayIndex: 1, week: 1, cycle: 1 }, p_last_advance_key: '1-1-1',
+    })
+    const after1 = await client.from('program_state').select('cursor, last_advance_key').eq('user_id', userId).single()
+    expect(after1.data!.cursor).toEqual({ dayIndex: 1, week: 1, cycle: 1 })
+    expect(after1.data!.last_advance_key).toBe('1-1-1')
+
+    // Same key, different cursor -> no-op gate.
+    await client.rpc('log_climbing', {
+      p_client_id: `kadv2-${Date.now()}`, p_date: '2026-07-30', p_notes: null,
+      p_sends: [{ grade: 'V4', count: 1 }],
+      p_next_cursor: { dayIndex: 5, week: 5, cycle: 5 }, p_last_advance_key: '1-1-1',
+    })
+    const after2 = await client.from('program_state').select('cursor').eq('user_id', userId).single()
+    expect(after2.data!.cursor).toEqual({ dayIndex: 1, week: 1, cycle: 1 })
+  })
+
+  it('does NOT touch program_state when no cursor params are passed (ad-hoc parity)', async () => {
+    const { client, userId } = await makeUser(`climb_noadv_${Date.now()}@test.dev`)
+    await client.from('program_state').insert({
+      user_id: userId, cursor: { dayIndex: 0, week: 1, cycle: 1 }, last_advance_key: null,
+    })
+    await client.rpc('log_climbing', {
+      p_client_id: `knoadv-${Date.now()}`, p_date: '2026-07-30', p_notes: null,
+      p_sends: [{ grade: 'V2', count: 1 }],
+    })
+    const after = await client.from('program_state').select('cursor').eq('user_id', userId).single()
+    expect(after.data!.cursor).toEqual({ dayIndex: 0, week: 1, cycle: 1 })
+  })
 })
