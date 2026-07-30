@@ -49,11 +49,11 @@ const COMMUNITY_PROGRAM: ProgramRow = {
   discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
 }
 const OWN_DAYS: ProgramDayRow[] = [
-  { id: 'day-own-1', program_id: 'prog-own', name: 'Day 1', order_index: 0 },
-  { id: 'day-own-2', program_id: 'prog-own', name: 'Day 2', order_index: 1 },
+  { id: 'day-own-1', program_id: 'prog-own', name: 'Day 1', discipline: 'strength', target: null, order_index: 0 },
+  { id: 'day-own-2', program_id: 'prog-own', name: 'Day 2', discipline: 'strength', target: null, order_index: 1 },
 ]
 const COMMUNITY_DAYS: ProgramDayRow[] = [
-  { id: 'day-comm-1', program_id: 'prog-community', name: 'Day 1', order_index: 0 },
+  { id: 'day-comm-1', program_id: 'prog-community', name: 'Day 1', discipline: 'strength', target: null, order_index: 0 },
 ]
 // An owned `programs` row produced by preset activation (`buildActivationRows` in
 // activateProgram.ts), NOT the builder — its `program_exercises` rows never get
@@ -67,7 +67,7 @@ const PRESET_SNAPSHOT_PROGRAM: ProgramRow = {
   discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
 }
 const PRESET_DAYS: ProgramDayRow[] = [
-  { id: 'day-preset-1', program_id: 'prog-preset', name: 'Day 1', order_index: 0 },
+  { id: 'day-preset-1', program_id: 'prog-preset', name: 'Day 1', discipline: 'strength', target: null, order_index: 0 },
 ]
 const SQUAT_EXERCISE: ExerciseRow = {
   id: 'ex-squat', user_id: null, name: 'Squat', primary_muscles: null, equipment: null,
@@ -86,7 +86,7 @@ const MIGRATED_NULL_OWNER_PROGRAM: ProgramRow = {
   discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
 }
 const MIGRATED_DAYS: ProgramDayRow[] = [
-  { id: 'day-migrated-1', program_id: 'prog-migrated', name: 'Day 1', order_index: 0 },
+  { id: 'day-migrated-1', program_id: 'prog-migrated', name: 'Day 1', discipline: 'strength', target: null, order_index: 0 },
 ]
 
 function baseTables(): Record<string, unknown[]> {

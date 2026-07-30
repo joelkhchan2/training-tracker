@@ -1,4 +1,4 @@
-import type { Discipline, Program } from '../types'
+import type { ProgramDiscipline, Program } from '../types'
 import { fiveThreeOne } from './fiveThreeOne'
 import { strongLifts5x5 } from './strongLifts5x5'
 import { pushPullLegs } from './pushPullLegs'
@@ -12,7 +12,7 @@ export interface PresetMeta {
   id: string
   name: string
   description: string
-  discipline: Discipline
+  discipline: ProgramDiscipline
   daysPerWeek: number
   requiresTrainingMaxes: boolean
   tmKeys: string[]

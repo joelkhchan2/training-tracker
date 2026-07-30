@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Cursor, Discipline, ProgressionRule, Scheme } from '../domain'
+import type { Cursor, ProgramDiscipline, ProgressionRule, Scheme } from '../domain'
 import type { PresetMeta } from '../domain/presets'
 import type { ProgramRowsLike } from '../domain/programDraft'
 import { programRowsToDraft } from '../domain/programDraft'
@@ -17,7 +17,7 @@ export interface ProgramInsert {
   id: string
   name: string
   description: string | null
-  discipline: Discipline
+  discipline: ProgramDiscipline
   progression_rule: ProgressionRule | null
   is_public: false
 }

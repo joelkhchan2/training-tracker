@@ -579,7 +579,7 @@ const linearBundle: ActiveWorkoutBundle = {
     discipline: 'strength',
     days: [{ name: 'Squat Day', exercises: [{ exerciseName: 'Squat', tmKey: 'squat', order: 0, scheme: linearScheme }] }],
   },
-  days: [{ id: 'day-1', program_id: 'prog-1', name: 'Squat Day', order_index: 0 }],
+  days: [{ id: 'day-1', program_id: 'prog-1', name: 'Squat Day', discipline: 'strength', target: null, order_index: 0 }],
   programExercises: [
     { id: 'pe-1', program_day_id: 'day-1', exercise_id: 'ex-squat', role_key: 'squat', order_index: 0, scheme: linearScheme, exercise_name: null, exercise_type: null },
   ],

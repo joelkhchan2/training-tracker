@@ -1,6 +1,6 @@
 // DB row types mirroring the Supabase schema (supabase/migrations/0001, 0002, 0004, 0016).
 // jsonb columns are typed against the domain shapes they actually store.
-import type { Cursor, Discipline, ProgressionRule, Scheme, Units } from '../domain'
+import type { Cursor, DayDiscipline, Discipline, ProgramDiscipline, ProgressionRule, Scheme, Units } from '../domain'
 import type { Prefs } from '../features/settings/prefs'
 
 export interface ProfileRow {
@@ -24,7 +24,7 @@ export interface ProgramRow {
   user_id: string | null
   name: string
   description: string | null
-  discipline: Discipline
+  discipline: ProgramDiscipline
   progression_rule: ProgressionRule | null
   is_public: boolean
   created_at: string
@@ -34,6 +34,8 @@ export interface ProgramDayRow {
   id: string
   program_id: string
   name: string
+  discipline: DayDiscipline
+  target: string | null
   order_index: number
 }
 

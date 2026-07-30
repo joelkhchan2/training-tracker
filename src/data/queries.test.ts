@@ -64,8 +64,8 @@ describe('fetchActiveWorkout', () => {
       discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
     }
     const days: ProgramDayRow[] = [
-      { id: 'day-b', program_id: 'prog-1', name: 'Gym B', order_index: 1 },
-      { id: 'day-a', program_id: 'prog-1', name: 'Gym A', order_index: 0 },
+      { id: 'day-b', program_id: 'prog-1', name: 'Gym B', discipline: 'strength', target: null, order_index: 1 },
+      { id: 'day-a', program_id: 'prog-1', name: 'Gym A', discipline: 'strength', target: null, order_index: 0 },
     ]
     const programExercises: ProgramExerciseRow[] = [
       { id: 'pe-2', program_day_id: 'day-a', exercise_id: 'ex-bench', role_key: 'benchPress', order_index: 1,
@@ -178,7 +178,7 @@ describe('buildDomainProgram', () => {
     discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
   }
   const days: ProgramDayRow[] = [
-    { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 },
+    { id: 'day-a', program_id: 'prog-1', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
   ]
 
   it('uses exercisesById[id].name when the exercise row is present (current behavior preserved)', () => {

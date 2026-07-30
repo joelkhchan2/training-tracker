@@ -345,6 +345,8 @@ describe('programRowsToDraft', () => {
       days: [
         {
           name: 'Day 1',
+          discipline: 'strength',
+          target: undefined,
           exercises: [
             { exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 100 }] },
             { exerciseName: 'Push-up', kind: 'bodyweight', sets: [{ reps: 20 }] },
@@ -352,6 +354,8 @@ describe('programRowsToDraft', () => {
         },
         {
           name: 'Day 2',
+          discipline: 'strength',
+          target: undefined,
           exercises: [
             { exerciseName: 'Bench', kind: 'strength', sets: [{ reps: 8 }] },
           ],
@@ -383,5 +387,46 @@ describe('programRowsToDraft', () => {
 
     const roundTripped = programRowsToDraft(fakeRows)
     expect(roundTripped).toEqual(original)
+  })
+})
+
+describe('draftToProgram discipline + target', () => {
+  it('emits exercises:[] for a non-strength day and derives a mixed discipline', () => {
+    const program = draftToProgram({
+      name: 'P', description: '', isPublic: false,
+      days: [
+        { name: 'Gym', discipline: 'strength', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5, weight: 100 }] }] },
+        { name: 'Send', discipline: 'climbing', target: 'project V5', exercises: [] },
+      ],
+    })
+    expect(program.discipline).toBe('mixed')
+    expect(program.days[1].discipline).toBe('climbing')
+    expect(program.days[1].target).toBe('project V5')
+    expect(program.days[1].exercises).toEqual([])
+  })
+  it('defaults a day with no discipline to strength', () => {
+    const program = draftToProgram({
+      name: 'P', description: '', isPublic: false,
+      days: [{ name: 'Gym', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5 }] }] }],
+    })
+    expect(program.discipline).toBe('strength')
+  })
+})
+
+describe('validateDraft per discipline', () => {
+  it('requires >=1 exercise on a strength day', () => {
+    const msgs = validateDraft({ name: 'P', description: '', isPublic: false, days: [{ name: 'D', discipline: 'strength', exercises: [] }] })
+    expect(msgs.some(m => m.includes('at least one exercise'))).toBe(true)
+  })
+  it('requires zero exercises on a non-strength day', () => {
+    const msgs = validateDraft({
+      name: 'P', description: '', isPublic: false,
+      days: [{ name: 'D', discipline: 'climbing', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5 }] }] }],
+    })
+    expect(msgs.some(m => m.includes('must not have exercises'))).toBe(true)
+  })
+  it('accepts a non-strength day with no exercises and an optional target', () => {
+    const msgs = validateDraft({ name: 'P', description: '', isPublic: false, days: [{ name: 'D', discipline: 'cardio', target: '5k easy', exercises: [] }] })
+    expect(msgs).toEqual([])
   })
 })

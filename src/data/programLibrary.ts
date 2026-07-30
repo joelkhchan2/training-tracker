@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
-import type { Discipline, Program } from '../domain'
+import type { Program, ProgramDiscipline } from '../domain'
 import { getSupabase } from './supabase'
 import { buildDomainProgram } from './queries'
 import type { ExerciseRow, ProgramDayRow, ProgramExerciseRow, ProgramRow } from './types'
@@ -12,7 +12,7 @@ export interface LibraryProgram {
   id: string
   name: string
   description: string
-  discipline: Discipline
+  discipline: ProgramDiscipline
   daysPerWeek: number
   isOwn: boolean
   program: Program
@@ -112,14 +112,16 @@ export async function fetchPublicPrograms(userId: string): Promise<PublicProgram
 
     const isOwn = programRow.user_id === userId
 
+    const program = buildDomainProgram(programRow, programDays, ownProgramExercises, exercisesById)
     const libraryProgram: LibraryProgram = {
       id: programRow.id,
       name: programRow.name,
       description: programRow.description ?? '',
-      discipline: programRow.discipline,
+      // Derived value from the assembled program (self-heals a stale stored column).
+      discipline: program.discipline,
       daysPerWeek: programDays.length,
       isOwn,
-      program: buildDomainProgram(programRow, programDays, ownProgramExercises, exercisesById),
+      program,
     }
 
     if (isOwn) {

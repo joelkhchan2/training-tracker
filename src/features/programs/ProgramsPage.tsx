@@ -12,7 +12,7 @@ import { useDeleteProgram } from '../../data/saveProgram'
 import { useActivateDbProgram } from '../../data/activateProgram'
 import { PRESETS } from '../../domain/presets'
 import type { PresetMeta } from '../../domain/presets'
-import type { Discipline } from '../../domain/types'
+import type { ProgramDiscipline } from '../../domain/types'
 import { cn } from '../../lib/cn'
 import { ProgramCard } from './ProgramCard'
 import { ProgramPreview } from './ProgramPreview'
@@ -33,11 +33,11 @@ export interface ProgramsPageProps {
  *  `useActivateDbProgram`. */
 type Selection = { kind: 'preset'; preset: PresetMeta } | { kind: 'db'; program: LibraryProgram } | null
 
-const disciplineLabel: Record<Discipline, string> = {
+const disciplineLabel: Record<ProgramDiscipline, string> = {
   strength: 'Strength',
   climbing: 'Climbing',
   cardio: 'Cardio',
-  calisthenics: 'Calisthenics',
+  mixed: 'Mixed',
 }
 
 interface LibraryProgramCardProps {

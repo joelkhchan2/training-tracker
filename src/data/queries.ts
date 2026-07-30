@@ -1,4 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import {
+  deriveProgramDiscipline,
+} from '../domain'
 import type {
   Program, ProgramExercise, TrainingMaxes, Cursor,
   Scheme, PercentageSet, FixedSet, LinearSet, LinearProgressionConfig, TimedSet,
@@ -126,25 +129,30 @@ export function buildDomainProgram(
     else byDay.set(pe.program_day_id, [pe])
   }
 
+  const mappedDays = [...days]
+    .sort((a, b) => a.order_index - b.order_index)
+    .map(day => ({
+      name: day.name,
+      discipline: day.discipline,
+      target: day.target ?? undefined,
+      exercises: (byDay.get(day.id) ?? [])
+        .slice()
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((pe): ProgramExercise => ({
+          exerciseName: (pe.exercise_id ? exercisesById[pe.exercise_id]?.name : undefined)
+            ?? pe.exercise_name ?? pe.role_key ?? 'Unknown exercise',
+          tmKey: pe.role_key ?? undefined,
+          order: pe.order_index,
+          scheme: normalizeScheme(pe.scheme, `${programRow.name} / ${pe.exercise_name ?? pe.role_key ?? pe.id}`),
+        })),
+    }))
+
   return {
     name: programRow.name,
-    discipline: programRow.discipline,
+    // Derived (self-heals a stale stored programs.discipline), not passed through.
+    discipline: deriveProgramDiscipline(mappedDays),
     progressionRule: programRow.progression_rule ?? undefined,
-    days: [...days]
-      .sort((a, b) => a.order_index - b.order_index)
-      .map(day => ({
-        name: day.name,
-        exercises: (byDay.get(day.id) ?? [])
-          .slice()
-          .sort((a, b) => a.order_index - b.order_index)
-          .map((pe): ProgramExercise => ({
-            exerciseName: (pe.exercise_id ? exercisesById[pe.exercise_id]?.name : undefined)
-              ?? pe.exercise_name ?? pe.role_key ?? 'Unknown exercise',
-            tmKey: pe.role_key ?? undefined,
-            order: pe.order_index,
-            scheme: normalizeScheme(pe.scheme, `${programRow.name} / ${pe.exercise_name ?? pe.role_key ?? pe.id}`),
-          })),
-      })),
+    days: mappedDays,
   }
 }
 

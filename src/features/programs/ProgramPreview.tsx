@@ -1,7 +1,7 @@
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { formatDuration } from '../../domain/duration'
-import type { Discipline, Program, Scheme } from '../../domain/types'
+import type { Program, ProgramDiscipline, Scheme } from '../../domain/types'
 
 /** Common view-model `ProgramPreview` renders from: the fields shared by a built-in
  *  `PresetMeta` and a DB-authored `LibraryProgram` (see `src/domain/presets` and
@@ -10,7 +10,7 @@ import type { Discipline, Program, Scheme } from '../../domain/types'
 export interface PreviewProgram {
   name: string
   description: string
-  discipline: Discipline
+  discipline: ProgramDiscipline
   daysPerWeek: number
   program: Program
 }
