@@ -1,0 +1,13 @@
+-- Cross-device preference sync (docs/superpowers/specs/2026-07-29-pref-sync-design.md): one jsonb
+-- column holding the whole client-side `Prefs` blob (src/features/settings/prefs.ts), synced by
+-- src/features/settings/usePrefsSync.ts. Nullable, no default: null is the explicit "never synced
+-- from any device yet" signal the hook's conflict rule keys on (null => seed the server from local
+-- device state; non-null => server wins).
+--
+-- No new RLS policy, no RPC: the existing own-row select/update policies on `profiles`
+-- (0001_core_schema.sql) already apply to every column on the table, and `authenticated` already
+-- holds the table-level update grant (0003_grants.sql). This is a single-table, own-row write via
+-- a direct `.update()` — the same pattern as the existing `enabled_disciplines` write in
+-- `useUpdateDisciplines` (src/data/profile.ts), not the SECURITY-DEFINER-RPC pattern reserved for
+-- multi-table writes.
+alter table profiles add column if not exists ui_prefs jsonb;

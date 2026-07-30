@@ -1,6 +1,7 @@
-// DB row types mirroring the Supabase schema (supabase/migrations/0001, 0002, 0004).
+// DB row types mirroring the Supabase schema (supabase/migrations/0001, 0002, 0004, 0016).
 // jsonb columns are typed against the domain shapes they actually store.
 import type { Cursor, Discipline, ProgressionRule, Scheme, Units } from '../domain'
+import type { Prefs } from '../features/settings/prefs'
 
 export interface ProfileRow {
   id: string
@@ -12,6 +13,10 @@ export interface ProfileRow {
   onboarding_complete: boolean
   created_at: string
   updated_at: string
+  // Cross-device synced Prefs blob (0016_profiles_ui_prefs.sql). Null = "never synced from any
+  // device yet" — the signal usePrefsSync's conflict rule keys on. Always re-validated through
+  // coercePrefs before use; a stale/hand-edited row can't poison the client.
+  ui_prefs: Prefs | null
 }
 
 export interface ProgramRow {
