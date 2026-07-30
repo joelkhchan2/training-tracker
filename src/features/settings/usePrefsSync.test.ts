@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePrefs } from './usePrefs'
 import { readPrefs, DEFAULT_PREFS, type Prefs } from './prefs'
 import { usePrefsSync } from './usePrefsSync'
@@ -27,6 +27,31 @@ function trackUpdates() {
         return builder
       },
       then: (resolve: (v: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
+    }
+    return builder
+  })
+  return calls
+}
+
+/** Like `trackUpdates`, but the first `failCount` `.update(...).eq(...)` calls against `profiles`
+ *  resolve with an error before subsequent calls succeed — lets tests exercise the write-through's
+ *  one-time retry without a bespoke mock per test. */
+function trackFlakyUpdates(failCount: number) {
+  const calls: { id: string; payload: unknown }[] = []
+  let resolvedCount = 0
+  from.mockImplementation((table: string) => {
+    let pendingPayload: unknown
+    const builder = {
+      update: (payload: unknown) => { pendingPayload = payload; return builder },
+      eq: (_col: string, id: string) => {
+        if (table === 'profiles') calls.push({ id, payload: pendingPayload })
+        return builder
+      },
+      then: (resolve: (v: { error: Error | null }) => unknown) => {
+        resolvedCount += 1
+        const error = resolvedCount <= failCount ? new Error('transient write failure') : null
+        return Promise.resolve({ error }).then(resolve)
+      },
     }
     return builder
   })
@@ -246,6 +271,77 @@ describe('usePrefsSync — sign-out reset', () => {
   })
 })
 
+describe('usePrefsSync — reset repaints the DOM (regression: bare setState skips apply())', () => {
+  beforeEach(() => {
+    // Deterministic "system" resolution: prefers-light -> 'daylight'. Without this stub jsdom has
+    // no matchMedia and systemPrefersDark() falls back to dark, which would also work but this
+    // makes the expected resolved theme explicit rather than incidental.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sign-out reset re-applies the DOM, not just the store (previous user\'s theme must not linger on screen)', async () => {
+    const updateCalls = trackUpdates()
+    usePrefs.setState({ ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' })
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('navy'))
+    updateCalls.length = 0 // clear the seed/hydrate bookkeeping noise; only the reset's writes matter below
+
+    // Sign out: userId goes from 'user-1' to undefined.
+    useAuthMock.mockReturnValue({ user: null })
+    useProfileMock.mockReturnValue(profileResult(undefined))
+    rerender()
+
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+    // The bug: `usePrefs.setState(DEFAULT_PREFS)` alone updates the store but never calls
+    // apply()/initPrefs(), so the DOM would still show 'navy' here. The fix's initPrefs() call
+    // must repaint it to the resolved default ('system' + prefers-light -> 'daylight').
+    expect(document.documentElement.dataset.theme).toBe('daylight')
+    // The reset itself must not write to the server (no cross-user write).
+    expect(updateCalls).toHaveLength(0)
+
+    unmount()
+  })
+
+  it('user-switch reset re-applies the DOM before the new user\'s seed-up runs', async () => {
+    const updateCalls = trackUpdates()
+    usePrefs.setState({ ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' })
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('navy'))
+
+    // Switch to user-2: onboarded, never synced (ui_prefs null) — reset must repaint to the
+    // default DOM state before user-2's own hydrate/seed-up takes over.
+    useAuthMock.mockReturnValue({ user: { id: 'user-2' } })
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: null, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+    rerender()
+
+    await waitFor(() => expect(updateCalls.some(c => c.id === 'user-2')).toBe(true))
+    // user-2's seeded-up payload is DEFAULT_PREFS-derived, never navy/mono — confirms the reset
+    // (including its DOM repaint) ran and stuck before the new user's data landed.
+    expect(document.documentElement.dataset.theme).toBe('daylight')
+
+    unmount()
+  })
+})
+
 describe('usePrefsSync — token refresh does not re-hydrate', () => {
   it('a new `user` object with the same id (e.g. TOKEN_REFRESHED) does not reset or re-hydrate', async () => {
     useProfileMock.mockReturnValue(profileResult({
@@ -359,5 +455,88 @@ describe('usePrefsSync — write-through', () => {
     expect(updateCalls).toHaveLength(0) // the cancelled write never fires
 
     vi.useRealTimers()
+  })
+})
+
+describe('usePrefsSync — write-through retry', () => {
+  it('a transient write failure triggers exactly one retry that then succeeds', async () => {
+    const updateCalls = trackFlakyUpdates(1) // first .update() call fails, the retry succeeds
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') })
+    await vi.advanceTimersByTimeAsync(500) // debounce fires; this write fails
+    expect(updateCalls).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(1000) // the one retry fires ~1s later, and succeeds
+    expect(updateCalls).toHaveLength(2)
+    expect((updateCalls[1].payload as { ui_prefs: Prefs }).ui_prefs.theme).toBe('gold')
+
+    // No further retries follow a success.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(updateCalls).toHaveLength(2)
+
+    vi.useRealTimers()
+    unmount()
+  })
+
+  it('a write that fails on both the original attempt and the retry logs once and stops (no retry loop)', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const updateCalls = trackFlakyUpdates(2) // original attempt AND the retry both fail
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') })
+    await vi.advanceTimersByTimeAsync(500)
+    expect(updateCalls).toHaveLength(1)
+    expect(consoleErrorSpy).not.toHaveBeenCalled() // first failure is silent — the retry hasn't run yet
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(updateCalls).toHaveLength(2)
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1)
+    expect(consoleErrorSpy).toHaveBeenCalledWith('usePrefsSync: write-through failed', expect.any(Error))
+
+    await vi.advanceTimersByTimeAsync(5000) // stays failed — must not keep retrying forever
+    expect(updateCalls).toHaveLength(2)
+
+    vi.useRealTimers()
+    consoleErrorSpy.mockRestore()
+    unmount()
+  })
+
+  it('does not retry against a stale user after the user changes before the retry fires', async () => {
+    const updateCalls = trackFlakyUpdates(1)
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') })
+    await vi.advanceTimersByTimeAsync(500) // debounce fires; this write fails; retry now pending
+    expect(updateCalls).toHaveLength(1)
+
+    // user-1 signs out before the retry timer fires — the write-through effect tears down.
+    useAuthMock.mockReturnValue({ user: null })
+    useProfileMock.mockReturnValue(profileResult(undefined))
+    rerender()
+
+    await vi.advanceTimersByTimeAsync(5000) // well past the retry delay
+    expect(updateCalls).toHaveLength(1) // the pending retry must not have fired post-teardown
+
+    vi.useRealTimers()
+    unmount()
   })
 })
