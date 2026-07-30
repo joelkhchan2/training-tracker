@@ -91,6 +91,24 @@ export function validateResolvedIds(families: MergeFamily[], lookup: LookupRow[]
   }
 }
 
+/**
+ * Throws if any `junkId` also appears as a family's `canonicalId` or one of
+ * its `aliasIds`. A row cannot be both a merge participant and a
+ * deactivate-as-junk candidate — that would either deactivate a row another
+ * family still points at, or silently drop a row mid-merge.
+ */
+export function validateJunkDisjoint(families: MergeFamily[], junkIds: string[]): void {
+  const familyIds = new Set(families.flatMap(f => [f.canonicalId, ...f.aliasIds]))
+  for (const junkId of junkIds) {
+    if (familyIds.has(junkId)) {
+      throw new Error(
+        `Junk id "${junkId}" also appears as a canonical or alias id in a merge family — a row ` +
+          'cannot be both a merge participant and a junk-deactivation candidate.',
+      )
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SQL text helpers (pure string formatting — trusted uuids/family data, not
 // user input, so interpolation is acceptable here; see task brief).
@@ -117,6 +135,15 @@ function catalogSqlForFamily(family: MergeFamily): string {
     `-- ${family.canonicalName} <- ${family.aliasNames.join(', ')}`,
     `-- Aliases are NOT deactivated — only their canonical_id is set.`,
     `update exercises set canonical_id = '${family.canonicalId}' where id in (${sqlIdList(family.aliasIds)});`,
+  ].join('\n')
+}
+
+function catalogSqlForJunk(junkIds: string[]): string {
+  return [
+    `-- Junk compounds — deactivated (is_active = false), NOT merged, NOT deleted.`,
+    `-- These ids are never referenced as a canonical or alias by any family above`,
+    `-- (validateJunkDisjoint enforces this before this SQL is emitted).`,
+    `update exercises set is_active = false where id in (${sqlIdList(junkIds)});`,
   ].join('\n')
 }
 
@@ -249,13 +276,16 @@ function previewSqlForFamily(family: MergeFamily, userId: string): string {
  * an alias by any family in this same batch (a chain fully internal to the
  * input, catchable without touching a DB).
  */
-export function buildMergeSql(families: MergeFamily[], userId: string): MergeSql {
+export function buildMergeSql(families: MergeFamily[], userId: string, junkIds: string[] = []): MergeSql {
   const aliasIdsInBatch = new Set(families.flatMap(f => f.aliasIds))
   validateNoChains(families, aliasIdsInBatch)
+  validateJunkDisjoint(families, junkIds)
 
   const preview = families.map(f => previewSqlForFamily(f, userId)).join('\n\n')
 
-  const catalog = families.map(catalogSqlForFamily).join('\n\n')
+  const familyCatalog = families.map(catalogSqlForFamily).join('\n\n')
+  const junkCatalog = junkIds.length > 0 ? catalogSqlForJunk(junkIds) : ''
+  const catalog = [familyCatalog, junkCatalog].filter(block => block.length > 0).join('\n\n')
 
   const history = families
     .map(family =>
