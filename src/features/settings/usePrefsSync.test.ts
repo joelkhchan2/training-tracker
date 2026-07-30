@@ -257,4 +257,45 @@ describe('usePrefsSync — write-through', () => {
     vi.useRealTimers()
     unmount()
   })
+
+  it('a single change fires exactly one debounced update after the window', async () => {
+    const updateCalls = trackUpdates()
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') })
+    act(() => { vi.advanceTimersByTime(500) })
+
+    expect(updateCalls).toHaveLength(1)
+    expect((updateCalls[0].payload as { ui_prefs: Prefs }).ui_prefs.theme).toBe('gold')
+
+    vi.useRealTimers()
+    unmount()
+  })
+
+  it('unmounting before the debounce window elapses clears the pending timer, so no late update fires', async () => {
+    const updateCalls = trackUpdates()
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') }) // starts a pending debounce timer
+    expect(updateCalls).toHaveLength(0) // still inside the debounce window
+
+    unmount() // effect cleanup must clear the pending timer, not just unsubscribe
+
+    act(() => { vi.advanceTimersByTime(1000) }) // well past the 500ms window
+    expect(updateCalls).toHaveLength(0) // the cancelled write never fires
+
+    vi.useRealTimers()
+  })
 })
