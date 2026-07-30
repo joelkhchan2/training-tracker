@@ -66,6 +66,11 @@ export function usePrefsSync(): void {
     if (!userId || !profile || !profile.onboarding_complete) return
     if (hydratedUserIdRef.current === userId) return
 
+    // Column not migrated on this backend yet (select('*') omits an absent column):
+    // stay fully inert — do NOT seed-up or mark hydrated — so localStorage prefs stand
+    // and write-through never arms against a nonexistent column.
+    if (!('ui_prefs' in profile)) return
+
     if (profile.ui_prefs != null) {
       // Server-wins: a previously-synced device already has a canonical blob.
       const validated = coercePrefs(profile.ui_prefs)

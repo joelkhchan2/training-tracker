@@ -152,6 +152,46 @@ describe('usePrefsSync — profile query error', () => {
   })
 })
 
+describe('usePrefsSync — pre-migration: ui_prefs column absent', () => {
+  it('stays fully inert (no seed-up, no write-through) until the column exists, then recovers on refetch', async () => {
+    // Local prefs are the user's real, already-customized state — must survive untouched.
+    usePrefs.setState({ ...DEFAULT_PREFS, weightUnit: 'kg' })
+    const updateCalls = trackUpdates()
+    // Pre-migration 0016: select('*') on a backend without the column omits the key entirely
+    // (not null — absent). Constructed deliberately without a `ui_prefs` property.
+    useProfileMock.mockReturnValue(profileResult({
+      units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+    await act(async () => { await Promise.resolve() })
+
+    // No seed-up: if the hook had wrongly taken the seed-up branch, weightUnit would be
+    // overwritten to 'lb' via unitsToWeightUnit(profile.units) and an update would fire.
+    expect(usePrefs.getState().weightUnit).toBe('kg')
+    expect(updateCalls).toHaveLength(0)
+
+    // Not marked hydrated => write-through must not be armed either.
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setFontFamily('mono') })
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(updateCalls).toHaveLength(0)
+    vi.useRealTimers()
+
+    // Recovery: migration lands, a later refetch's row now includes the column (null = never
+    // synced from any device) — hydrate should now run its seed-up branch.
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: null, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+    rerender()
+
+    await waitFor(() => expect(updateCalls).toHaveLength(1))
+    expect(updateCalls[0].id).toBe('user-1')
+
+    unmount()
+  })
+})
+
 describe('usePrefsSync — user switch reset (shared-device account switch)', () => {
   it('resets to DEFAULT_PREFS on switching to a different, already-onboarded user, then seeds THAT user\'s defaults (units-adjusted), never the prior user\'s prefs', async () => {
     // user-1 is customized locally and hydrates server-wins to that customization.
@@ -179,6 +219,28 @@ describe('usePrefsSync — user switch reset (shared-device account switch)', ()
     expect((user2Update.payload as { ui_prefs: Prefs }).ui_prefs).toEqual({ ...DEFAULT_PREFS, weightUnit: 'kg' })
     expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme)
     expect(usePrefs.getState().weightUnit).toBe('kg')
+
+    unmount()
+  })
+})
+
+describe('usePrefsSync — sign-out reset', () => {
+  it('resets to DEFAULT_PREFS on plain sign-out (userId -> null), not just on account switch', async () => {
+    usePrefs.setState({ ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' })
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS, theme: 'navy', fontFamily: 'mono' }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe('navy'))
+
+    // Sign out: userId goes from 'user-1' to undefined.
+    useAuthMock.mockReturnValue({ user: null })
+    useProfileMock.mockReturnValue(profileResult(undefined))
+    rerender()
+
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+    expect(usePrefs.getState().fontFamily).toBe(DEFAULT_PREFS.fontFamily)
 
     unmount()
   })
