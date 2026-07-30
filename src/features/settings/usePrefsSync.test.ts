@@ -206,3 +206,55 @@ describe('usePrefsSync — token refresh does not re-hydrate', () => {
     unmount()
   })
 })
+
+describe('usePrefsSync — write-through', () => {
+  it('debounces rapid changes into a single update after hydrate, coalescing the payload', async () => {
+    const updateCalls = trackUpdates()
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+
+    const { unmount } = renderHook(() => usePrefsSync())
+    await waitFor(() => expect(usePrefs.getState().theme).toBe(DEFAULT_PREFS.theme))
+    expect(updateCalls).toHaveLength(0) // server-wins hydrate itself never writes
+
+    vi.useFakeTimers()
+    act(() => {
+      usePrefs.getState().setTheme('gold')
+      usePrefs.getState().setFontFamily('mono')
+    })
+    expect(updateCalls).toHaveLength(0) // still inside the debounce window
+    act(() => { vi.advanceTimersByTime(500) })
+
+    expect(updateCalls).toHaveLength(1) // two changes coalesced into one write
+    const payload = updateCalls[0].payload as { ui_prefs: Prefs }
+    expect(payload.ui_prefs.theme).toBe('gold')
+    expect(payload.ui_prefs.fontFamily).toBe('mono')
+
+    vi.useRealTimers()
+    unmount()
+  })
+
+  it('does not write a change made before hydrate resolves, even after the debounce window elapses', async () => {
+    const updateCalls = trackUpdates()
+    useProfileMock.mockReturnValue(profileResult(undefined, { isLoading: true }))
+
+    const { rerender, unmount } = renderHook(() => usePrefsSync())
+
+    vi.useFakeTimers()
+    act(() => { usePrefs.getState().setTheme('gold') }) // pre-hydrate change (userId exists, so
+    act(() => { vi.advanceTimersByTime(1000) })          // write-through IS subscribed — must still gate)
+    expect(updateCalls).toHaveLength(0)
+
+    useProfileMock.mockReturnValue(profileResult({
+      ui_prefs: { ...DEFAULT_PREFS, theme: 'gold' }, units: 'lbs', onboarding_complete: true,
+    } as ProfileRow))
+    rerender()
+    await act(async () => { await Promise.resolve() })
+
+    expect(updateCalls).toHaveLength(0) // server-wins hydrate doesn't write; the dropped change isn't replayed
+
+    vi.useRealTimers()
+    unmount()
+  })
+})

@@ -17,14 +17,16 @@ function extractPrefs(state: ReturnType<typeof usePrefs.getState>): Prefs {
   return prefsOnly
 }
 
+const WRITE_THROUGH_DEBOUNCE_MS = 500
+
 /** Hydrates `usePrefs` from the signed-in user's `profiles` row on session-ready, then keeps the
- *  server in sync with local changes (write-through — added in a later task on this same hook).
- *  Sources the row from the existing `useProfile(userId)` react-query hook rather than a bespoke
- *  fetch: react-query owns the row's create/refetch lifecycle (so hydrate can't race the row's
- *  creation), and gating on `onboarding_complete` keeps this hook inert until `OnboardingPage`'s own
- *  `ui_prefs` write has landed (so it can't race that write either). Mount exactly once, for the
- *  app's lifetime, inside `AppQueryProvider` — see `App.tsx`'s `PrefsSyncMount`. `usePrefs` itself
- *  stays server-agnostic; all Supabase I/O lives here. */
+ *  server in sync with local changes via a debounced write-through. Sources the row from the
+ *  existing `useProfile(userId)` react-query hook rather than a bespoke fetch: react-query owns the
+ *  row's create/refetch lifecycle (so hydrate can't race the row's creation), and gating on
+ *  `onboarding_complete` keeps this hook inert until `OnboardingPage`'s own `ui_prefs` write has
+ *  landed (so it can't race that write either). Mount exactly once, for the app's lifetime, inside
+ *  `AppQueryProvider` — see `App.tsx`'s `PrefsSyncMount`. `usePrefs` itself stays server-agnostic;
+ *  all Supabase I/O lives here. */
 export function usePrefsSync(): void {
   const { user } = useAuth()
   const userId = user?.id
@@ -90,4 +92,27 @@ export function usePrefsSync(): void {
         })
     }
   }, [userId, profile])
+
+  // Write-through: subscribe once per userId (as soon as one is signed in — the pre-hydrate gate
+  // lives inside the listener, not the dependency array, so the gate can flip open without tearing
+  // down/resubscribing). Debounce and coalesce rapid local changes into a single write.
+  useEffect(() => {
+    if (!userId) return
+    let writeTimer: ReturnType<typeof setTimeout> | undefined
+    const unsubscribe = usePrefs.subscribe((state) => {
+      if (hydratedUserIdRef.current !== userId) return
+      const next = extractPrefs(state)
+      clearTimeout(writeTimer)
+      writeTimer = setTimeout(() => {
+        getSupabase().from('profiles').update({ ui_prefs: next }).eq('id', userId)
+          .then(({ error }) => {
+            if (error) console.error('usePrefsSync: write-through failed', error)
+          })
+      }, WRITE_THROUGH_DEBOUNCE_MS)
+    })
+    return () => {
+      unsubscribe()
+      clearTimeout(writeTimer)
+    }
+  }, [userId])
 }
