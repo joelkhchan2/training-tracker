@@ -3,6 +3,7 @@ import {
   buildMergeSql,
   validateNoChains,
   validateResolvedIds,
+  validateJunkDisjoint,
   type MergeFamily,
 } from './apply.ts'
 
@@ -206,5 +207,54 @@ describe('validateResolvedIds', () => {
       r.name === 'Squat' ? { ...r, canonical_id: 'some-other-canonical-id' } : r,
     )
     expect(() => validateResolvedIds([squat], lookup)).toThrow()
+  })
+})
+
+describe('buildMergeSql — junk deactivation (Phase B)', () => {
+  const junkIds = ['j0000000-0000-0000-0000-00000000j001', 'j0000000-0000-0000-0000-00000000j002']
+
+  it('emits is_active = false for junk ids only when junkIds is provided', () => {
+    const { catalog } = buildMergeSql([squat], userId, junkIds)
+    expect(catalog).toMatch(/update exercises set is_active = false where id in \(/i)
+    expect(catalog).toContain(`'${junkIds[0]}'`)
+    expect(catalog).toContain(`'${junkIds[1]}'`)
+  })
+
+  it('does not include alias ids in the junk deactivation statement', () => {
+    const { catalog } = buildMergeSql([squat], userId, junkIds)
+    const junkStatementIdx = catalog.indexOf('update exercises set is_active = false')
+    const junkStatement = catalog.slice(junkStatementIdx)
+    expect(junkStatement).not.toContain(squat.aliasIds[0])
+    expect(junkStatement).not.toContain(squat.aliasIds[1] ?? '__none__')
+  })
+
+  it('still emits the family canonical_id updates unchanged alongside the junk block', () => {
+    const { catalog } = buildMergeSql([squat], userId, junkIds)
+    expect(catalog).toContain(`canonical_id = '${squat.canonicalId}'`)
+  })
+
+  it('omits the is_active statement entirely when junkIds is empty or omitted (Phase A behavior unchanged)', () => {
+    const withEmptyArray = buildMergeSql([squat], userId, [])
+    const withNoArg = buildMergeSql([squat], userId)
+    expect(withEmptyArray.catalog.toLowerCase()).not.toContain('is_active')
+    expect(withNoArg.catalog.toLowerCase()).not.toContain('is_active')
+  })
+})
+
+describe('validateJunkDisjoint', () => {
+  it('throws when a junkId is also a family aliasId', () => {
+    expect(() => validateJunkDisjoint([squat], [squat.aliasIds[0]])).toThrow()
+  })
+
+  it('throws when a junkId is also a family canonicalId', () => {
+    expect(() => validateJunkDisjoint([squat], [squat.canonicalId])).toThrow()
+  })
+
+  it('passes when junkIds share no id with any family', () => {
+    expect(() => validateJunkDisjoint([squat], ['unrelated-id'])).not.toThrow()
+  })
+
+  it('passes with an empty junkIds list', () => {
+    expect(() => validateJunkDisjoint([squat], [])).not.toThrow()
   })
 })
