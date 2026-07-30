@@ -35,6 +35,32 @@ const JUNK_MOVEMENT_TOKENS = new Set([
 
 const JUNK_MIN_MOVEMENT_TOKENS = 2
 
+/**
+ * Leading equipment phrases for the SEMANTIC equipment-prefix secondary key
+ * (merge-candidate detection -> uncertain). This is the design's exact list
+ * — narrower than JUNK_LEADING_TOKENS (no "plate": a plate isn't a genuine
+ * alternate implement for the same movement the way barbell/dumbbell/
+ * machine/cable are).
+ */
+const EQUIPMENT_PREFIXES = [
+  'barbell', 'dumbbell', 'machine', 'cable', 'band', 'kettlebell', 'smith', 'ez bar', 'bodyweight',
+]
+
+function stripLeadingEquipment(name: string): string {
+  const lowered = name.trim().toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ')
+  for (const prefix of EQUIPMENT_PREFIXES) {
+    if (lowered === prefix) return lowered // whole name is just the equipment word - nothing to strip
+    if (lowered.startsWith(`${prefix} `)) {
+      return lowered.slice(prefix.length + 1)
+    }
+  }
+  return lowered
+}
+
+function equipmentAwareKey(name: string): string {
+  return hardNormalizeExerciseName(stripLeadingEquipment(name))
+}
+
 function tokenize(name: string): string[] {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(t => t.length > 0)
 }
@@ -210,8 +236,29 @@ export function clusterExercises(
     }
   }
 
-  // Equipment-prefix uncertain routing (Task 5) is added on top of this in
-  // a later task.
+  // Equipment-prefix secondary key: candidates whose PRIMARY hard keys
+  // differ (so they were never grouped as a family above) but whose
+  // equipment-stripped keys collide. Route to uncertain — never auto-merge
+  // different implements/angles.
+  const bySecondaryKey = new Map<string, ClusterableExercise[]>()
+  for (const row of nonJunk) {
+    const key = equipmentAwareKey(row.name)
+    if (key === '') continue
+    const group = bySecondaryKey.get(key) ?? []
+    group.push(row)
+    bySecondaryKey.set(key, group)
+  }
+
+  for (const group of bySecondaryKey.values()) {
+    if (group.length < 2) continue
+    const distinctPrimaryKeys = new Set(group.map(r => hardNormalizeExerciseName(r.name)))
+    if (distinctPrimaryKeys.size < 2) continue // already the same primary-key family - not new information
+    uncertain.push({
+      reason: 'equipment-prefix',
+      members: group.map(r => ({ id: r.id, name: r.name })),
+      note: `These names share a movement after stripping a leading equipment word, but differ enough (implement/angle) to require human review, not auto-merge: ${group.map(r => r.name).join(', ')}.`,
+    })
+  }
 
   return {
     historyTouching,

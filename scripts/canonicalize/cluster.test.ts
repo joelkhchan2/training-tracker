@@ -171,3 +171,61 @@ describe('clusterExercises — junk-compound detection', () => {
     expect(result.junk.map(j => j.id).sort()).toEqual(['s1', 's2'])
   })
 })
+
+describe('clusterExercises — equipment-prefix secondary key -> uncertain', () => {
+  it('flags a simple equipment-prefix pair as uncertain, NOT as a merge family', () => {
+    const rows = [row('t1', 'Barbell Curl'), row('t2', 'Curl')]
+    const result = clusterExercises(rows, new Set())
+    expect([...result.historyTouching, ...result.searchOnly]).toHaveLength(0)
+    expect(result.uncertain).toHaveLength(1)
+    expect(result.uncertain[0].reason).toBe('equipment-prefix')
+    expect(result.uncertain[0].members.map(m => m.id).sort()).toEqual(['t1', 't2'])
+  })
+
+  it('never auto-merges different implements of the same movement (Barbell Bench Press vs Dumbbell Bench Press vs Machine Chest Press)', () => {
+    const rows = [
+      row('u1', 'Barbell Bench Press'),
+      row('u2', 'Dumbbell Bench Press'),
+      row('u3', 'Machine Chest Press'),
+    ]
+    const result = clusterExercises(rows, new Set())
+    expect([...result.historyTouching, ...result.searchOnly]).toHaveLength(0)
+    // Barbell Bench Press <-> "Bench Press" would match on equipment-stripped
+    // key; Dumbbell Bench Press does too -> both land in one uncertain group
+    // together with each other via the shared stripped key "bench press".
+    // Machine Chest Press strips to "chest press" (different bare movement
+    // name) so it does not cross-link with the other two.
+    const equipmentGroups = result.uncertain.filter(g => g.reason === 'equipment-prefix')
+    expect(equipmentGroups.length).toBeGreaterThanOrEqual(1)
+    const bench = equipmentGroups.find(g => g.members.some(m => m.id === 'u1'))
+    expect(bench?.members.map(m => m.id).sort()).toEqual(['u1', 'u2'])
+  })
+
+  it('does NOT flag Barbell Back Squat vs Squat (documented v1 limitation — extra "back" token survives the strip; already hand-resolved in Phase A)', () => {
+    const rows = [row('v1', 'Barbell Back Squat'), row('v2', 'Squat')]
+    const result = clusterExercises(rows, new Set())
+    expect(result.uncertain.filter(g => g.reason === 'equipment-prefix')).toHaveLength(0)
+  })
+
+  it('does not flag angle-only differences with no equipment word at all (Front Squat vs Back Squat) — nothing to strip', () => {
+    const rows = [row('w1', 'Front Squat'), row('w2', 'Back Squat')]
+    const result = clusterExercises(rows, new Set())
+    expect(result.uncertain.filter(g => g.reason === 'equipment-prefix')).toHaveLength(0)
+  })
+
+  it('does not double-report a pair that already shares the same primary key', () => {
+    const rows = [row('x1', 'Pull-ups'), row('x2', 'Pull Ups')]
+    const result = clusterExercises(rows, new Set())
+    // already grouped as a primary-key family (Task 3) - must not ALSO
+    // appear as an equipment-prefix uncertain group
+    expect(result.uncertain.filter(g => g.reason === 'equipment-prefix')).toHaveLength(0)
+  })
+
+  it('handles the "ez bar" two-word equipment prefix', () => {
+    const rows = [row('y1', 'EZ Bar Curl'), row('y2', 'Curl')]
+    const result = clusterExercises(rows, new Set())
+    const equipmentGroups = result.uncertain.filter(g => g.reason === 'equipment-prefix')
+    expect(equipmentGroups).toHaveLength(1)
+    expect(equipmentGroups[0].members.map(m => m.id).sort()).toEqual(['y1', 'y2'])
+  })
+})
