@@ -1,9 +1,9 @@
 import type { WeightUnit } from '../../domain/weight'
 
 export type ConcreteThemeId =
-  | 'midnight' | 'navy' | 'gold' | 'evergreen' | 'ember' | 'amoled' | 'contrast' | 'daylight' | 'yuletide'
+  | 'midnight' | 'navy' | 'gold' | 'evergreen' | 'ember' | 'amoled' | 'contrast' | 'monochrome' | 'daylight' | 'arctic' | 'yuletide'
 export type ThemeId = ConcreteThemeId | 'system'
-export type FontId = 'system' | 'rounded' | 'mono'
+export type FontId = 'system' | 'rounded' | 'mono' | 'inter'
 export type ScaleId = 'S' | 'M' | 'L'
 
 export type WeekStartDay = 'monday' | 'sunday'
@@ -39,7 +39,9 @@ export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seas
   { id: 'ember', label: 'Ember', group: 'core', mode: 'dark', bg: '#120a08', surface: '#20130f', accent: '#ff6a1a' },
   { id: 'amoled', label: 'AMOLED Black', group: 'core', mode: 'dark', bg: '#000000', surface: '#0d0d0f', accent: '#00e5a8' },
   { id: 'contrast', label: 'High Contrast', group: 'core', mode: 'dark', bg: '#000000', surface: '#0a0a0a', accent: '#ffe600' },
+  { id: 'monochrome', label: 'Monochrome', group: 'core', mode: 'dark', bg: '#0a0a0a', surface: '#161618', accent: '#d4d4d8' },
   { id: 'daylight', label: 'Daylight', group: 'core', mode: 'light', bg: '#f7f7f5', surface: '#ffffff', accent: '#2f6b2f' },
+  { id: 'arctic', label: 'Arctic', group: 'core', mode: 'light', bg: '#eef3f8', surface: '#ffffff', accent: '#2f7dd1' },
   { id: 'yuletide', label: 'Yuletide', group: 'seasonal', mode: 'dark', bg: '#0b1410', surface: '#14211a', accent: '#c1121f' },
 ]
 
@@ -50,11 +52,16 @@ const SYSTEM_LIGHT: ConcreteThemeId = 'daylight'
 const SYSTEM_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"'
 const ROUNDED_STACK = 'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", system-ui, sans-serif'
 const MONO_STACK = 'ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace'
+// Self-hosted via @fontsource-variable/inter (imported in main.tsx). "Inter Variable" is the exact
+// @font-face family name the package registers; the system fallback covers first paint (before the
+// bundled woff2 loads) and any load failure.
+const INTER_STACK = '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"'
 
 export const FONTS: { id: FontId; label: string; stack: string }[] = [
   { id: 'system', label: 'System', stack: SYSTEM_STACK },
   { id: 'rounded', label: 'Rounded', stack: ROUNDED_STACK },
   { id: 'mono', label: 'Mono', stack: MONO_STACK },
+  { id: 'inter', label: 'Inter', stack: INTER_STACK },
 ]
 
 export const SCALES: { id: ScaleId; label: string; value: number }[] = [

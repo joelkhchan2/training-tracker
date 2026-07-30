@@ -140,6 +140,13 @@ describe('SettingsPage — Appearance', () => {
     expect(setFontFamily).toHaveBeenCalledWith('mono')
   })
 
+  it('offers the self-hosted Inter font option', () => {
+    render(<SettingsPage />)
+    const fontGroup = within(screen.getByRole('group', { name: 'Font' }))
+    fireEvent.click(fontGroup.getByRole('button', { name: 'Inter' }))
+    expect(setFontFamily).toHaveBeenCalledWith('inter')
+  })
+
   it('tapping a text-size option calls setFontScale with its value', () => {
     render(<SettingsPage />)
     const sizeGroup = within(screen.getByRole('group', { name: 'Text size' }))

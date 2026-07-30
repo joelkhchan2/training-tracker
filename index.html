@@ -9,10 +9,11 @@
     <script>
       (function () {
         try {
-          var THEME_BG = { midnight:'#0a0a0b', navy:'#0b1220', gold:'#0c1526', evergreen:'#0a1410', ember:'#120a08', amoled:'#000000', contrast:'#000000', daylight:'#f7f7f5', yuletide:'#0b1410' };
+          var THEME_BG = { midnight:'#0a0a0b', navy:'#0b1220', gold:'#0c1526', evergreen:'#0a1410', ember:'#120a08', amoled:'#000000', contrast:'#000000', monochrome:'#0a0a0a', daylight:'#f7f7f5', arctic:'#eef3f8', yuletide:'#0b1410' };
           var FONT = {
             rounded: 'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", system-ui, sans-serif',
-            mono: 'ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace'
+            mono: 'ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace',
+            inter: '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"'
           };
           var p = JSON.parse(localStorage.getItem('tt-prefs') || '{}');
           var t = p.theme;
