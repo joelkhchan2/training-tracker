@@ -35,3 +35,4 @@ supabase/.temp
 
 # Migration source data (contains personal data, never commit)
 scripts/migration/.data/
+scripts/canonicalize/.data/
