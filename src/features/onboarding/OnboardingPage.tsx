@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getSupabase } from '../../data/supabase'
 import { useAuth } from '../../lib/useAuth'
+import { usePrefs } from '../settings/usePrefs'
+import { unitsToWeightUnit } from '../settings/prefs'
 
 const DISCIPLINES = ['strength','climbing','cardio','calisthenics'] as const
 
@@ -14,8 +16,18 @@ export function OnboardingPage() {
   async function finish() {
     if (!user) return
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    // Reconcile the chosen unit into weightUnit (via the single lbs->lb mapping site) and update
+    // the local store immediately — a brand-new kg user must be correct on this load, not just
+    // after the next login's hydrate seed. This write also lands *before* onboarding_complete
+    // flips true, so usePrefsSync (gated on onboarding_complete) can't race it — see Task 3/4.
+    usePrefs.getState().setWeightUnit(unitsToWeightUnit(units))
+    const {
+      setTheme, setFontFamily, setFontScale, setWeightUnit,
+      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe,
+      ...ui_prefs
+    } = usePrefs.getState()
     await getSupabase().from('profiles').update({
-      units, timezone: tz, enabled_disciplines: enabled, onboarding_complete: true,
+      units, timezone: tz, enabled_disciplines: enabled, onboarding_complete: true, ui_prefs,
     }).eq('id', user.id)
     nav('/', { replace: true })
   }

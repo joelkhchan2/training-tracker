@@ -1,4 +1,5 @@
 import type { WeightUnit } from '../../domain/weight'
+import type { Units } from '../../domain/types'
 
 export type ConcreteThemeId =
   | 'midnight' | 'navy' | 'gold' | 'evergreen' | 'ember' | 'amoled' | 'contrast' | 'monochrome' | 'daylight' | 'arctic' | 'yuletide'
@@ -79,27 +80,44 @@ export function fontStack(id: FontId): string {
   return (FONTS.find(f => f.id === id) ?? FONTS[0]).stack
 }
 
+/** Field-by-field validation with fallback to `DEFAULT_PREFS`, shared by `readPrefs` (localStorage)
+ *  and `usePrefsSync` (the server `ui_prefs` blob) — one validation path means a malformed blob from
+ *  either source degrades to defaults per-field, and never throws. */
+export function coercePrefs(p: Partial<Prefs>): Prefs {
+  return {
+    theme: p.theme ?? DEFAULT_PREFS.theme,
+    fontFamily: p.fontFamily ?? DEFAULT_PREFS.fontFamily,
+    fontScale: typeof p.fontScale === 'number' ? p.fontScale : DEFAULT_PREFS.fontScale,
+    weightUnit: p.weightUnit === 'lb' || p.weightUnit === 'kg' ? p.weightUnit : DEFAULT_PREFS.weightUnit,
+    weekStartDay: p.weekStartDay === 'monday' || p.weekStartDay === 'sunday' ? p.weekStartDay : DEFAULT_PREFS.weekStartDay,
+    restTimerDefaultSeconds:
+      typeof p.restTimerDefaultSeconds === 'number' && Number.isFinite(p.restTimerDefaultSeconds) && p.restTimerDefaultSeconds > 0
+        ? p.restTimerDefaultSeconds
+        : DEFAULT_PREFS.restTimerDefaultSeconds,
+    restTimerHaptics: typeof p.restTimerHaptics === 'boolean' ? p.restTimerHaptics : DEFAULT_PREFS.restTimerHaptics,
+    showRpe: typeof p.showRpe === 'boolean' ? p.showRpe : DEFAULT_PREFS.showRpe,
+  }
+}
+
 export function readPrefs(storage: Pick<Storage, 'getItem'> = localStorage): Prefs {
   try {
     const raw = storage.getItem(PREFS_KEY)
     if (!raw) return DEFAULT_PREFS
-    const p = JSON.parse(raw) as Partial<Prefs>
-    return {
-      theme: p.theme ?? DEFAULT_PREFS.theme,
-      fontFamily: p.fontFamily ?? DEFAULT_PREFS.fontFamily,
-      fontScale: typeof p.fontScale === 'number' ? p.fontScale : DEFAULT_PREFS.fontScale,
-      weightUnit: p.weightUnit === 'lb' || p.weightUnit === 'kg' ? p.weightUnit : DEFAULT_PREFS.weightUnit,
-      weekStartDay: p.weekStartDay === 'monday' || p.weekStartDay === 'sunday' ? p.weekStartDay : DEFAULT_PREFS.weekStartDay,
-      restTimerDefaultSeconds:
-        typeof p.restTimerDefaultSeconds === 'number' && Number.isFinite(p.restTimerDefaultSeconds) && p.restTimerDefaultSeconds > 0
-          ? p.restTimerDefaultSeconds
-          : DEFAULT_PREFS.restTimerDefaultSeconds,
-      restTimerHaptics: typeof p.restTimerHaptics === 'boolean' ? p.restTimerHaptics : DEFAULT_PREFS.restTimerHaptics,
-      showRpe: typeof p.showRpe === 'boolean' ? p.showRpe : DEFAULT_PREFS.showRpe,
-    }
+    return coercePrefs(JSON.parse(raw) as Partial<Prefs>)
   } catch {
     return DEFAULT_PREFS
   }
+}
+
+/** The single mapping site for the historical 'lbs' (profiles.units, DB) vs 'lb' (Prefs.weightUnit,
+ *  client) spelling mismatch. Only ever used to seed weightUnit *from* units (never the reverse) —
+ *  see usePrefsSync's seed-up path and OnboardingPage.finish(). Accepts null/undefined defensively
+ *  (profiles.units is NOT NULL DEFAULT 'lbs' in practice, so a real row never actually passes null —
+ *  this covers a hand-edited/legacy row or a caller outside the DB boundary). */
+export function unitsToWeightUnit(units: Units | null | undefined): WeightUnit {
+  if (units === 'lbs') return 'lb'
+  if (units === 'kg') return 'kg'
+  return 'lb'
 }
 
 export function writePrefs(prefs: Prefs, storage: Pick<Storage, 'setItem'> = localStorage): void {
