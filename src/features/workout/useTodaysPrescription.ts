@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useAuth } from '../../lib/useAuth'
 import { useActiveWorkout } from '../../data/queries'
 import { getPrescription } from '../../domain/programEngine'
-import type { PrescribedExercise } from '../../domain/types'
+import type { DayDiscipline, PrescribedExercise } from '../../domain/types'
 
 export interface TodaysPrescription {
   loading: boolean
@@ -10,6 +10,8 @@ export interface TodaysPrescription {
   dayName: string
   dayIndex: number
   label: string
+  discipline: DayDiscipline
+  target?: string
   prescription: PrescribedExercise[]
 }
 
@@ -18,6 +20,8 @@ const EMPTY: Omit<TodaysPrescription, 'loading'> = {
   dayName: '',
   dayIndex: 0,
   label: '',
+  discipline: 'strength',
+  target: undefined,
   prescription: [],
 }
 
@@ -45,6 +49,8 @@ export function useTodaysPrescription(): TodaysPrescription {
       dayName,
       dayIndex: cursor.dayIndex,
       label,
+      discipline: day?.discipline ?? 'strength',
+      target: day?.target,
       prescription,
     }
   }, [bundle, isLoading])

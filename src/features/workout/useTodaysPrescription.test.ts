@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useTodaysPrescription } from './useTodaysPrescription'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import type { LinearProgressionConfig } from '../../domain/types'
+import type { Program } from '../../domain'
 
 const { useActiveWorkout } = vi.hoisted(() => ({ useActiveWorkout: vi.fn() }))
 
@@ -90,5 +91,40 @@ describe('useTodaysPrescription', () => {
     const { result } = renderHook(() => useTodaysPrescription())
 
     expect(result.current.prescription[0].sets[0]).toEqual({ weight: 140, reps: 5, isFsl: false })
+  })
+})
+
+describe('useTodaysPrescription discipline/target', () => {
+  beforeEach(() => useActiveWorkout.mockReset())
+
+  function bundleWith(program: Program, dayIndex: number): ActiveWorkoutBundle {
+    return {
+      program, days: [], programExercises: [], exercisesById: {},
+      trainingMaxes: {}, cursor: { dayIndex, week: 1, cycle: 1 },
+      personalRecords: [], workingWeights: {}, workingWeightValues: {},
+    }
+  }
+
+  const mixed: Program = {
+    name: 'Mixed', discipline: 'mixed',
+    days: [
+      { name: 'Gym A', discipline: 'strength', exercises: [] },
+      { name: 'Send', discipline: 'climbing', target: 'project V5', exercises: [] },
+    ],
+  }
+
+  it('exposes strength for a strength day with no target', () => {
+    useActiveWorkout.mockReturnValue({ data: bundleWith(mixed, 0), isLoading: false })
+    const { result } = renderHook(() => useTodaysPrescription())
+    expect(result.current.discipline).toBe('strength')
+    expect(result.current.target).toBeUndefined()
+  })
+
+  it('exposes climbing + target for a climbing day', () => {
+    useActiveWorkout.mockReturnValue({ data: bundleWith(mixed, 1), isLoading: false })
+    const { result } = renderHook(() => useTodaysPrescription())
+    expect(result.current.discipline).toBe('climbing')
+    expect(result.current.target).toBe('project V5')
+    expect(result.current.prescription).toEqual([])
   })
 })
