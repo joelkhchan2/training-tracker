@@ -41,8 +41,8 @@ export const phaseAFamilies: MergeFamily[] = [
     aliasIds: ['REPLACE_AT_DATA_OP__Pull_Ups'],
   },
   {
-    canonicalName: 'Bent Over Barbell Row',
-    canonicalId: 'REPLACE_AT_DATA_OP__Bent_Over_Barbell_Row',
+    canonicalName: 'Barbell Row',
+    canonicalId: 'REPLACE_AT_DATA_OP__Barbell_Row',
     aliasNames: ['Barbell Bent Over Row'],
     aliasIds: ['REPLACE_AT_DATA_OP__Barbell_Bent_Over_Row'],
   },
