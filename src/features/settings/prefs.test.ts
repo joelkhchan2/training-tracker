@@ -11,6 +11,12 @@ describe('resolveTheme', () => {
   it('passes through a concrete theme', () => {
     expect(resolveTheme('navy', true)).toBe('navy')
   })
+  it('passes through the new Monochrome (dark) and Arctic (light) themes', () => {
+    expect(resolveTheme('monochrome', true)).toBe('monochrome')
+    expect(resolveTheme('monochrome', false)).toBe('monochrome')
+    expect(resolveTheme('arctic', true)).toBe('arctic')
+    expect(resolveTheme('arctic', false)).toBe('arctic')
+  })
   it('falls back to midnight for an unknown id', () => {
     expect(resolveTheme('bogus' as never, true)).toBe('midnight')
   })
@@ -20,6 +26,9 @@ describe('fontStack', () => {
   it('returns the stack for an id and system for unknown', () => {
     expect(fontStack('mono')).toContain('monospace')
     expect(fontStack('bogus' as never)).toBe(fontStack('system'))
+  })
+  it('returns the self-hosted Inter Variable family for inter', () => {
+    expect(fontStack('inter')).toContain('"Inter Variable"')
   })
 })
 

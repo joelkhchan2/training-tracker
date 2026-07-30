@@ -69,9 +69,19 @@
   --text:#ffffff; --muted:#c9c9c9; --accent:#ffe600; --accent-fg:#000000;
   --danger:#ff5a5a; --danger-fg:#000000; color-scheme: dark;
 }
+[data-theme="monochrome"] {
+  --bg:#0a0a0a; --surface:#161618; --surface-hover:#202023; --border:#2b2b2e;
+  --text:#f4f4f5; --muted:#8f8f95; --accent:#d4d4d8; --accent-fg:#0a0a0a;
+  --danger:#ff5c5c; --danger-fg:#1a0505; color-scheme: dark;
+}
 [data-theme="daylight"] {
   --bg:#f7f7f5; --surface:#ffffff; --surface-hover:#eeeeec; --border:#dcdcd8;
   --text:#1b1b1a; --muted:#5f5f5c; --accent:#2f6b2f; --accent-fg:#ffffff;
+  --danger:#c62828; --danger-fg:#ffffff; color-scheme: light;
+}
+[data-theme="arctic"] {
+  --bg:#eef3f8; --surface:#ffffff; --surface-hover:#e2ebf3; --border:#d3dde7;
+  --text:#0f1b26; --muted:#5a6b7b; --accent:#2f7dd1; --accent-fg:#ffffff;
   --danger:#c62828; --danger-fg:#ffffff; color-scheme: light;
 }
 [data-theme="yuletide"] {
