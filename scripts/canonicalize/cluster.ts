@@ -2,6 +2,51 @@ import { hardNormalizeExerciseName } from '../../src/domain/exerciseName.ts'
 import type { MergeFamily } from './apply.ts'
 
 /**
+ * Leading tokens that mark a name as starting with an "attachment"/implement
+ * word, for JUNK detection only. Deliberately broader than the
+ * EQUIPMENT_PREFIX_TOKENS used for the equipment-prefix *merge-candidate*
+ * key in Task 5 (e.g. includes "plate") — a junk compound just needs SOME
+ * generic prefix word to trigger the check; a semantic equipment-prefix
+ * merge candidate needs a word that denotes a genuine alternate implement.
+ */
+const JUNK_LEADING_TOKENS = new Set([
+  'barbell', 'dumbbell', 'machine', 'cable', 'band', 'kettlebell', 'smith', 'ez', 'ezbar', 'bodyweight', 'plate',
+])
+
+/**
+ * Curated movement-word set for junk detection. Deliberately narrow —
+ * "push" is excluded because "Push Press" is a real single lift (two
+ * movement-sounding words describing ONE named exercise), and "hold" is
+ * excluded for the same reason: "Barbell Squat Hold" / "Dumbbell Curl Hold"
+ * are real isometric-hold exercise names, not junk, and would otherwise
+ * trip the >=2-distinct-movement-words threshold ({squat, hold} / {curl,
+ * hold}) and get silently deactivated with no reviewer signal if never
+ * logged. The three named catalog junk examples still trip the threshold
+ * without "hold": Band Squat Hold Row -> {squat, row}; Plate Squat Hold
+ * Curl -> {squat, curl}; Machine Squat Press -> {squat, press}. Adding
+ * generic words here would false-positive on real compound lift names.
+ * This is a heuristic, not exhaustive; the human review gate (design doc)
+ * is the actual safety net before anything is deactivated.
+ */
+const JUNK_MOVEMENT_TOKENS = new Set([
+  'squat', 'press', 'row', 'curl', 'pull', 'raise', 'extension',
+  'fly', 'deadlift', 'lunge', 'crunch', 'dip', 'thrust', 'swing', 'carry', 'hinge', 'chin',
+])
+
+const JUNK_MIN_MOVEMENT_TOKENS = 2
+
+function tokenize(name: string): string[] {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(t => t.length > 0)
+}
+
+function isJunkCompound(name: string): boolean {
+  const [first, ...rest] = tokenize(name)
+  if (first === undefined || !JUNK_LEADING_TOKENS.has(first)) return false
+  const distinctMovementTokens = new Set(rest.filter(t => JUNK_MOVEMENT_TOKENS.has(t)))
+  return distinctMovementTokens.size >= JUNK_MIN_MOVEMENT_TOKENS
+}
+
+/**
  * Pure, deterministic catalog-sweep clustering (Phase B). Given every active
  * exercise row + the set of ids referenced by the user's logged history AND
  * favorites (see `clusterRun.ts`'s `buildHistoryTouchedIds` for exactly which
@@ -125,8 +170,28 @@ export function clusterExercises(
   // exist in the live catalog; they're just not candidates for a new merge.
   const candidateRows = rows.filter(r => r.canonicalId === null)
 
-  const byPrimaryKey = new Map<string, ClusterableExercise[]>()
+  const junk: JunkCandidate[] = []
+  const uncertain: UncertainGroup[] = []
+  const nonJunk: ClusterableExercise[] = []
+
   for (const row of candidateRows) {
+    if (!isJunkCompound(row.name)) {
+      nonJunk.push(row)
+      continue
+    }
+    if (historyTouchedIds.has(row.id)) {
+      uncertain.push({
+        reason: 'history-touched-junk',
+        members: [{ id: row.id, name: row.name }],
+        note: `"${row.name}" looks like a junk compound but has logged history — review, do not auto-deactivate.`,
+      })
+    } else {
+      junk.push({ id: row.id, name: row.name })
+    }
+  }
+
+  const byPrimaryKey = new Map<string, ClusterableExercise[]>()
+  for (const row of nonJunk) {
     const key = hardNormalizeExerciseName(row.name)
     const group = byPrimaryKey.get(key) ?? []
     group.push(row)
@@ -145,10 +210,8 @@ export function clusterExercises(
     }
   }
 
-  // Junk detection (Task 4) and equipment-prefix uncertain routing (Task 5)
-  // are added on top of this in later tasks — empty for now.
-  const uncertain: UncertainGroup[] = []
-  const junk: JunkCandidate[] = []
+  // Equipment-prefix uncertain routing (Task 5) is added on top of this in
+  // a later task.
 
   return {
     historyTouching,

@@ -113,3 +113,61 @@ describe('clusterExercises — canonical choice is deterministic', () => {
     expect(first).toEqual(second)
   })
 })
+
+describe('clusterExercises — junk-compound detection', () => {
+  it('flags the three known junk-compound examples, untouched -> junk list', () => {
+    const rows = [
+      row('n1', 'Band Squat Hold Row'),
+      row('n2', 'Machine Squat Press'),
+      row('n3', 'Plate Squat Hold Curl'),
+    ]
+    const result = clusterExercises(rows, new Set())
+    expect(result.junk.map(j => j.id).sort()).toEqual(['n1', 'n2', 'n3'])
+  })
+
+  it('routes a history-touched junk-looking row to uncertain, NOT to junk', () => {
+    const rows = [row('o1', 'Band Squat Hold Row')]
+    const result = clusterExercises(rows, new Set(['o1']))
+    expect(result.junk).toHaveLength(0)
+    expect(result.uncertain).toHaveLength(1)
+    expect(result.uncertain[0].reason).toBe('history-touched-junk')
+    expect(result.uncertain[0].members).toEqual([{ id: 'o1', name: 'Band Squat Hold Row' }])
+  })
+
+  it('does NOT flag real single-movement exercises with an equipment prefix', () => {
+    const rows = [
+      row('p1', 'Barbell Back Squat'),
+      row('p2', 'Barbell Bench Press'),
+      row('p3', 'Machine Seated Row'),
+      row('p4', 'Cable Pull-Through'),
+      row('p5', 'Dumbbell Romanian Deadlift'),
+    ]
+    const result = clusterExercises(rows, new Set())
+    expect(result.junk).toHaveLength(0)
+  })
+
+  it('does NOT flag a real two-movement-word compound lift name (Barbell Push Press)', () => {
+    const rows = [row('q1', 'Barbell Push Press')]
+    const result = clusterExercises(rows, new Set())
+    expect(result.junk).toHaveLength(0)
+  })
+
+  it('does NOT flag real isometric-hold exercise names ("hold" is not a movement token)', () => {
+    const rows = [row('q2', 'Barbell Squat Hold'), row('q3', 'Dumbbell Curl Hold')]
+    const result = clusterExercises(rows, new Set())
+    expect(result.junk).toHaveLength(0)
+  })
+
+  it('does not require an equipment prefix to leave a name un-flagged (no leading junk token -> never junk)', () => {
+    const rows = [row('r1', 'Squat Press Curl')] // no leading equipment/junk token
+    const result = clusterExercises(rows, new Set())
+    expect(result.junk).toHaveLength(0)
+  })
+
+  it('junk rows are excluded from primary clustering (never appear in a family)', () => {
+    const rows = [row('s1', 'Band Squat Hold Row'), row('s2', 'Band Squat Hold Row')] // hypothetical literal dup
+    const result = clusterExercises(rows, new Set())
+    expect([...result.historyTouching, ...result.searchOnly]).toHaveLength(0)
+    expect(result.junk.map(j => j.id).sort()).toEqual(['s1', 's2'])
+  })
+})
