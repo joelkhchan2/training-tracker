@@ -18,6 +18,7 @@ function extractPrefs(state: ReturnType<typeof usePrefs.getState>): Prefs {
 }
 
 const WRITE_THROUGH_DEBOUNCE_MS = 500
+const WRITE_THROUGH_RETRY_DELAY_MS = 1000
 
 /** Hydrates `usePrefs` from the signed-in user's `profiles` row on session-ready, then keeps the
  *  server in sync with local changes via a debounced write-through. Sources the row from the
@@ -54,6 +55,8 @@ export function usePrefsSync(): void {
       if (prev !== undefined) {
         usePrefs.setState(DEFAULT_PREFS)
         writePrefs(DEFAULT_PREFS)
+        initPrefs() // re-applies theme/font/scale to the DOM — bare setState doesn't, so without
+        // this the previous user's appearance would stay on screen after sign-out/switch.
       }
     }
     prevUserIdRef.current = userId
@@ -104,20 +107,33 @@ export function usePrefsSync(): void {
   useEffect(() => {
     if (!userId) return
     let writeTimer: ReturnType<typeof setTimeout> | undefined
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let cancelled = false
     const unsubscribe = usePrefs.subscribe((state) => {
       if (hydratedUserIdRef.current !== userId) return
       const next = extractPrefs(state)
       clearTimeout(writeTimer)
+      clearTimeout(retryTimer)
       writeTimer = setTimeout(() => {
-        getSupabase().from('profiles').update({ ui_prefs: next }).eq('id', userId)
-          .then(({ error }) => {
-            if (error) console.error('usePrefsSync: write-through failed', error)
-          })
+        const write = () => getSupabase().from('profiles').update({ ui_prefs: next }).eq('id', userId)
+        write().then(({ error }) => {
+          if (!error || cancelled) return
+          // One-time retry after a short delay — covers a transient network blip without
+          // building out a full backoff/queue. If it fails again, give up and log.
+          retryTimer = setTimeout(() => {
+            if (cancelled) return
+            write().then(({ error: retryError }) => {
+              if (retryError) console.error('usePrefsSync: write-through failed', retryError)
+            })
+          }, WRITE_THROUGH_RETRY_DELAY_MS)
+        })
       }, WRITE_THROUGH_DEBOUNCE_MS)
     })
     return () => {
+      cancelled = true
       unsubscribe()
       clearTimeout(writeTimer)
+      clearTimeout(retryTimer)
     }
   }, [userId])
 }
