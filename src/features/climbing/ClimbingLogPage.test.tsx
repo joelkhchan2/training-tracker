@@ -4,23 +4,43 @@ import { ClimbingLogPage } from './ClimbingLogPage'
 
 const { useLogClimbing } = vi.hoisted(() => ({ useLogClimbing: vi.fn() }))
 const { useProfile } = vi.hoisted(() => ({ useProfile: vi.fn() }))
+const { useActiveWorkout } = vi.hoisted(() => ({ useActiveWorkout: vi.fn() }))
 const nav = vi.fn()
+let locationState: unknown = null
 
 vi.mock('../../data/logClimbing', () => ({ useLogClimbing }))
 vi.mock('../../data/profile', () => ({ useProfile }))
+vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
 vi.mock('react-router-dom', () => ({
   useNavigate: () => nav,
+  useLocation: () => ({ state: locationState }),
   Navigate: ({ to }: { to: string }) => <div>redirect-to-{to}</div>,
 }))
 
 const mutate = vi.fn()
 
+// Two days so buildSavePlan's real advanceCursor moves dayIndex 0 -> 1 within the same
+// week/cycle (a single-day program would wrap to a new cycle instead — see task-6-report.md).
+const climbingBundle = {
+  program: {
+    name: 'Mixed',
+    discipline: 'mixed',
+    days: [
+      { name: 'Send', discipline: 'climbing', target: 'V5', exercises: [] },
+      { name: 'Rest', discipline: 'strength', exercises: [] },
+    ],
+  },
+  cursor: { dayIndex: 0, week: 1, cycle: 1 },
+}
+
 beforeEach(() => {
   mutate.mockReset()
   nav.mockReset()
+  locationState = null
   useLogClimbing.mockReturnValue({ mutate, isPending: false })
   useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing'] }, isLoading: false })
+  useActiveWorkout.mockReturnValue({ data: undefined })
 })
 
 describe('ClimbingLogPage', () => {
@@ -70,5 +90,60 @@ describe('ClimbingLogPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(nav).toHaveBeenCalledWith('/history')
     expect(screen.queryByText(/New max grade/)).not.toBeInTheDocument()
+  })
+
+  it('program-linked: passes cursor params from the bundle snapshot and routes to / on non-PR save', () => {
+    locationState = { programLinked: true }
+    useActiveWorkout.mockReturnValue({ data: climbingBundle })
+    mutate.mockImplementation((_input, opts) => opts.onSuccess({ sessionId: 's', newMaxGrade: null, previousMaxGrade: null }))
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 sends'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const [payload] = mutate.mock.calls[0]
+    expect(payload.nextCursor).toEqual({ dayIndex: 1, week: 1, cycle: 1 })
+    expect(payload.lastAdvanceKey).toBe('1-1-1')
+    expect(nav).toHaveBeenCalledWith('/')
+  })
+
+  it('program-linked: PR interstitial Continue routes to / (not /history)', () => {
+    locationState = { programLinked: true }
+    useActiveWorkout.mockReturnValue({ data: climbingBundle })
+    mutate.mockImplementation((_input, opts) => opts.onSuccess({ sessionId: 's', newMaxGrade: 6, previousMaxGrade: 5 }))
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V6 sends'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(nav).toHaveBeenCalledWith('/')
+  })
+
+  it('program-linked: Save is disabled until the bundle resolves', () => {
+    locationState = { programLinked: true }
+    useActiveWorkout.mockReturnValue({ data: undefined })
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 sends'), { target: { value: '1' } })
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('program-linked: skips the enabled-disciplines redirect', () => {
+    locationState = { programLinked: true }
+    useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength'] }, isLoading: false })
+    useActiveWorkout.mockReturnValue({ data: climbingBundle })
+    render(<ClimbingLogPage />)
+    expect(screen.queryByText('redirect-to-/')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+  })
+
+  it('program-linked: downgrades to ad-hoc (no cursor params) when the cursor day discipline drifts', () => {
+    locationState = { programLinked: true }
+    useActiveWorkout.mockReturnValue({
+      data: { program: { name: 'Mixed', discipline: 'mixed', days: [{ name: 'Gym', discipline: 'strength', exercises: [] }] }, cursor: { dayIndex: 0, week: 1, cycle: 1 } },
+    })
+    mutate.mockImplementation((_input, opts) => opts.onSuccess({ sessionId: 's', newMaxGrade: null, previousMaxGrade: null }))
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 sends'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const [payload] = mutate.mock.calls[0]
+    expect(payload.nextCursor).toBeUndefined()
+    expect(nav).toHaveBeenCalledWith('/')
   })
 })
