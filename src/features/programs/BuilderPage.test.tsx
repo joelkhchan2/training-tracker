@@ -271,6 +271,53 @@ describe('BuilderPage — /programs/new', () => {
     expect(screen.queryByLabelText('Target / note (optional)')).not.toBeInTheDocument()
   })
 
+  it('switching a strength day with exercises to climbing clears its exercises and unblocks Save', () => {
+    renderNew()
+
+    fireEvent.change(screen.getByLabelText('Program name'), { target: { value: 'Mixed Plan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    const day = screen.getByTestId('day-0')
+    fireEvent.click(within(day).getByRole('button', { name: 'Add exercise' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Bench Press' }))
+    expect(screen.getByTestId('exercise-0-0')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'climbing' } })
+
+    // The now-hidden exercise editor can't leave an orphaned, save-blocking exercise behind.
+    expect(screen.queryByTestId('exercise-0-0')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save program' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockSaveMutate).toHaveBeenCalledTimes(1)
+    const [payload] = mockSaveMutate.mock.calls[0]
+    expect(payload.draft.days[0]).toMatchObject({ discipline: 'climbing', exercises: [] })
+  })
+
+  it('switching a climbing day with a target back to strength clears the target', () => {
+    renderNew()
+
+    fireEvent.change(screen.getByLabelText('Program name'), { target: { value: 'Plan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'climbing' } })
+    fireEvent.change(screen.getByLabelText('Target / note (optional)'), { target: { value: 'project V5' } })
+
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'strength' } })
+
+    expect(screen.getByRole('button', { name: 'Add exercise' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Target / note (optional)')).not.toBeInTheDocument()
+
+    const day = screen.getByTestId('day-0')
+    fireEvent.click(within(day).getByRole('button', { name: 'Add exercise' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Bench Press' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save program' }))
+
+    expect(mockSaveMutate).toHaveBeenCalledTimes(1)
+    const [payload] = mockSaveMutate.mock.calls[0]
+    expect(payload.draft.days[0].target).toBeUndefined()
+  })
+
   it('adding a climbing day and setting a target persists discipline + target on save', () => {
     renderNew()
 

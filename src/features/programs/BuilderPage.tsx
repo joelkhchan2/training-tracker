@@ -142,7 +142,17 @@ export function BuilderPage() {
   }
 
   function updateDayDiscipline(dayIdx: number, discipline: DayDiscipline) {
-    setDraft(prev => ({ ...prev, days: prev.days.map((day, i) => (i === dayIdx ? { ...day, discipline } : day)) }))
+    setDraft(prev => ({
+      ...prev,
+      days: prev.days.map((day, i) => {
+        if (i !== dayIdx || (day.discipline ?? 'strength') === discipline) return day
+        // Switching discipline clears whichever field no longer applies, so a hidden
+        // exercise editor can't leave save-blocking exercises on a climbing/cardio day,
+        // and a stale target doesn't silently ride along back into a strength day.
+        if (discipline === 'strength') return { ...day, discipline, target: undefined }
+        return { ...day, discipline, exercises: [] }
+      }),
+    }))
   }
 
   function updateDayTarget(dayIdx: number, target: string) {
