@@ -68,8 +68,8 @@ describe('buildActivationRows', () => {
     const rows = buildActivationRows(TEST_PRESET, { squat: 225, benchPress: 155 }, exerciseIdByName, ids)
 
     expect(rows.days).toEqual([
-      { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 },
-      { id: 'day-b', program_id: 'prog-1', name: 'Day B', order_index: 1 },
+      { id: 'day-a', program_id: 'prog-1', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
+      { id: 'day-b', program_id: 'prog-1', name: 'Day B', discipline: 'strength', target: null, order_index: 1 },
     ])
   })
 
@@ -175,7 +175,7 @@ describe('linear progression config round-trip', () => {
       id: 'prog-1', user_id: 'u1', name: LP_PRESET.program.name, description: null,
       discipline: 'strength', progression_rule: null, is_public: false, created_at: '2026-01-01T00:00:00Z',
     }
-    const dayRow: ProgramDayRow = { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 }
+    const dayRow: ProgramDayRow = { id: 'day-a', program_id: 'prog-1', name: 'Day A', discipline: 'strength', target: null, order_index: 0 }
     const programExerciseRow: ProgramExerciseRow = {
       id: 'pe-1',
       program_day_id: rows.programExercises[0].program_day_id,
@@ -546,7 +546,7 @@ const SOURCE_PROGRAM_ROW: ProgramRow = {
 }
 
 const SOURCE_DAYS: ProgramDayRow[] = [
-  { id: 'day-a', program_id: 'prog-own', name: 'Day A', order_index: 0 },
+  { id: 'day-a', program_id: 'prog-own', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
 ]
 
 const SOURCE_EXERCISES: ProgramExerciseRow[] = [
@@ -599,7 +599,7 @@ describe('useActivateDbProgram', () => {
       discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
     }
     const communityDays: ProgramDayRow[] = [
-      { id: 'src-day-a', program_id: 'prog-community', name: 'Day A', order_index: 0 },
+      { id: 'src-day-a', program_id: 'prog-community', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
     ]
     const communityExercises: ProgramExerciseRow[] = [
       {
@@ -695,7 +695,7 @@ describe('useActivateDbProgram', () => {
       discipline: 'strength', progression_rule: null, is_public: true, created_at: '2026-01-01T00:00:00Z',
     }
     const advancedDays: ProgramDayRow[] = [
-      { id: 'src-day-a', program_id: 'prog-advanced', name: 'Day A', order_index: 0 },
+      { id: 'src-day-a', program_id: 'prog-advanced', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
     ]
     const advancedExercises: ProgramExerciseRow[] = [
       {

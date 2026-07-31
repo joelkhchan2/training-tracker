@@ -13,6 +13,12 @@ const { mockNavigate, useActiveWorkout, fetchLastSetsByExercise } = vi.hoisted((
   fetchLastSetsByExercise: vi.fn(),
 }))
 
+const { advanceMutate, setDayMutate } = vi.hoisted(() => ({ advanceMutate: vi.fn(), setDayMutate: vi.fn() }))
+vi.mock('../../data/cursorActions', () => ({
+  useAdvanceCursor: () => ({ mutate: advanceMutate, isPending: false }),
+  useSetCursorDay: () => ({ mutate: setDayMutate, isPending: false }),
+}))
+
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
   return { ...actual, useNavigate: () => mockNavigate }
@@ -74,6 +80,7 @@ describe('HomePage', () => {
     mockNavigate.mockReset()
     useActiveWorkout.mockReset()
     fetchLastSetsByExercise.mockReset()
+    advanceMutate.mockReset(); setDayMutate.mockReset()
     useSessionStore.getState().reset()
   })
 
@@ -168,5 +175,65 @@ describe('HomePage', () => {
 
     // Button is re-enabled once the async work settles.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start workout' })).not.toBeDisabled())
+  })
+
+  it('renders a Start climbing button and the target for a climbing day, launching program-linked', () => {
+    const climbingBundle = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [{ name: 'Send', discipline: 'climbing', target: 'project V5', exercises: [] }] },
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: climbingBundle, isLoading: false })
+
+    render(<HomePage />)
+
+    expect(screen.getByText('project V5')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start climbing' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/climbing/new', { state: { programLinked: true } })
+  })
+
+  it('renders a Start cardio button for a cardio day, launching program-linked', () => {
+    const cardioBundle = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [{ name: 'Run', discipline: 'cardio', target: '5k easy', exercises: [] }] },
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: cardioBundle, isLoading: false })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start cardio' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/cardio/new', { state: { programLinked: true } })
+  })
+
+  it('Skip day advances the cursor via useAdvanceCursor', () => {
+    const twoDay = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [
+        { name: 'Gym A', discipline: 'strength', exercises: [] },
+        { name: 'Send', discipline: 'climbing', exercises: [] },
+      ] },
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: twoDay, isLoading: false })
+    render(<HomePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Skip day' }))
+    expect(advanceMutate).toHaveBeenCalledWith({ program: twoDay.program, cursor: twoDay.cursor })
+  })
+
+  it('picking a day sets the cursor dayIndex while preserving week/cycle', () => {
+    const twoDay = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [
+        { name: 'Gym A', discipline: 'strength', exercises: [] },
+        { name: 'Send', discipline: 'climbing', exercises: [] },
+      ] },
+      cursor: { dayIndex: 0, week: 2, cycle: 3 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: twoDay, isLoading: false })
+    render(<HomePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Do a different day' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(setDayMutate).toHaveBeenCalledWith({ cursor: twoDay.cursor, dayIndex: 1 })
   })
 })

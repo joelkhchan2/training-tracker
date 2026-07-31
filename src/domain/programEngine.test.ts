@@ -256,3 +256,38 @@ describe('engine robustness to malformed jsonb data', () => {
     expect(programWeekCount(oneExerciseProgram({ type: 'percentage', tmKey: 'squat', weeks: 3 }))).toBe(1)
   })
 })
+
+import { deriveProgramDiscipline } from './programEngine'
+
+describe('deriveProgramDiscipline', () => {
+  it('returns the single discipline when all days share it', () => {
+    expect(deriveProgramDiscipline([{ discipline: 'strength' }, { discipline: 'strength' }])).toBe('strength')
+    expect(deriveProgramDiscipline([{ discipline: 'climbing' }])).toBe('climbing')
+  })
+  it('treats a missing discipline as strength', () => {
+    expect(deriveProgramDiscipline([{}, { discipline: 'strength' }])).toBe('strength')
+    expect(deriveProgramDiscipline([])).toBe('strength')
+  })
+  it('returns "mixed" when days differ', () => {
+    expect(deriveProgramDiscipline([{ discipline: 'climbing' }, { discipline: 'strength' }])).toBe('mixed')
+  })
+})
+
+describe('getPrescription non-strength guard', () => {
+  const climbDay: Program = {
+    name: 'mix', discipline: 'mixed',
+    days: [{ name: 'Boulder', discipline: 'climbing', exercises: [] }],
+  }
+  it('returns [] for a climbing day', () => {
+    expect(getPrescription(climbDay, { dayIndex: 0, week: 1, cycle: 1 }, {})).toEqual([])
+  })
+  it('returns [] for a climbing day even if it carries stray exercises', () => {
+    const malformed: Program = {
+      name: 'mix', discipline: 'mixed',
+      days: [{ name: 'Boulder', discipline: 'climbing', exercises: [
+        { exerciseName: 'Squat', order: 0, scheme: { type: 'fixed', sets: [{ reps: 5, weight: 100 }] } },
+      ] }],
+    }
+    expect(getPrescription(malformed, { dayIndex: 0, week: 1, cycle: 1 }, {})).toEqual([])
+  })
+})

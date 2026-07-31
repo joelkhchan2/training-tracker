@@ -10,15 +10,19 @@ import { useTodaysPrescription } from '../workout/useTodaysPrescription'
 import { useSessionStore } from '../workout/sessionStore'
 import { formatSetsHint } from './formatSetsHint'
 import { usePrefs } from '../settings/usePrefs'
+import { useAdvanceCursor, useSetCursorDay } from '../../data/cursorActions'
 
 export function HomePage() {
   const { signOut, user } = useAuth()
   const nav = useNavigate()
   const startFromPrescription = useSessionStore(s => s.startFromPrescription)
-  const { loading, hasProgram, dayName, dayIndex, label, prescription } = useTodaysPrescription()
+  const { loading, hasProgram, dayName, dayIndex, label, prescription, discipline, target } = useTodaysPrescription()
   const { data: bundle } = useActiveWorkout(user?.id)
   const weightUnit = usePrefs(s => s.weightUnit)
   const [starting, setStarting] = useState(false)
+  const advanceCursorMut = useAdvanceCursor()
+  const setCursorDayMut = useSetCursorDay()
+  const [picking, setPicking] = useState(false)
 
   const signOutLink = (
     <button onClick={signOut} className="text-sm text-muted underline">
@@ -91,18 +95,65 @@ export function HomePage() {
           </Button>
         </div>
 
-        <Card className="space-y-3">
-          {prescription.map((ex, i) => (
-            <div key={`${ex.exerciseName}-${i}`} className="flex items-baseline justify-between gap-3">
-              <span className="font-medium text-text">{ex.exerciseName}</span>
-              <span className="text-sm text-muted">{formatSetsHint(ex.sets, weightUnit)}</span>
-            </div>
-          ))}
-        </Card>
+        {discipline === 'strength' ? (
+          <>
+            <Card className="space-y-3">
+              {prescription.map((ex, i) => (
+                <div key={`${ex.exerciseName}-${i}`} className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium text-text">{ex.exerciseName}</span>
+                  <span className="text-sm text-muted">{formatSetsHint(ex.sets, weightUnit)}</span>
+                </div>
+              ))}
+            </Card>
 
-        <Button fullWidth onClick={handleStart} disabled={starting}>
-          {starting ? 'Starting…' : 'Start workout'}
-        </Button>
+            <Button fullWidth onClick={handleStart} disabled={starting}>
+              {starting ? 'Starting…' : 'Start workout'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Card className="space-y-2">
+              <p className="font-medium capitalize text-text">{discipline}</p>
+              {target ? <p className="text-sm text-muted">{target}</p> : null}
+            </Card>
+
+            <Button
+              fullWidth
+              onClick={() =>
+                nav(discipline === 'climbing' ? '/climbing/new' : '/cardio/new', { state: { programLinked: true } })
+              }
+            >
+              {discipline === 'climbing' ? 'Start climbing' : 'Start cardio'}
+            </Button>
+          </>
+        )}
+
+        {bundle ? (
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => advanceCursorMut.mutate({ program: bundle.program, cursor: bundle.cursor })} disabled={advanceCursorMut.isPending}>
+                Skip day
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => setPicking(v => !v)}>
+                Do a different day
+              </Button>
+            </div>
+            {picking ? (
+              <Card className="space-y-2">
+                {bundle.program.days.map((d, i) => (
+                  <Button
+                    key={`${d.name}-${i}`}
+                    variant="ghost"
+                    fullWidth
+                    onClick={() => { setCursorDayMut.mutate({ cursor: bundle.cursor, dayIndex: i }); setPicking(false) }}
+                  >
+                    {d.name}
+                  </Button>
+                ))}
+              </Card>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </AppShell>
   )

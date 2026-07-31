@@ -2,7 +2,7 @@ import type { KeyboardEvent } from 'react'
 import { Card } from '../../components/ui/Card'
 import { cn } from '../../lib/cn'
 import type { PresetMeta } from '../../domain/presets'
-import type { Discipline } from '../../domain/types'
+import type { ProgramDiscipline } from '../../domain/types'
 
 export interface ProgramCardProps {
   preset: PresetMeta
@@ -11,11 +11,11 @@ export interface ProgramCardProps {
   onSelect: (preset: PresetMeta) => void
 }
 
-const disciplineLabel: Record<Discipline, string> = {
+const disciplineLabel: Record<ProgramDiscipline, string> = {
   strength: 'Strength',
   climbing: 'Climbing',
   cardio: 'Cardio',
-  calisthenics: 'Calisthenics',
+  mixed: 'Mixed',
 }
 
 /** One preset in the programs library: name, description, discipline/days-per-week

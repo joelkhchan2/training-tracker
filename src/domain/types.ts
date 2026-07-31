@@ -1,5 +1,10 @@
 export type Units = 'lbs' | 'kg'
 export type Discipline = 'strength' | 'climbing' | 'cardio' | 'calisthenics'
+/** The disciplines a single program day can be (no 'calisthenics' — see design D4). */
+export type DayDiscipline = 'strength' | 'climbing' | 'cardio'
+/** A program's overall discipline: the single shared day discipline, or 'mixed' when days differ.
+ *  Display metadata only — never drives logging or the engine. */
+export type ProgramDiscipline = DayDiscipline | 'mixed'
 
 /** Training maxes keyed by lift key, e.g. { squat: 270, benchPress: 150 } */
 export type TrainingMaxes = Record<string, number>
@@ -41,10 +46,18 @@ export interface ProgramExercise {
   scheme: Scheme
   order: number
 }
-export interface ProgramDay { name: string; exercises: ProgramExercise[] }
+export interface ProgramDay {
+  name: string
+  /** Absent = strength (legacy/preset in-code days). Persisted rows always carry a value
+   *  (DB column default 'strength'). */
+  discipline?: DayDiscipline
+  /** Free-text note for a non-strength day (e.g. "project V5"). No engine scheme. */
+  target?: string
+  exercises: ProgramExercise[]
+}
 export interface Program {
   name: string
-  discipline: Discipline
+  discipline: ProgramDiscipline
   days: ProgramDay[]
   progressionRule?: ProgressionRule
 }

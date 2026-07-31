@@ -1,4 +1,4 @@
-import type { Program, Cursor, TrainingMaxes, PrescribedExercise, PrescribedSet } from './types'
+import type { Program, Cursor, TrainingMaxes, PrescribedExercise, PrescribedSet, DayDiscipline, ProgramDiscipline } from './types'
 
 export function r5(n: number): number { return Math.round(n / 5) * 5 }
 
@@ -16,6 +16,14 @@ export function programWeekCount(program: Program): number {
     }
   }
   return weeks
+}
+
+/** A program's overall discipline: the single shared day discipline (absent = strength),
+ *  or 'mixed' when its days carry more than one. Empty day list derives to 'strength'. */
+export function deriveProgramDiscipline(days: { discipline?: DayDiscipline }[]): ProgramDiscipline {
+  const set = new Set<DayDiscipline>(days.map(d => d.discipline ?? 'strength'))
+  if (set.size <= 1) return [...set][0] ?? 'strength'
+  return 'mixed'
 }
 
 export function advanceCursor(program: Program, cursor: Cursor): { cursor: Cursor; cycleComplete: boolean } {
@@ -52,6 +60,9 @@ export function getPrescription(
   if (!Array.isArray(program.days)) return []
   const day = program.days[cursor.dayIndex]
   if (!day || !Array.isArray(day.exercises)) return []
+  // A climbing/cardio day is a marker — it prescribes nothing structured. Guard here so a
+  // day that somehow carries stray exercises still yields no prescription (absent = strength).
+  if (day.discipline && day.discipline !== 'strength') return []
   // `scheme` is jsonb from the DB — a malformed/legacy row can have a non-array (or
   // missing) `sets`/`weeks`. Coerce to [] at every access so a bad row yields an empty
   // prescription instead of throwing and white-screening the workout screen.

@@ -4,16 +4,24 @@ import { AppShell } from '../../components/ui/AppShell'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { NumberField } from '../../components/ui/NumberField'
+import { Select } from '../../components/ui/Select'
 import { TextField } from '../../components/ui/TextField'
 import { Textarea } from '../../components/ui/Textarea'
 import { WeightField } from '../../components/ui/WeightField'
 import { useSaveProgram, useUpdateProgram } from '../../data/saveProgram'
 import { getSupabase } from '../../data/supabase'
 import type { ProgramDayRow, ProgramExerciseRow, ProgramRow } from '../../data/types'
+import type { DayDiscipline } from '../../domain/types'
 import type { DraftExerciseKind, DraftSet, ProgramDraft, ProgramRowsLike } from '../../domain/programDraft'
 import { programRowsToDraft, validateDraft } from '../../domain/programDraft'
 import { ExercisePicker } from './ExercisePicker'
 import type { PickedExercise } from './ExercisePicker'
+
+const DISCIPLINE_OPTIONS: { value: DayDiscipline; label: string }[] = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'climbing', label: 'Climbing' },
+  { value: 'cardio', label: 'Cardio' },
+]
 
 function emptyDraft(): ProgramDraft {
   return { name: '', description: '', isPublic: false, days: [] }
@@ -67,6 +75,8 @@ async function fetchProgramRowsForEdit(programId: string): Promise<ProgramRowsLi
     is_public: program.is_public,
     days: days.map((day): ProgramRowsLike['days'][number] => ({
       name: day.name,
+      discipline: day.discipline,
+      target: day.target,
       order_index: day.order_index,
       exercises: exercises
         .filter(ex => ex.program_day_id === day.id)
@@ -89,8 +99,9 @@ async function fetchProgramRowsForEdit(programId: string): Promise<ProgramRowsLi
  * program's raw rows via `programRowsToDraft`; after that the fetched tree is
  * never consulted again, so further edits are pure local state.
  *
- * No reorder controls (cut from v1, see the Task 10 brief) — days, exercises,
- * and sets can only be added/removed, not moved.
+ * Days carry a per-day discipline (strength/climbing/cardio) and can be
+ * reordered with Move up/down; exercises and sets can only be added/removed,
+ * not reordered.
  */
 export function BuilderPage() {
   const { id: programId } = useParams<{ id: string }>()
@@ -127,7 +138,35 @@ export function BuilderPage() {
   }, [isEdit, programId])
 
   function addDay() {
-    setDraft(prev => ({ ...prev, days: [...prev.days, { name: `Day ${prev.days.length + 1}`, exercises: [] }] }))
+    setDraft(prev => ({ ...prev, days: [...prev.days, { name: `Day ${prev.days.length + 1}`, discipline: 'strength', exercises: [] }] }))
+  }
+
+  function updateDayDiscipline(dayIdx: number, discipline: DayDiscipline) {
+    setDraft(prev => ({
+      ...prev,
+      days: prev.days.map((day, i) => {
+        if (i !== dayIdx || (day.discipline ?? 'strength') === discipline) return day
+        // Switching discipline clears whichever field no longer applies, so a hidden
+        // exercise editor can't leave save-blocking exercises on a climbing/cardio day,
+        // and a stale target doesn't silently ride along back into a strength day.
+        if (discipline === 'strength') return { ...day, discipline, target: undefined }
+        return { ...day, discipline, exercises: [] }
+      }),
+    }))
+  }
+
+  function updateDayTarget(dayIdx: number, target: string) {
+    setDraft(prev => ({ ...prev, days: prev.days.map((day, i) => (i === dayIdx ? { ...day, target } : day)) }))
+  }
+
+  function moveDay(dayIdx: number, dir: -1 | 1) {
+    setDraft(prev => {
+      const j = dayIdx + dir
+      if (j < 0 || j >= prev.days.length) return prev
+      const days = [...prev.days]
+      ;[days[dayIdx], days[j]] = [days[j], days[dayIdx]]
+      return { ...prev, days }
+    })
   }
 
   function removeDay(dayIdx: number) {
@@ -280,69 +319,93 @@ export function BuilderPage() {
                   onChange={(name) => updateDayName(dayIdx, name)}
                   className="flex-1"
                 />
+                <Button variant="secondary" size="sm" aria-label={`Move day ${dayIdx + 1} up`} onClick={() => moveDay(dayIdx, -1)} disabled={dayIdx === 0}>
+                  Up
+                </Button>
+                <Button variant="secondary" size="sm" aria-label={`Move day ${dayIdx + 1} down`} onClick={() => moveDay(dayIdx, 1)} disabled={dayIdx === draft.days.length - 1}>
+                  Down
+                </Button>
                 <Button variant="secondary" size="sm" aria-label={`Remove day ${dayIdx + 1}`} onClick={() => removeDay(dayIdx)}>
                   Remove day
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {day.exercises.map((ex, exIdx) => (
-                  <Card key={exIdx} data-testid={`exercise-${dayIdx}-${exIdx}`} className="space-y-3 border-border/60">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="text-base font-semibold text-text">{ex.exerciseName}</h3>
-                      <Button variant="ghost" size="sm" onClick={() => removeExercise(dayIdx, exIdx)}>
-                        Remove exercise
-                      </Button>
-                    </div>
+              <Select
+                label={`Day ${dayIdx + 1} discipline`}
+                value={day.discipline ?? 'strength'}
+                onChange={(value) => updateDayDiscipline(dayIdx, value as DayDiscipline)}
+                options={DISCIPLINE_OPTIONS}
+              />
 
-                    <div className="space-y-3">
-                      {ex.sets.map((set, setIdx) => (
-                        <div key={setIdx} data-testid={`set-${dayIdx}-${exIdx}-${setIdx}`} className="flex items-end gap-2">
-                          <NumberField
-                            label="Reps"
-                            value={set.reps}
-                            onChange={(reps) => updateSetReps(dayIdx, exIdx, setIdx, reps)}
-                            className="flex-1"
-                          />
-                          {ex.kind === 'strength' ? (
-                            <WeightField
-                              label="Weight"
-                              valueLb={set.weight ?? 0}
-                              onChangeLb={(weight) => updateSetWeight(dayIdx, exIdx, setIdx, weight)}
-                              stepLb={5}
-                              className="flex-1"
-                            />
-                          ) : null}
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            aria-label={`Remove set ${setIdx + 1}`}
-                            onClick={() => removeSet(dayIdx, exIdx, setIdx)}
-                          >
-                            Remove set
+              {(day.discipline ?? 'strength') === 'strength' ? (
+                <>
+                  <div className="space-y-3">
+                    {day.exercises.map((ex, exIdx) => (
+                      <Card key={exIdx} data-testid={`exercise-${dayIdx}-${exIdx}`} className="space-y-3 border-border/60">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <h3 className="text-base font-semibold text-text">{ex.exerciseName}</h3>
+                          <Button variant="ghost" size="sm" onClick={() => removeExercise(dayIdx, exIdx)}>
+                            Remove exercise
                           </Button>
                         </div>
-                      ))}
+
+                        <div className="space-y-3">
+                          {ex.sets.map((set, setIdx) => (
+                            <div key={setIdx} data-testid={`set-${dayIdx}-${exIdx}-${setIdx}`} className="flex items-end gap-2">
+                              <NumberField
+                                label="Reps"
+                                value={set.reps}
+                                onChange={(reps) => updateSetReps(dayIdx, exIdx, setIdx, reps)}
+                                className="flex-1"
+                              />
+                              {ex.kind === 'strength' ? (
+                                <WeightField
+                                  label="Weight"
+                                  valueLb={set.weight ?? 0}
+                                  onChangeLb={(weight) => updateSetWeight(dayIdx, exIdx, setIdx, weight)}
+                                  stepLb={5}
+                                  className="flex-1"
+                                />
+                              ) : null}
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                aria-label={`Remove set ${setIdx + 1}`}
+                                onClick={() => removeSet(dayIdx, exIdx, setIdx)}
+                              >
+                                Remove set
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Button variant="secondary" size="sm" fullWidth onClick={() => addSet(dayIdx, exIdx)}>
+                          Add set
+                        </Button>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {pickingForDay === dayIdx ? (
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <ExercisePicker onPick={(picked) => addExercise(dayIdx, picked)} />
+                      <Button variant="ghost" size="sm" fullWidth onClick={() => setPickingForDay(null)}>
+                        Close
+                      </Button>
                     </div>
-
-                    <Button variant="secondary" size="sm" fullWidth onClick={() => addSet(dayIdx, exIdx)}>
-                      Add set
+                  ) : (
+                    <Button variant="secondary" fullWidth onClick={() => setPickingForDay(dayIdx)}>
+                      Add exercise
                     </Button>
-                  </Card>
-                ))}
-              </div>
-
-              {pickingForDay === dayIdx ? (
-                <div className="space-y-3 border-t border-border pt-4">
-                  <ExercisePicker onPick={(picked) => addExercise(dayIdx, picked)} />
-                  <Button variant="ghost" size="sm" fullWidth onClick={() => setPickingForDay(null)}>
-                    Close
-                  </Button>
-                </div>
+                  )}
+                </>
               ) : (
-                <Button variant="secondary" fullWidth onClick={() => setPickingForDay(dayIdx)}>
-                  Add exercise
-                </Button>
+                <TextField
+                  label="Target / note (optional)"
+                  value={day.target ?? ''}
+                  onChange={(target) => updateDayTarget(dayIdx, target)}
+                  placeholder="e.g. project V5, 5k easy"
+                />
               )}
             </Card>
           ))}

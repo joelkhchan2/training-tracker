@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -8,8 +8,11 @@ import { NumberField } from '../../components/ui/NumberField'
 import { TextField } from '../../components/ui/TextField'
 import { Textarea } from '../../components/ui/Textarea'
 import { formatPace } from '../../domain'
+import type { Cursor } from '../../domain'
 import { useAuth } from '../../lib/useAuth'
 import { useProfile } from '../../data/profile'
+import { useActiveWorkout } from '../../data/queries'
+import { buildSavePlan } from '../../data/mutations'
 import { useLogCardio } from '../../data/logCardio'
 
 const ACTIVITIES = ['Run', 'Bike', 'Row', 'Swim', 'Walk', 'Elliptical', 'Hike', 'Other']
@@ -25,8 +28,12 @@ function todayLocal(): string {
 
 export function CardioLogPage() {
   const nav = useNavigate()
+  const location = useLocation()
+  const programLinked = Boolean((location.state as { programLinked?: boolean } | null)?.programLinked)
   const { user } = useAuth()
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id)
+  // Only program-linked mode consults the active bundle (for the guard + advance plan).
+  const { data: bundle } = useActiveWorkout(user?.id)
   const logCardio = useLogCardio()
   // Stable across retries so the log_cardio RPC's on-conflict idempotency engages on a
   // failed-then-retried save instead of minting a duplicate session. Regenerating per Save
@@ -44,8 +51,12 @@ export function CardioLogPage() {
   // link, typed URL, back button after disabling) is redirected home, in addition to the chooser
   // gate in AppLayout. Placed AFTER all hooks so hook order is stable. `profile` is undefined
   // while loading, so the form shows briefly then redirects once the disabled profile arrives.
+  // A program-linked launch is authorized by the program itself, so skip the redirect.
   const cardioEnabled = (profile?.enabled_disciplines ?? []).includes('cardio')
-  if (!profileLoading && profile && !cardioEnabled) return <Navigate to="/" replace />
+  if (!programLinked && !profileLoading && profile && !cardioEnabled) return <Navigate to="/" replace />
+
+  // In program-linked mode Save waits for the bundle to resolve (there must be a cursor to snapshot).
+  const bundleResolving = programLinked && !bundle
 
   const activity = activityChoice === 'Other' ? customActivity.trim() : activityChoice
   const distanceKm = distance > 0 ? distance : null
@@ -58,6 +69,19 @@ export function CardioLogPage() {
       return
     }
     setError(null)
+
+    // ONE snapshot at Save-press drives both the guard and the plan.
+    let advance: { nextCursor: Cursor; lastAdvanceKey: string } | undefined
+    if (programLinked && bundle) {
+      const { program, cursor } = bundle
+      const dayDiscipline = program.days[cursor.dayIndex]?.discipline ?? 'strength'
+      if (dayDiscipline === 'cardio') {
+        const plan = buildSavePlan(program, cursor)
+        advance = { nextCursor: plan.nextCursor, lastAdvanceKey: plan.lastAdvanceKey }
+      }
+      // else: cursor drifted onto a non-cardio day -> fall back to ad-hoc (log, no advance).
+    }
+
     logCardio.mutate(
       {
         clientId,
@@ -66,9 +90,11 @@ export function CardioLogPage() {
         durationMinutes: duration,
         distanceKm,
         notes: notes.trim() || null,
+        nextCursor: advance?.nextCursor,
+        lastAdvanceKey: advance?.lastAdvanceKey,
       },
       {
-        onSuccess: () => nav('/history'),
+        onSuccess: () => nav(programLinked ? '/' : '/history'),
         onError: () => setError('Could not save. Please try again.'),
       },
     )
@@ -103,7 +129,7 @@ export function CardioLogPage() {
           {valid && pace ? <p className="text-sm text-muted">Pace: {pace} /km</p> : null}
         </Card>
         {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
-        <Button fullWidth onClick={handleSave} disabled={logCardio.isPending}>
+        <Button fullWidth onClick={handleSave} disabled={logCardio.isPending || bundleResolving}>
           {logCardio.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>

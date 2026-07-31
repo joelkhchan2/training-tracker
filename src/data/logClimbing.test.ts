@@ -34,4 +34,27 @@ describe('useLogClimbing', () => {
       clientId: 'c1', date: '2026-07-23', notes: null, sends: [{ grade: 'V6', count: 1, attempts: 1 }],
     })).rejects.toThrow('boom')
   })
+
+  it('passes cursor advance params when nextCursor is provided and does not otherwise', async () => {
+    rpc.mockResolvedValue({ data: { session_id: 's', new_max_grade: null, previous_max_grade: null }, error: null })
+    const { result } = renderHook(() => useLogClimbing(), { wrapper })
+
+    await result.current.mutateAsync({
+      clientId: 'c1', date: '2026-07-30', notes: null, sends: [{ grade: 'V4', count: 1, attempts: 1 }],
+      nextCursor: { dayIndex: 1, week: 1, cycle: 1 }, lastAdvanceKey: '1-1-1',
+    })
+    expect(rpc).toHaveBeenLastCalledWith('log_climbing', {
+      p_client_id: 'c1', p_date: '2026-07-30', p_notes: null,
+      p_sends: [{ grade: 'V4', count: 1, attempts: 1 }],
+      p_next_cursor: { dayIndex: 1, week: 1, cycle: 1 }, p_last_advance_key: '1-1-1',
+    })
+
+    await result.current.mutateAsync({
+      clientId: 'c2', date: '2026-07-30', notes: null, sends: [{ grade: 'V4', count: 1, attempts: 1 }],
+    })
+    expect(rpc).toHaveBeenLastCalledWith('log_climbing', {
+      p_client_id: 'c2', p_date: '2026-07-30', p_notes: null,
+      p_sends: [{ grade: 'V4', count: 1, attempts: 1 }],
+    })
+  })
 })

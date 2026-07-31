@@ -68,4 +68,47 @@ describe.skipIf(!anon)('log_cardio RPC', () => {
       .from('cardio_activities').select('*').eq('session_id', aSession as string)
     expect(bSeesA).toEqual([]) // RLS: B sees none of A's activities
   })
+
+  it('advances program_state.cursor when p_next_cursor is passed, and is gated by last_advance_key', async () => {
+    const { client, userId } = await makeUser(`cardio_adv_${Date.now()}@test.dev`)
+
+    // Seed a program_state row for this user (advance updates it in place).
+    await client.from('program_state').insert({
+      user_id: userId,
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+      last_advance_key: null,
+    })
+
+    // First advance (stored key null -> applies).
+    await client.rpc('log_cardio', {
+      p_client_id: `cadv-${Date.now()}`, p_date: '2026-07-30', p_activity: 'Run',
+      p_duration_minutes: 30, p_distance_km: 5, p_notes: null,
+      p_next_cursor: { dayIndex: 1, week: 1, cycle: 1 }, p_last_advance_key: '1-1-1',
+    })
+    const after1 = await client.from('program_state').select('cursor, last_advance_key').eq('user_id', userId).single()
+    expect(after1.data!.cursor).toEqual({ dayIndex: 1, week: 1, cycle: 1 })
+    expect(after1.data!.last_advance_key).toBe('1-1-1')
+
+    // Replay with the SAME last_advance_key but a DIFFERENT cursor -> gate makes it a no-op.
+    await client.rpc('log_cardio', {
+      p_client_id: `cadv2-${Date.now()}`, p_date: '2026-07-30', p_activity: 'Run',
+      p_duration_minutes: 30, p_distance_km: 5, p_notes: null,
+      p_next_cursor: { dayIndex: 9, week: 9, cycle: 9 }, p_last_advance_key: '1-1-1',
+    })
+    const after2 = await client.from('program_state').select('cursor').eq('user_id', userId).single()
+    expect(after2.data!.cursor).toEqual({ dayIndex: 1, week: 1, cycle: 1 }) // unchanged
+  })
+
+  it('does NOT touch program_state when no cursor params are passed (ad-hoc parity)', async () => {
+    const { client, userId } = await makeUser(`cardio_noadv_${Date.now()}@test.dev`)
+    await client.from('program_state').insert({
+      user_id: userId, cursor: { dayIndex: 0, week: 1, cycle: 1 }, last_advance_key: null,
+    })
+    await client.rpc('log_cardio', {
+      p_client_id: `cnoadv-${Date.now()}`, p_date: '2026-07-30', p_activity: 'Bike',
+      p_duration_minutes: 20, p_distance_km: 8, p_notes: null,
+    })
+    const after = await client.from('program_state').select('cursor').eq('user_id', userId).single()
+    expect(after.data!.cursor).toEqual({ dayIndex: 0, week: 1, cycle: 1 })
+  })
 })
