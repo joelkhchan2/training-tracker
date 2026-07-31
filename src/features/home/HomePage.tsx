@@ -10,6 +10,7 @@ import { useTodaysPrescription } from '../workout/useTodaysPrescription'
 import { useSessionStore } from '../workout/sessionStore'
 import { formatSetsHint } from './formatSetsHint'
 import { usePrefs } from '../settings/usePrefs'
+import { useAdvanceCursor, useSetCursorDay } from '../../data/cursorActions'
 
 export function HomePage() {
   const { signOut, user } = useAuth()
@@ -19,6 +20,9 @@ export function HomePage() {
   const { data: bundle } = useActiveWorkout(user?.id)
   const weightUnit = usePrefs(s => s.weightUnit)
   const [starting, setStarting] = useState(false)
+  const advanceCursorMut = useAdvanceCursor()
+  const setCursorDayMut = useSetCursorDay()
+  const [picking, setPicking] = useState(false)
 
   const signOutLink = (
     <button onClick={signOut} className="text-sm text-muted underline">
@@ -123,6 +127,33 @@ export function HomePage() {
             </Button>
           </>
         )}
+
+        {bundle ? (
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => advanceCursorMut.mutate({ program: bundle.program, cursor: bundle.cursor })} disabled={advanceCursorMut.isPending}>
+                Skip day
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => setPicking(v => !v)}>
+                Do a different day
+              </Button>
+            </div>
+            {picking ? (
+              <Card className="space-y-2">
+                {bundle.program.days.map((d, i) => (
+                  <Button
+                    key={`${d.name}-${i}`}
+                    variant="ghost"
+                    fullWidth
+                    onClick={() => { setCursorDayMut.mutate({ cursor: bundle.cursor, dayIndex: i }); setPicking(false) }}
+                  >
+                    {d.name}
+                  </Button>
+                ))}
+              </Card>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </AppShell>
   )
