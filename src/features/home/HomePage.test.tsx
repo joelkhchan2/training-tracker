@@ -169,4 +169,33 @@ describe('HomePage', () => {
     // Button is re-enabled once the async work settles.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start workout' })).not.toBeDisabled())
   })
+
+  it('renders a Start climbing button and the target for a climbing day, launching program-linked', () => {
+    const climbingBundle = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [{ name: 'Send', discipline: 'climbing', target: 'project V5', exercises: [] }] },
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: climbingBundle, isLoading: false })
+
+    render(<HomePage />)
+
+    expect(screen.getByText('project V5')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Start climbing' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/climbing/new', { state: { programLinked: true } })
+  })
+
+  it('renders a Start cardio button for a cardio day, launching program-linked', () => {
+    const cardioBundle = {
+      ...seededBundle,
+      program: { name: 'Mixed', discipline: 'mixed', days: [{ name: 'Run', discipline: 'cardio', target: '5k easy', exercises: [] }] },
+      cursor: { dayIndex: 0, week: 1, cycle: 1 },
+    } as unknown as ActiveWorkoutBundle
+    useActiveWorkout.mockReturnValue({ data: cardioBundle, isLoading: false })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start cardio' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/cardio/new', { state: { programLinked: true } })
+  })
 })
