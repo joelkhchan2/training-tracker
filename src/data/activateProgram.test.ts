@@ -68,8 +68,8 @@ describe('buildActivationRows', () => {
     const rows = buildActivationRows(TEST_PRESET, { squat: 225, benchPress: 155 }, exerciseIdByName, ids)
 
     expect(rows.days).toEqual([
-      { id: 'day-a', program_id: 'prog-1', name: 'Day A', order_index: 0 },
-      { id: 'day-b', program_id: 'prog-1', name: 'Day B', order_index: 1 },
+      { id: 'day-a', program_id: 'prog-1', name: 'Day A', discipline: 'strength', target: null, order_index: 0 },
+      { id: 'day-b', program_id: 'prog-1', name: 'Day B', discipline: 'strength', target: null, order_index: 1 },
     ])
   })
 

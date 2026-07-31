@@ -220,6 +220,7 @@ describe('BuilderPage — /programs/new', () => {
       days: [
         {
           name: 'Upper Body',
+          discipline: 'strength',
           exercises: [{ exerciseName: 'Bench Press', kind: 'strength', sets: [{ reps: 8, weight: 145 }] }],
         },
       ],
@@ -247,6 +248,77 @@ describe('BuilderPage — /programs/new', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('network down')
     expect(screen.getByLabelText('Program name')).toHaveValue('My New Program')
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('switching a day to climbing hides the exercise editor and shows a target field', () => {
+    renderNew()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'climbing' } })
+
+    expect(screen.queryByRole('button', { name: 'Add exercise' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Target / note (optional)')).toBeInTheDocument()
+  })
+
+  it('switching a climbing day back to strength restores the exercise editor', () => {
+    renderNew()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'climbing' } })
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'strength' } })
+
+    expect(screen.getByRole('button', { name: 'Add exercise' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Target / note (optional)')).not.toBeInTheDocument()
+  })
+
+  it('adding a climbing day and setting a target persists discipline + target on save', () => {
+    renderNew()
+
+    fireEvent.change(screen.getByLabelText('Program name'), { target: { value: 'Mixed Plan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.change(screen.getByLabelText('Day 1 discipline'), { target: { value: 'climbing' } })
+    fireEvent.change(screen.getByLabelText('Target / note (optional)'), { target: { value: 'project V5' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save program' }))
+
+    expect(mockSaveMutate).toHaveBeenCalledTimes(1)
+    const [payload] = mockSaveMutate.mock.calls[0]
+    expect(payload.draft.days[0]).toMatchObject({ discipline: 'climbing', target: 'project V5', exercises: [] })
+  })
+
+  it('Move down swaps adjacent days', () => {
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    // Name day 1 so we can assert it moved.
+    const nameInputs = screen.getAllByLabelText('Day name')
+    fireEvent.change(nameInputs[0], { target: { value: 'First' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Move day 1 down' }))
+    const afterInputs = screen.getAllByLabelText('Day name') as HTMLInputElement[]
+    expect(afterInputs[1].value).toBe('First')
+  })
+
+  it('Move up swaps adjacent days', () => {
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    // Name day 2 so we can assert it moved.
+    const nameInputs = screen.getAllByLabelText('Day name')
+    fireEvent.change(nameInputs[1], { target: { value: 'Second' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Move day 2 up' }))
+    const afterInputs = screen.getAllByLabelText('Day name') as HTMLInputElement[]
+    expect(afterInputs[0].value).toBe('Second')
+  })
+
+  it('disables Move up on the first day and Move down on the last day', () => {
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add day' }))
+
+    expect(screen.getByRole('button', { name: 'Move day 1 up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move day 2 down' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move day 1 down' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move day 2 up' })).not.toBeDisabled()
   })
 })
 
@@ -301,6 +373,28 @@ describe('BuilderPage — /programs/:id/edit', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('update failed')
     expect(screen.getByLabelText('Program name')).toHaveValue('My Program')
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('round-trips per-day discipline, target, and order on edit-load', async () => {
+    const MIXED_PROGRAM = { ...EDIT_PROGRAM, id: 'prog-2', discipline: 'mixed' }
+    // Deliberately out of order_index sequence, to assert programRowsToDraft's sort is honored.
+    const MIXED_DAYS = [
+      { id: 'day-b', program_id: 'prog-2', name: 'Gym A', discipline: 'strength', target: null, order_index: 1 },
+      { id: 'day-a', program_id: 'prog-2', name: 'Send', discipline: 'climbing', target: 'project V5', order_index: 0 },
+    ]
+    __setSupabase(makeSupabase({ programs: [MIXED_PROGRAM], program_days: MIXED_DAYS, program_exercises: [] }))
+
+    renderEdit('prog-2')
+
+    await waitFor(() => expect(screen.getByLabelText('Program name')).toHaveValue('My Program'))
+
+    const nameInputs = screen.getAllByLabelText('Day name') as HTMLInputElement[]
+    expect(nameInputs[0].value).toBe('Send')
+    expect(nameInputs[1].value).toBe('Gym A')
+
+    expect(screen.getByLabelText('Day 1 discipline')).toHaveValue('climbing')
+    expect(screen.getByLabelText('Day 2 discipline')).toHaveValue('strength')
+    expect(screen.getByLabelText('Target / note (optional)')).toHaveValue('project V5')
   })
 })
 

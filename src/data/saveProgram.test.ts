@@ -59,7 +59,7 @@ describe('buildProgramRows', () => {
     const rows = buildProgramRows(draft, exerciseIdByName, ids)
 
     expect(rows.days).toEqual([
-      { id: 'day-1', program_id: 'prog-1', name: 'Day 1', order_index: 0 },
+      { id: 'day-1', program_id: 'prog-1', name: 'Day 1', discipline: 'strength', target: null, order_index: 0 },
     ])
   })
 
@@ -137,6 +137,29 @@ describe('buildProgramRows', () => {
 
     expect(rows.exercises.map((ex) => ex.order_index)).toEqual([0, 1, 0, 1])
     expect(rows.exercises.map((ex) => ex.program_day_id)).toEqual(['day-1', 'day-1', 'day-2', 'day-2'])
+  })
+})
+
+describe('buildProgramRows mixed discipline', () => {
+  const draft: ProgramDraft = {
+    name: 'Mixed', description: '', isPublic: false,
+    days: [
+      { name: 'Gym A', discipline: 'strength', exercises: [{ exerciseName: 'Squat', kind: 'strength', sets: [{ reps: 5, weight: 100 }] }] },
+      { name: 'Send', discipline: 'climbing', target: 'project V5', exercises: [] },
+    ],
+  }
+  const rows = buildProgramRows(draft, { Squat: 'ex-squat' }, { programId: 'p1', dayIds: ['d1', 'd2'] })
+
+  it('derives programs.discipline as "mixed"', () => {
+    expect(rows.program.discipline).toBe('mixed')
+  })
+  it('carries per-day discipline + target onto the day rows', () => {
+    expect(rows.days[0]).toMatchObject({ discipline: 'strength', target: null })
+    expect(rows.days[1]).toMatchObject({ discipline: 'climbing', target: 'project V5' })
+  })
+  it('emits no exercise rows for the non-strength day', () => {
+    expect(rows.exercises).toHaveLength(1)
+    expect(rows.exercises[0].program_day_id).toBe('d1')
   })
 })
 
@@ -372,9 +395,10 @@ describe('useUpdateProgram', () => {
     const updatePayload = calls.find(c => c.table === 'programs' && c.method === 'update')?.args[0] as {
       name: string
       description: string
+      discipline: string
       is_public: boolean
     }
-    expect(updatePayload).toEqual({ name: 'Renamed', description: 'New desc', is_public: false })
+    expect(updatePayload).toEqual({ name: 'Renamed', description: 'New desc', discipline: 'strength', is_public: false })
   })
 
   it('clamps program_state.cursor.dayIndex to 0 when the edited program is active and shrinks from 3 to 1 day', async () => {

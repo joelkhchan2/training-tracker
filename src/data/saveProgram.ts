@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Cursor, Scheme } from '../domain'
+import type { Cursor, DayDiscipline, ProgramDiscipline, Scheme } from '../domain'
 import type { ProgramDraft } from '../domain/programDraft'
 import { draftToProgram } from '../domain/programDraft'
 import { getSupabase } from './supabase'
@@ -12,8 +12,8 @@ export interface ProgramRowIds {
 }
 
 export interface ProgramRows {
-  program: { id: string; name: string; description: string; discipline: 'strength'; is_public: boolean }
-  days: { id: string; program_id: string; name: string; order_index: number }[]
+  program: { id: string; name: string; description: string; discipline: ProgramDiscipline; is_public: boolean }
+  days: { id: string; program_id: string; name: string; discipline: DayDiscipline; target: string | null; order_index: number }[]
   exercises: {
     program_day_id: string
     exercise_id: string
@@ -49,13 +49,16 @@ export function buildProgramRows(
       id: programId,
       name: draft.name,
       description: draft.description,
-      discipline: 'strength',
+      // Derived by draftToProgram from the day disciplines (single value or 'mixed').
+      discipline: program.discipline,
       is_public: draft.isPublic,
     },
     days: program.days.map((day, i) => ({
       id: dayIds[i],
       program_id: programId,
       name: day.name,
+      discipline: day.discipline ?? 'strength',
+      target: day.target ?? null,
       order_index: i,
     })),
     exercises: program.days.flatMap((day, dayIdx) =>
@@ -202,7 +205,7 @@ export function useUpdateProgram() {
 
       const { error: programError } = await supabase
         .from('programs')
-        .update({ name: rows.program.name, description: rows.program.description, is_public: rows.program.is_public })
+        .update({ name: rows.program.name, description: rows.program.description, discipline: rows.program.discipline, is_public: rows.program.is_public })
         .eq('id', programId)
       if (programError) throw programError
 

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Cursor, ProgramDiscipline, ProgressionRule, Scheme } from '../domain'
+import type { Cursor, DayDiscipline, ProgramDiscipline, ProgressionRule, Scheme } from '../domain'
 import type { PresetMeta } from '../domain/presets'
 import type { ProgramRowsLike } from '../domain/programDraft'
 import { programRowsToDraft } from '../domain/programDraft'
@@ -26,6 +26,8 @@ export interface ProgramDayInsert {
   id: string
   program_id: string
   name: string
+  discipline: DayDiscipline
+  target: string | null
   order_index: number
 }
 
@@ -95,6 +97,8 @@ export function buildActivationRows(
     id: dayIds[i],
     program_id: programId,
     name: day.name,
+    discipline: day.discipline ?? 'strength',
+    target: day.target ?? null,
     order_index: i,
   }))
 
@@ -260,6 +264,8 @@ function toProgramRowsLike(
     is_public: program.is_public,
     days: days.map(day => ({
       name: day.name,
+      discipline: day.discipline,
+      target: day.target,
       order_index: day.order_index,
       exercises: (exercisesByDay.get(day.id) ?? []).map(ex => ({
         exercise_name: ex.exercise_name,
