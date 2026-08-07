@@ -24,6 +24,19 @@ export function HomePage() {
   const setCursorDayMut = useSetCursorDay()
   const [picking, setPicking] = useState(false)
 
+  // An in-progress session persisted in the store (survives navigating away and app restarts).
+  // Its presence flips "Start workout" into a resume-or-start-new choice so a re-seed can never
+  // silently wipe logged-but-unsaved inputs.
+  const sessionStatus = useSessionStore(s => s.status)
+  const sessionExercises = useSessionStore(s => s.exercises)
+  const sessionDayName = useSessionStore(s => s.dayName)
+  const hasActiveSession = sessionStatus === 'active' && sessionExercises.length > 0
+  const enteredSetCount = sessionExercises.reduce(
+    (n, ex) => n + ex.sets.filter(s => s.done || s.weight != null || s.reps != null || s.durationSeconds != null).length,
+    0,
+  )
+  const [confirmingStartNew, setConfirmingStartNew] = useState(false)
+
   const signOutLink = (
     <button onClick={signOut} className="text-sm text-muted underline">
       Sign out
@@ -95,6 +108,21 @@ export function HomePage() {
           </Button>
         </div>
 
+        {hasActiveSession ? (
+          <Card className="space-y-3 border-accent">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-text">Workout in progress</h2>
+              <p className="text-sm text-muted">
+                {sessionDayName || 'Workout'}
+                {enteredSetCount > 0 ? ` · ${enteredSetCount} set${enteredSetCount === 1 ? '' : 's'} entered` : ''}
+              </p>
+            </div>
+            <Button fullWidth onClick={() => nav('/workout')}>
+              Resume workout
+            </Button>
+          </Card>
+        ) : null}
+
         {discipline === 'strength' ? (
           <>
             <Card className="space-y-3">
@@ -106,9 +134,29 @@ export function HomePage() {
               ))}
             </Card>
 
-            <Button fullWidth onClick={handleStart} disabled={starting}>
-              {starting ? 'Starting…' : 'Start workout'}
-            </Button>
+            {hasActiveSession ? (
+              confirmingStartNew ? (
+                <Card className="space-y-3">
+                  <p className="text-sm text-text">Start a new workout? Your in-progress workout will be discarded.</p>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" fullWidth onClick={() => setConfirmingStartNew(false)}>
+                      Cancel
+                    </Button>
+                    <Button fullWidth onClick={handleStart} disabled={starting}>
+                      {starting ? 'Starting…' : 'Discard & start new'}
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button variant="secondary" fullWidth onClick={() => setConfirmingStartNew(true)}>
+                  Start new workout
+                </Button>
+              )
+            ) : (
+              <Button fullWidth onClick={handleStart} disabled={starting}>
+                {starting ? 'Starting…' : 'Start workout'}
+              </Button>
+            )}
           </>
         ) : (
           <>
