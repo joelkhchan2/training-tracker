@@ -173,8 +173,56 @@ describe('HomePage', () => {
     const startedSquat = startedPrescription.find((ex) => ex.exerciseName === 'Squat')
     expect(startedSquat?.sets.map((s) => s.weight)).toEqual(expectedSquat?.sets.map((s) => s.weight))
 
-    // Button is re-enabled once the async work settles.
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Start workout' })).not.toBeDisabled())
+    // Once the async work settles, the session has started and the page navigates to /workout.
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/workout'))
+  })
+
+  const activeSessionState = {
+    status: 'active' as const,
+    dayName: 'Gym A',
+    exercises: [
+      {
+        id: 'e1',
+        exerciseId: null,
+        exerciseName: 'Squat',
+        kind: 'strength' as const,
+        inputType: 'weighted' as const,
+        sets: [{ weight: 225, reps: 5, done: true, durationSeconds: null }],
+      },
+    ],
+  }
+
+  it('shows a Resume card for an in-progress session and resumes without re-seeding', () => {
+    useActiveWorkout.mockReturnValue({ data: seededBundle, isLoading: false })
+    useSessionStore.setState(activeSessionState)
+    const spy = vi.spyOn(useSessionStore.getState(), 'startFromPrescription')
+
+    render(<HomePage />)
+    spy.mockClear() // ignore any cross-test async; assert only what this interaction does
+
+    expect(screen.getByText('Workout in progress')).toBeInTheDocument()
+    // The bare "Start workout" is replaced so a re-seed can't silently wipe the session.
+    expect(screen.queryByRole('button', { name: 'Start workout' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume workout' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/workout')
+    expect(spy).not.toHaveBeenCalled() // resume must NOT re-seed
+  })
+
+  it('requires confirmation before discarding an in-progress session to start new', async () => {
+    useActiveWorkout.mockReturnValue({ data: seededBundle, isLoading: false })
+    useSessionStore.setState(activeSessionState)
+    const spy = vi.spyOn(useSessionStore.getState(), 'startFromPrescription')
+
+    render(<HomePage />)
+    spy.mockClear() // ignore any cross-test async; assert only what this interaction does
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start new workout' }))
+    expect(spy).not.toHaveBeenCalled() // first tap only reveals the confirm
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard & start new' }))
+    await waitFor(() => expect(spy).toHaveBeenCalled())
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/workout'))
   })
 
   it('renders a Start climbing button and the target for a climbing day, launching program-linked', () => {
