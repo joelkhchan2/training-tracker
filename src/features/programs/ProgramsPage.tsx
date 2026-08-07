@@ -17,6 +17,9 @@ import { cn } from '../../lib/cn'
 import { ProgramCard } from './ProgramCard'
 import { ProgramPreview } from './ProgramPreview'
 import { ActivateSheet } from './ActivateSheet'
+import { EditProgramDetailsSheet } from './EditProgramDetailsSheet'
+
+type EditingDetails = { id: string; name: string; description: string }
 
 export interface ProgramsPageProps {
   /** Overrides what happens when the user taps "Use this program" from the preview
@@ -45,6 +48,7 @@ interface LibraryProgramCardProps {
   isActive: boolean
   shared?: boolean
   onSelect: (program: LibraryProgram) => void
+  onEditDetails?: () => void
   onEdit?: () => void
   onDelete?: () => void
 }
@@ -53,7 +57,7 @@ interface LibraryProgramCardProps {
  *  name/description/discipline/days-per-week layout as `ProgramCard` (the preset
  *  equivalent), plus a "Shared" badge for community entries and, for owned entries,
  *  Edit/Delete actions below the tap target. */
-function LibraryProgramCard({ program, isActive, shared = false, onSelect, onEdit, onDelete }: LibraryProgramCardProps) {
+function LibraryProgramCard({ program, isActive, shared = false, onSelect, onEditDetails, onEdit, onDelete }: LibraryProgramCardProps) {
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -98,11 +102,16 @@ function LibraryProgramCard({ program, isActive, shared = false, onSelect, onEdi
           </span>
         </div>
       </Card>
-      {onEdit || onDelete ? (
-        <div className="flex gap-2 px-1">
+      {onEditDetails || onEdit || onDelete ? (
+        <div className="flex flex-wrap gap-2 px-1">
+          {onEditDetails ? (
+            <Button variant="secondary" size="sm" onClick={onEditDetails}>
+              Edit details
+            </Button>
+          ) : null}
           {onEdit ? (
             <Button variant="secondary" size="sm" onClick={onEdit}>
-              Edit
+              Edit plan
             </Button>
           ) : null}
           {onDelete ? (
@@ -130,9 +139,17 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
   const own = library?.own ?? []
   const community = library?.community ?? []
 
+  // The active program is an owned `programs` row, but a preset-activation snapshot is
+  // deliberately excluded from "My programs" (see programLibrary.ts). Surface it in its own
+  // "Current program" card so its name/description stay editable even then. When it's a
+  // builder-authored program it's already in `own` (with an editor), so skip the extra card.
+  const activeInOwn = bundle ? own.some(p => p.id === bundle.programId) : false
+  const showCurrentProgramCard = Boolean(bundle && !activeInOwn)
+
   const [selected, setSelected] = useState<Selection>(null)
   const [activating, setActivating] = useState<PresetMeta | null>(null)
   const [dbError, setDbError] = useState<string | null>(null)
+  const [editingDetails, setEditingDetails] = useState<EditingDetails | null>(null)
 
   const deleteProgram = useDeleteProgram()
   const activateDbProgram = useActivateDbProgram()
@@ -203,6 +220,34 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
           }
         >
           <div className="space-y-6">
+            {showCurrentProgramCard && bundle ? (
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Current program</h2>
+                <Card className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-text">{bundle.program.name}</h3>
+                    <span className="inline-flex shrink-0 items-center rounded-full bg-accent/20 px-2 py-0.5 text-xs font-semibold text-accent">
+                      Current
+                    </span>
+                  </div>
+                  {bundle.programDescription ? (
+                    <p className="text-sm text-muted">{bundle.programDescription}</p>
+                  ) : null}
+                  <div className="px-1 pt-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        setEditingDetails({ id: bundle.programId, name: bundle.program.name, description: bundle.programDescription })
+                      }
+                    >
+                      Edit details
+                    </Button>
+                  </div>
+                </Card>
+              </section>
+            ) : null}
+
             <section className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Presets</h2>
               <div className="space-y-3">
@@ -227,6 +272,7 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
                       program={program}
                       isActive={program.name === activeProgramName}
                       onSelect={(p) => setSelected({ kind: 'db', program: p })}
+                      onEditDetails={() => setEditingDetails({ id: program.id, name: program.name, description: program.description })}
                       onEdit={() => navigate(`/programs/${program.id}/edit`)}
                       onDelete={() => handleDelete(program)}
                     />
@@ -260,6 +306,15 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
           preset={activating}
           existingTrainingMaxes={bundle?.trainingMaxes}
           onClose={() => setActivating(null)}
+        />
+      ) : null}
+
+      {editingDetails ? (
+        <EditProgramDetailsSheet
+          programId={editingDetails.id}
+          initialName={editingDetails.name}
+          initialDescription={editingDetails.description}
+          onClose={() => setEditingDetails(null)}
         />
       ) : null}
     </>

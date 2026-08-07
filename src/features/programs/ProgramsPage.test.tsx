@@ -17,10 +17,13 @@ const {
   mockDeleteMutate,
   useActivateDbProgram,
   mockActivateDbMutate,
+  useUpdateProgramDetails,
+  mockUpdateDetailsMutate,
 } = vi.hoisted(() => {
   const mockMutate = vi.fn()
   const mockDeleteMutate = vi.fn()
   const mockActivateDbMutate = vi.fn()
+  const mockUpdateDetailsMutate = vi.fn()
   return {
     mockNavigate: vi.fn(),
     useActiveWorkout: vi.fn(),
@@ -31,6 +34,8 @@ const {
     mockDeleteMutate,
     useActivateDbProgram: vi.fn(() => ({ mutate: mockActivateDbMutate, isPending: false })),
     mockActivateDbMutate,
+    useUpdateProgramDetails: vi.fn(() => ({ mutate: mockUpdateDetailsMutate, isPending: false })),
+    mockUpdateDetailsMutate,
   }
 })
 
@@ -52,7 +57,7 @@ vi.mock('../../lib/useAuth', () => ({
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/activateProgram', () => ({ useActivateProgram, useActivateDbProgram }))
 vi.mock('../../data/programLibrary', () => ({ usePublicPrograms }))
-vi.mock('../../data/saveProgram', () => ({ useDeleteProgram }))
+vi.mock('../../data/saveProgram', () => ({ useDeleteProgram, useUpdateProgramDetails }))
 
 const ownProgram: LibraryProgram = {
   id: 'own-1',
@@ -89,6 +94,8 @@ function renderProgramsPage(props: Parameters<typeof ProgramsPage>[0] = {}) {
 
 const bundleWithActiveProgram: ActiveWorkoutBundle = {
   program: fiveThreeOne,
+  programId: 'active-prog-1',
+  programDescription: 'My 5/3/1 run.',
   days: [],
   programExercises: [],
   exercisesById: {},
@@ -113,6 +120,9 @@ describe('ProgramsPage', () => {
     useActivateDbProgram.mockReturnValue({ mutate: mockActivateDbMutate, isPending: false })
     useDeleteProgram.mockReset()
     useDeleteProgram.mockReturnValue({ mutate: mockDeleteMutate, isPending: false })
+    mockUpdateDetailsMutate.mockReset()
+    useUpdateProgramDetails.mockReset()
+    useUpdateProgramDetails.mockReturnValue({ mutate: mockUpdateDetailsMutate, isPending: false })
     usePublicPrograms.mockReset()
     usePublicPrograms.mockReturnValue({ data: emptyLibrary, isLoading: false })
   })
@@ -149,8 +159,12 @@ describe('ProgramsPage', () => {
 
     renderProgramsPage()
 
-    const fiveThreeOneCard = screen.getByText('5/3/1').closest('[role="button"]')
-    expect(fiveThreeOneCard).not.toBeNull()
+    // '5/3/1' also appears in the top "Current program" card, so scope to the preset
+    // card — the one that is itself a role="button".
+    const fiveThreeOneCard = screen.getAllByText('5/3/1')
+      .map(el => el.closest('[role="button"]'))
+      .find((el): el is HTMLElement => el != null)
+    expect(fiveThreeOneCard).toBeTruthy()
     expect(within(fiveThreeOneCard as HTMLElement).getByText('Current')).toBeInTheDocument()
 
     const strongLiftsCard = screen.getByText('StrongLifts 5x5').closest('[role="button"]')
@@ -176,7 +190,11 @@ describe('ProgramsPage', () => {
 
     renderProgramsPage()
 
-    fireEvent.click(screen.getByText('5/3/1'))
+    // '5/3/1' also appears in the Current program card; click the selectable preset card.
+    const presetCard = screen.getAllByText('5/3/1')
+      .map(el => el.closest('[role="button"]'))
+      .find((el): el is HTMLElement => el != null)
+    fireEvent.click(presetCard as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Use this program' }))
 
     expect(screen.getByRole('dialog', { name: 'Activate program' })).toBeInTheDocument()
@@ -244,19 +262,58 @@ describe('ProgramsPage', () => {
     expect(within(ownCard as HTMLElement).queryByText('Shared')).not.toBeInTheDocument()
   })
 
-  it('shows Edit and Delete on "My programs" cards, and Delete (behind a confirm) calls useDeleteProgram', () => {
+  it('shows Edit plan and Delete on "My programs" cards, and Delete (behind a confirm) calls useDeleteProgram', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     usePublicPrograms.mockReturnValue({ data: { own: [ownProgram], community: [] }, isLoading: false })
 
     renderProgramsPage()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit plan' }))
     expect(mockNavigate).toHaveBeenCalledWith(`/programs/${ownProgram.id}/edit`)
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(window.confirm).toHaveBeenCalled()
     expect(mockDeleteMutate).toHaveBeenCalledWith({ programId: ownProgram.id })
+  })
+
+  it('Edit details on a "My programs" card opens the details sheet and saves name/description', () => {
+    usePublicPrograms.mockReturnValue({ data: { own: [ownProgram], community: [] }, isLoading: false })
+
+    renderProgramsPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit program details' })
+    expect(within(dialog).getByLabelText('Program name')).toHaveValue(ownProgram.name)
+
+    fireEvent.change(within(dialog).getByLabelText('Program name'), { target: { value: 'Renamed Program' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(mockUpdateDetailsMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ programId: ownProgram.id, name: 'Renamed Program' }),
+      expect.anything(),
+    )
+  })
+
+  it('Edit details on the Current program card targets the active program id', () => {
+    useActiveWorkout.mockReturnValue({ data: bundleWithActiveProgram, isLoading: false })
+    usePublicPrograms.mockReturnValue({ data: emptyLibrary, isLoading: false })
+
+    renderProgramsPage()
+
+    // The active preset snapshot isn't in "My programs", so its edit lives on the Current card.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit details' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit program details' })
+    expect(within(dialog).getByLabelText('Program name')).toHaveValue('5/3/1')
+    expect(within(dialog).getByLabelText('Description')).toHaveValue('My 5/3/1 run.')
+
+    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Updated notes' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(mockUpdateDetailsMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ programId: 'active-prog-1', description: 'Updated notes' }),
+      expect.anything(),
+    )
   })
 
   it('does not call useDeleteProgram when the delete confirm is dismissed', () => {
@@ -275,7 +332,8 @@ describe('ProgramsPage', () => {
 
     renderProgramsPage()
 
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit plan' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit details' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 

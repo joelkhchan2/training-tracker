@@ -255,6 +255,49 @@ export function useUpdateProgram() {
   })
 }
 
+export interface UpdateProgramDetailsInput {
+  programId: string
+  name: string
+  description: string
+}
+
+/**
+ * Updates only a program's `name`/`description` — a single own-row `programs` UPDATE that
+ * never touches the day/exercise tree. This is the scheme-agnostic edit path: unlike
+ * `useUpdateProgram` (which rebuilds the tree via `programRowsToDraft`, and so only works
+ * for fixed-scheme programs), renaming works for *any* owned program, including presets
+ * cloned on activation whose exercises use percentage/linear/timed schemes. A blank
+ * description is stored as NULL (matching `programs.description`'s nullable column).
+ * Invalidates the active-workout bundle (the active program's name shows on Home) and the
+ * programs library.
+ */
+export function useUpdateProgramDetails() {
+  const queryClient = useQueryClient()
+
+  return useMutation<{ userId: string }, Error, UpdateProgramDetailsInput>({
+    mutationFn: async ({ programId, name, description }) => {
+      const supabase = getSupabase()
+
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      const userId = userData?.user?.id
+      if (!userId) throw new Error('Not authenticated')
+
+      const { error } = await supabase
+        .from('programs')
+        .update({ name: name.trim(), description: description.trim() || null })
+        .eq('id', programId)
+      if (error) throw error
+
+      return { userId }
+    },
+    onSuccess: ({ userId }) => {
+      queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })
+      queryClient.invalidateQueries({ queryKey: ['publicPrograms', userId] })
+    },
+  })
+}
+
 export interface DeleteProgramInput {
   programId: string
 }

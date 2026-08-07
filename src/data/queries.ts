@@ -25,6 +25,11 @@ export type WorkingWeights = Record<string, { weight: number; fails: number }>
 /** Everything a workout-logging screen needs for the user's current program position. */
 export interface ActiveWorkoutBundle {
   program: Program
+  /** The active program's `programs.id` and raw `description` — the domain `Program`
+   *  carries neither, but they're needed to edit the active program's details (name/
+   *  description) even when it's a preset-activation snapshot absent from "My programs". */
+  programId: string
+  programDescription: string
   days: ProgramDayRow[]
   programExercises: ProgramExerciseRow[]
   exercisesById: Record<string, ExerciseRow>
@@ -230,6 +235,8 @@ export async function fetchActiveWorkout(userId: string): Promise<ActiveWorkoutB
 
   return {
     program,
+    programId,
+    programDescription: programRow.description ?? '',
     days,
     programExercises,
     exercisesById,
