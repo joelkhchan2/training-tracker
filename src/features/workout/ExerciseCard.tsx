@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { CompactSelect } from '../../components/ui/CompactSelect'
+import { Textarea } from '../../components/ui/Textarea'
 import { useAuth } from '../../lib/useAuth'
 import { useExerciseHistory } from '../../data/exerciseHistory'
 import type { ExerciseHistorySession } from '../../data/exerciseHistory'
@@ -53,6 +54,62 @@ function topSet(session: ExerciseHistorySession, unit: WeightUnit): string | nul
   }
   const best = candidates.reduce((a, b) => (b.reps! > a.reps! ? b : a))
   return `BW×${best.reps}`
+}
+
+/** A persistent per-exercise note (e.g. "tuck front lever", "3s pause squats"), stored in the
+ *  synced prefs blob keyed by exercise name so it shows every time that exercise is logged.
+ *  Collapsed to a one-line display (or "+ Add note") until tapped to edit. */
+function ExerciseNote({ exerciseName }: { exerciseName: string }) {
+  const note = usePrefs((s) => s.exerciseNotes[exerciseName] ?? '')
+  const setExerciseNote = usePrefs((s) => s.setExerciseNote)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(note)
+
+  function open() {
+    setDraft(note)
+    setEditing(true)
+  }
+
+  function save() {
+    setExerciseNote(exerciseName, draft)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <Textarea label={`Note for ${exerciseName}`} value={draft} onChange={setDraft} rows={2} />
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={save}>
+            Save note
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (note) {
+    return (
+      <button
+        type="button"
+        onClick={open}
+        aria-label={`Edit note for ${exerciseName}`}
+        className="flex w-full items-start gap-1.5 rounded-lg text-left text-sm italic text-muted hover:text-text"
+      >
+        <span aria-hidden="true">📝</span>
+        <span className="flex-1">{note}</span>
+      </button>
+    )
+  }
+
+  return (
+    <button type="button" onClick={open} className="w-fit text-xs font-medium text-muted hover:text-text">
+      + Add note
+    </button>
+  )
 }
 
 /** One exercise within the active session: header, a running volume hint,
@@ -145,6 +202,8 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
             Auto-fill sets
           </label>
         </div>
+
+        <ExerciseNote exerciseName={exercise.exerciseName} />
 
         {last && lastTop ? (
           <p className="text-xs text-muted">

@@ -23,7 +23,7 @@ export function OnboardingPage() {
     usePrefs.getState().setWeightUnit(unitsToWeightUnit(units))
     const {
       setTheme, setFontFamily, setFontScale, setWeightUnit,
-      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe, setAutoFillSets, setAutoFillForExercise,
+      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe, setAutoFillSets, setAutoFillForExercise, setExerciseNote,
       ...ui_prefs
     } = usePrefs.getState()
     await getSupabase().from('profiles').update({

@@ -230,3 +230,28 @@ describe('ExerciseCard — per-exercise auto-fill override', () => {
     expect(screen.getByLabelText('Auto-fill sets for Squat')).not.toBeChecked()
   })
 })
+
+describe('ExerciseCard — per-exercise note', () => {
+  afterEach(() => usePrefs.setState({ exerciseNotes: {} }))
+
+  it('adds, saves, and displays a persistent note for the exercise', () => {
+    usePrefs.setState({ exerciseNotes: {} })
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add note' }))
+    fireEvent.change(screen.getByLabelText('Note for Squat'), { target: { value: '  tuck front lever  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save note' }))
+
+    expect(usePrefs.getState().exerciseNotes).toEqual({ Squat: 'tuck front lever' })
+    expect(screen.getByText('tuck front lever')).toBeInTheDocument()
+  })
+
+  it('shows an existing note and opens it for editing prefilled', () => {
+    usePrefs.setState({ exerciseNotes: { Squat: '3s pause' } })
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+
+    expect(screen.getByText('3s pause')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit note for Squat' }))
+    expect(screen.getByLabelText('Note for Squat')).toHaveValue('3s pause')
+  })
+})
