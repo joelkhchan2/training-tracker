@@ -38,6 +38,8 @@ interface PrefsState extends Prefs {
   setAutoFillSets: (autoFillSets: boolean) => void
   /** Set (or clear) the per-exercise carry-forward override for one exercise name. */
   setAutoFillForExercise: (exerciseName: string, value: boolean) => void
+  /** Set the persistent note for one exercise name; a blank note removes the entry. */
+  setExerciseNote: (exerciseName: string, note: string) => void
 }
 
 export const usePrefs = create<PrefsState>((set, get) => {
@@ -64,6 +66,7 @@ export const usePrefs = create<PrefsState>((set, get) => {
       setShowRpe,
       setAutoFillSets,
       setAutoFillForExercise,
+      setExerciseNote,
       ...prefsOnly
     } = get()
     const next: Prefs = { ...prefsOnly, ...patch }
@@ -84,6 +87,12 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setAutoFillSets: (autoFillSets) => persistApply({ autoFillSets }),
     setAutoFillForExercise: (exerciseName, value) =>
       persistApply({ autoFillSetsByExercise: { ...get().autoFillSetsByExercise, [exerciseName]: value } }),
+    setExerciseNote: (exerciseName, note) => {
+      const next = { ...get().exerciseNotes }
+      if (note.trim()) next[exerciseName] = note.trim()
+      else delete next[exerciseName]
+      persistApply({ exerciseNotes: next })
+    },
   }
 })
 

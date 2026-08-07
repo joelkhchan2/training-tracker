@@ -54,6 +54,7 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
         weightUnit: 'kg',
         weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
         autoFillSetsByExercise: { 'Front Lever': false },
+        exerciseNotes: { 'Front Lever': 'tuck' },
       },
       { setItem: (k, v) => { store[k] = v } },
     )
@@ -63,6 +64,7 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
       weightUnit: 'kg',
       weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
       autoFillSetsByExercise: { 'Front Lever': false },
+      exerciseNotes: { 'Front Lever': 'tuck' },
     })
   })
 
@@ -74,6 +76,7 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
     expect(p.showRpe).toBe(true)
     expect(p.autoFillSets).toBe(true)
     expect(p.autoFillSetsByExercise).toEqual({})
+    expect(p.exerciseNotes).toEqual({})
   })
 
   it('falls back to monday for an unknown weekStartDay value', () => {
@@ -100,6 +103,7 @@ describe('DEFAULT_PREFS — P1 fields', () => {
     expect(DEFAULT_PREFS.showRpe).toBe(true)
     expect(DEFAULT_PREFS.autoFillSets).toBe(true)
     expect(DEFAULT_PREFS.autoFillSetsByExercise).toEqual({})
+    expect(DEFAULT_PREFS.exerciseNotes).toEqual({})
   })
 })
 
@@ -121,6 +125,7 @@ describe('coercePrefs (extracted from readPrefs)', () => {
       theme: 'ember', fontFamily: 'inter', fontScale: 1.2, weightUnit: 'kg',
       weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
       autoFillSetsByExercise: { Squat: false, 'Bench Press': true },
+      exerciseNotes: { Squat: '3s pause' },
     }
     expect(coercePrefs(full)).toEqual(full)
   })
@@ -143,6 +148,15 @@ describe('coercePrefs (extracted from readPrefs)', () => {
     expect(
       coercePrefs({ autoFillSetsByExercise: { Squat: false, Bench: 'yes' as never, Deadlift: true } }).autoFillSetsByExercise,
     ).toEqual({ Squat: false, Deadlift: true })
+  })
+
+  it('coerces exerciseNotes: non-object degrades to {}, non-string and blank values dropped', () => {
+    expect(coercePrefs({}).exerciseNotes).toEqual({})
+    expect(coercePrefs({ exerciseNotes: 'nope' as never }).exerciseNotes).toEqual({})
+    expect(coercePrefs({ exerciseNotes: [] as never }).exerciseNotes).toEqual({})
+    expect(
+      coercePrefs({ exerciseNotes: { Squat: '3s pause', Bench: 42 as never, Plank: '   ' } }).exerciseNotes,
+    ).toEqual({ Squat: '3s pause' })
   })
 })
 

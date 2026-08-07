@@ -26,6 +26,10 @@ export interface Prefs {
    *  path resolves by). An exercise with no entry inherits the global `autoFillSets`. Persisted
    *  and synced like the rest of prefs, so a per-exercise choice sticks across future workouts. */
   autoFillSetsByExercise: Record<string, boolean>
+  /** Free-text notes keyed by exercise name — a persistent annotation of how the user performs
+   *  that lift (e.g. "tuck front lever", "3s pause"). Shown every time the exercise is logged.
+   *  Persisted and synced like the rest of prefs. */
+  exerciseNotes: Record<string, string>
 }
 
 export const PREFS_KEY = 'tt-prefs'
@@ -40,6 +44,7 @@ export const DEFAULT_PREFS: Prefs = {
   showRpe: true,
   autoFillSets: true,
   autoFillSetsByExercise: {},
+  exerciseNotes: {},
 }
 
 export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seasonal'; mode: 'dark' | 'light'; bg: string; surface: string; accent: string }[] = [
@@ -108,7 +113,21 @@ export function coercePrefs(p: Partial<Prefs>): Prefs {
     showRpe: typeof p.showRpe === 'boolean' ? p.showRpe : DEFAULT_PREFS.showRpe,
     autoFillSets: typeof p.autoFillSets === 'boolean' ? p.autoFillSets : DEFAULT_PREFS.autoFillSets,
     autoFillSetsByExercise: coerceAutoFillMap(p.autoFillSetsByExercise),
+    exerciseNotes: coerceNotesMap(p.exerciseNotes),
   }
+}
+
+/** Keeps only non-empty string-valued entries from a stored/synced per-exercise notes blob;
+ *  anything non-object (or an array) degrades to an empty map, and blank/whitespace notes are
+ *  dropped so the map never accumulates empty entries. Same defensive boundary as the rest of
+ *  `coercePrefs`. */
+function coerceNotesMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'string' && v.trim()) out[k] = v
+  }
+  return out
 }
 
 /** Keeps only boolean-valued entries from a stored/synced per-exercise override blob; anything

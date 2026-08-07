@@ -65,7 +65,7 @@ describe('usePrefs — persistApply spreads full state (regression guard for the
 
     const persisted = JSON.parse(localStorage.getItem('tt-prefs')!)
     expect(Object.keys(persisted).sort()).toEqual(
-      ['autoFillSets', 'autoFillSetsByExercise', 'fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
+      ['autoFillSets', 'autoFillSetsByExercise', 'exerciseNotes', 'fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
     )
   })
 })
@@ -110,6 +110,19 @@ describe('usePrefs — new P1 setters', () => {
     // Re-setting the same exercise overwrites just that key.
     usePrefs.getState().setAutoFillForExercise('Front Lever', true)
     expect(usePrefs.getState().autoFillSetsByExercise).toEqual({ 'Front Lever': true, Squat: true })
+  })
+
+  it('setExerciseNote sets, trims, and persists a note; a blank note removes the entry', () => {
+    usePrefs.getState().setExerciseNote('Front Lever', '  tuck  ')
+    expect(usePrefs.getState().exerciseNotes).toEqual({ 'Front Lever': 'tuck' })
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).exerciseNotes).toEqual({ 'Front Lever': 'tuck' })
+
+    usePrefs.getState().setExerciseNote('Squat', '3s pause')
+    expect(usePrefs.getState().exerciseNotes).toEqual({ 'Front Lever': 'tuck', Squat: '3s pause' })
+
+    // Clearing a note drops just that key.
+    usePrefs.getState().setExerciseNote('Front Lever', '   ')
+    expect(usePrefs.getState().exerciseNotes).toEqual({ Squat: '3s pause' })
   })
 
   it('apply() remains a no-op for the DOM w.r.t. the new fields', () => {
