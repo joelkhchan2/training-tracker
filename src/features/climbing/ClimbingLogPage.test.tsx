@@ -57,6 +57,22 @@ describe('ClimbingLogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled()
   })
 
+  it('steppers increment/decrement attempts and sends, clamped at zero, and stay editable', () => {
+    render(<ClimbingLogPage />)
+    // Steppers add/subtract without typing.
+    fireEvent.click(screen.getByRole('button', { name: 'Increase V3 attempts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Increase V3 attempts' }))
+    expect(screen.getByLabelText('V3 attempts')).toHaveValue('2')
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease V3 attempts' }))
+    expect(screen.getByLabelText('V3 attempts')).toHaveValue('1')
+    // Cannot go below zero.
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease V3 sends' }))
+    expect(screen.getByLabelText('V3 sends')).toHaveValue('0')
+    // Direct typing still works alongside the steppers.
+    fireEvent.change(screen.getByLabelText('V3 sends'), { target: { value: '5' } })
+    expect(screen.getByLabelText('V3 sends')).toHaveValue('5')
+  })
+
   it('saves normalized rows: includes projecting (attempts, 0 sends) and clamps sends-only', () => {
     render(<ClimbingLogPage />)
     fireEvent.change(screen.getByLabelText('V6 attempts'), { target: { value: '8' } }) // projecting
