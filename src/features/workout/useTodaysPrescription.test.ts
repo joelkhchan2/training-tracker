@@ -15,6 +15,8 @@ vi.mock('../../lib/useAuth', () => ({
 const LINEAR_CONFIG: LinearProgressionConfig = { increment: 5, failsBeforeDeload: 3, deloadPercent: 0.1 }
 
 const linearBundle: ActiveWorkoutBundle = {
+  programId: 'prog-fixture',
+  programDescription: '',
   program: {
     name: 'Linear Program',
     discipline: 'strength',
@@ -99,7 +101,8 @@ describe('useTodaysPrescription discipline/target', () => {
 
   function bundleWith(program: Program, dayIndex: number): ActiveWorkoutBundle {
     return {
-      program, days: [], programExercises: [], exercisesById: {},
+      program, programId: 'prog-fixture', programDescription: '',
+      days: [], programExercises: [], exercisesById: {},
       trainingMaxes: {}, cursor: { dayIndex, week: 1, cycle: 1 },
       personalRecords: [], workingWeights: {}, workingWeightValues: {},
     }

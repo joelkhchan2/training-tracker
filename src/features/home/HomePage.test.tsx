@@ -44,6 +44,8 @@ vi.mock('../../data/exerciseHistory', async (importOriginal) => {
 
 const seededBundle: ActiveWorkoutBundle = {
   program: fiveThreeOne,
+  programId: 'prog-fixture',
+  programDescription: '',
   days: [],
   programExercises: [],
   exercisesById: {},

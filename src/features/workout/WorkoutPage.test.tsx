@@ -107,6 +107,8 @@ const meta = {
 
 const bundle: ActiveWorkoutBundle = {
   program: { name: 'Test Program', discipline: 'strength', days: [] },
+  programId: 'prog-fixture',
+  programDescription: '',
   days: [],
   programExercises: [
     {
@@ -574,6 +576,8 @@ const linearMeta = {
 }
 
 const linearBundle: ActiveWorkoutBundle = {
+  programId: 'prog-fixture',
+  programDescription: '',
   program: {
     name: 'Linear Program',
     discipline: 'strength',
