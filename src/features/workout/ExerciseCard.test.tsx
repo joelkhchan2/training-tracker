@@ -208,3 +208,25 @@ describe('ExerciseCard — kg mode', () => {
     expect(screen.getByText('226.8 kg vol')).toBeInTheDocument()
   })
 })
+
+describe('ExerciseCard — per-exercise auto-fill override', () => {
+  afterEach(() => usePrefs.setState({ autoFillSets: true, autoFillSetsByExercise: {} }))
+
+  it('reflects the global default when unset and writes a per-exercise override on toggle', () => {
+    usePrefs.setState({ autoFillSets: true, autoFillSetsByExercise: {} })
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+
+    const toggle = screen.getByLabelText('Auto-fill sets for Squat') as HTMLInputElement
+    expect(toggle).toBeChecked() // inherits the global default (true)
+
+    fireEvent.click(toggle)
+    expect(usePrefs.getState().autoFillSetsByExercise).toEqual({ Squat: false })
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('an existing per-exercise override wins over the global default', () => {
+    usePrefs.setState({ autoFillSets: true, autoFillSetsByExercise: { Squat: false } })
+    render(<ExerciseCard exIdx={0} exercise={ex} exerciseId={null} onRemove={vi.fn()} onReplace={vi.fn()} />)
+    expect(screen.getByLabelText('Auto-fill sets for Squat')).not.toBeChecked()
+  })
+})

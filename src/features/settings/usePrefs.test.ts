@@ -65,7 +65,7 @@ describe('usePrefs — persistApply spreads full state (regression guard for the
 
     const persisted = JSON.parse(localStorage.getItem('tt-prefs')!)
     expect(Object.keys(persisted).sort()).toEqual(
-      ['autoFillSets', 'fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
+      ['autoFillSets', 'autoFillSetsByExercise', 'fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
     )
   })
 })
@@ -97,6 +97,19 @@ describe('usePrefs — new P1 setters', () => {
     usePrefs.getState().setShowRpe(false)
     expect(usePrefs.getState().showRpe).toBe(false)
     expect(JSON.parse(localStorage.getItem('tt-prefs')!).showRpe).toBe(false)
+  })
+
+  it('setAutoFillForExercise sets/updates a per-exercise override and persists, merging entries', () => {
+    usePrefs.getState().setAutoFillForExercise('Front Lever', false)
+    expect(usePrefs.getState().autoFillSetsByExercise).toEqual({ 'Front Lever': false })
+
+    usePrefs.getState().setAutoFillForExercise('Squat', true)
+    expect(usePrefs.getState().autoFillSetsByExercise).toEqual({ 'Front Lever': false, Squat: true })
+    expect(JSON.parse(localStorage.getItem('tt-prefs')!).autoFillSetsByExercise).toEqual({ 'Front Lever': false, Squat: true })
+
+    // Re-setting the same exercise overwrites just that key.
+    usePrefs.getState().setAutoFillForExercise('Front Lever', true)
+    expect(usePrefs.getState().autoFillSetsByExercise).toEqual({ 'Front Lever': true, Squat: true })
   })
 
   it('apply() remains a no-op for the DOM w.r.t. the new fields', () => {

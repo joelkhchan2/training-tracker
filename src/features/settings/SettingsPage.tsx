@@ -317,7 +317,7 @@ export function SettingsPage() {
           <label className="flex items-start justify-between gap-3">
             <span className="flex flex-col">
               <span className="text-text">Auto-fill later sets</span>
-              <span className="text-xs text-muted">Editing one set fills matching later sets. Turn off to enter each set on its own.</span>
+              <span className="text-xs text-muted">Default for all exercises: editing one set fills matching later sets. Override per exercise on the workout screen.</span>
             </span>
             <input
               type="checkbox"

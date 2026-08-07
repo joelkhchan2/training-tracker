@@ -11,7 +11,7 @@ import { coercePrefs, unitsToWeightUnit, writePrefs, DEFAULT_PREFS, type Prefs }
 function extractPrefs(state: ReturnType<typeof usePrefs.getState>): Prefs {
   const {
     setTheme, setFontFamily, setFontScale, setWeightUnit,
-    setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe, setAutoFillSets,
+    setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe, setAutoFillSets, setAutoFillForExercise,
     ...prefsOnly
   } = state
   return prefsOnly
