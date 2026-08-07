@@ -65,7 +65,7 @@ describe('usePrefs — persistApply spreads full state (regression guard for the
 
     const persisted = JSON.parse(localStorage.getItem('tt-prefs')!)
     expect(Object.keys(persisted).sort()).toEqual(
-      ['fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
+      ['autoFillSets', 'fontFamily', 'fontScale', 'restTimerDefaultSeconds', 'restTimerHaptics', 'showRpe', 'theme', 'weekStartDay', 'weightUnit'],
     )
   })
 })

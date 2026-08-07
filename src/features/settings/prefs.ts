@@ -18,6 +18,10 @@ export interface Prefs {
   restTimerDefaultSeconds: number
   restTimerHaptics: boolean
   showRpe: boolean
+  /** When true (default), editing a set's weight/reps/duration carries the value forward to
+   *  later not-yet-done sets that share the same prescribed target. Turn off to edit each set
+   *  independently — see sessionStore's `updateSet`. */
+  autoFillSets: boolean
 }
 
 export const PREFS_KEY = 'tt-prefs'
@@ -30,6 +34,7 @@ export const DEFAULT_PREFS: Prefs = {
   restTimerDefaultSeconds: 120,
   restTimerHaptics: true,
   showRpe: true,
+  autoFillSets: true,
 }
 
 export const THEMES: { id: ConcreteThemeId; label: string; group: 'core' | 'seasonal'; mode: 'dark' | 'light'; bg: string; surface: string; accent: string }[] = [
@@ -96,6 +101,7 @@ export function coercePrefs(p: Partial<Prefs>): Prefs {
         : DEFAULT_PREFS.restTimerDefaultSeconds,
     restTimerHaptics: typeof p.restTimerHaptics === 'boolean' ? p.restTimerHaptics : DEFAULT_PREFS.restTimerHaptics,
     showRpe: typeof p.showRpe === 'boolean' ? p.showRpe : DEFAULT_PREFS.showRpe,
+    autoFillSets: typeof p.autoFillSets === 'boolean' ? p.autoFillSets : DEFAULT_PREFS.autoFillSets,
   }
 }
 

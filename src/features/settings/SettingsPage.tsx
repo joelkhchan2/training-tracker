@@ -81,10 +81,12 @@ export function SettingsPage() {
   const restTimerDefaultSeconds = usePrefs(s => s.restTimerDefaultSeconds)
   const restTimerHaptics = usePrefs(s => s.restTimerHaptics)
   const showRpe = usePrefs(s => s.showRpe)
+  const autoFillSets = usePrefs(s => s.autoFillSets)
   const setWeekStartDay = usePrefs(s => s.setWeekStartDay)
   const setRestTimerDefaultSeconds = usePrefs(s => s.setRestTimerDefaultSeconds)
   const setRestTimerHaptics = usePrefs(s => s.setRestTimerHaptics)
   const setShowRpe = usePrefs(s => s.setShowRpe)
+  const setAutoFillSets = usePrefs(s => s.setAutoFillSets)
 
   const [customMin, setCustomMin] = useState('')
   const [customSec, setCustomSec] = useState('')
@@ -309,6 +311,19 @@ export function SettingsPage() {
               aria-label="Show RPE when logging sets"
               checked={showRpe}
               onChange={(e) => setShowRpe(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-start justify-between gap-3">
+            <span className="flex flex-col">
+              <span className="text-text">Auto-fill later sets</span>
+              <span className="text-xs text-muted">Editing one set fills matching later sets. Turn off to enter each set on its own.</span>
+            </span>
+            <input
+              type="checkbox"
+              aria-label="Auto-fill later sets"
+              checked={autoFillSets}
+              onChange={(e) => setAutoFillSets(e.target.checked)}
             />
           </label>
         </Card>

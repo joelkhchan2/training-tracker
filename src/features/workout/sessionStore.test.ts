@@ -241,6 +241,16 @@ describe('updateSet smart carry-forward', () => {
     expect(sets[1].weight).toBe(100)
     expect(sets[2].weight).toBe(95)
   })
+
+  it('carryForward=false edits only the targeted set, even for straight sets (autoFillSets pref off)', () => {
+    useSessionStore.getState().startFromPrescription(straightSetPrescription, meta)
+    useSessionStore.getState().updateSet(0, 0, { weight: 95, reps: 7 }, false)
+
+    const sets = useSessionStore.getState().exercises[0].sets
+    expect(sets[0]).toMatchObject({ weight: 95, reps: 7 })
+    expect(sets[1]).toMatchObject({ weight: 100, reps: 8 })
+    expect(sets[2]).toMatchObject({ weight: 100, reps: 8 })
+  })
 })
 
 describe('updateSet duration carry-forward with prescribedDurationSeconds (sole discriminator)', () => {

@@ -202,7 +202,9 @@ function buildAdhocExercise(pick: ExercisePick): SessionExercise {
 
 export interface SessionActions {
   startFromPrescription: (prescription: PrescribedExercise[], meta: StartSessionMeta) => void
-  updateSet: (exIdx: number, setIdx: number, patch: Partial<SessionSet>) => void
+  /** `carryForward` (default true) gates the smart carry-forward to later not-yet-done sets;
+   *  pass false (from the `autoFillSets` pref) to edit only the targeted set. */
+  updateSet: (exIdx: number, setIdx: number, patch: Partial<SessionSet>, carryForward?: boolean) => void
   toggleDone: (exIdx: number, setIdx: number) => void
   addSet: (exIdx: number) => void
   removeSet: (exIdx: number, setIdx: number) => void
@@ -284,7 +286,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         })
       },
 
-      updateSet: (exIdx, setIdx, patch) => {
+      updateSet: (exIdx, setIdx, patch, carryForward = true) => {
         set((state) => ({
           exercises: state.exercises.map((ex, i) => {
             if (i !== exIdx) return ex
@@ -300,7 +302,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
                 // prescribed target matches the edited set's — this lets straight
                 // sets (same target every set) prefill forward while leaving
                 // ascending schemes (e.g. 5/3/1's distinct per-set weights) alone.
-                if (j <= setIdx || s.done) return s
+                // Gated off entirely when the user disables the `autoFillSets` pref.
+                if (!carryForward || j <= setIdx || s.done) return s
                 let next = s
                 if ('weight' in patch && s.prescribedWeight === edited.prescribedWeight) {
                   next = { ...next, weight: edited.weight }

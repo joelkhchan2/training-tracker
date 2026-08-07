@@ -17,16 +17,17 @@ const setWeekStartDay = vi.fn()
 const setRestTimerDefaultSeconds = vi.fn()
 const setRestTimerHaptics = vi.fn()
 const setShowRpe = vi.fn()
+const setAutoFillSets = vi.fn()
 
 const { prefsState } = vi.hoisted(() => ({
   prefsState: {
     theme: 'navy', fontFamily: 'system', fontScale: 1,
     weightUnit: 'lb',
-    weekStartDay: 'monday', restTimerDefaultSeconds: 120, restTimerHaptics: true, showRpe: true,
+    weekStartDay: 'monday', restTimerDefaultSeconds: 120, restTimerHaptics: true, showRpe: true, autoFillSets: true,
   } as {
     theme: string; fontFamily: string; fontScale: number
     weightUnit: string
-    weekStartDay: string; restTimerDefaultSeconds: number; restTimerHaptics: boolean; showRpe: boolean
+    weekStartDay: string; restTimerDefaultSeconds: number; restTimerHaptics: boolean; showRpe: boolean; autoFillSets: boolean
   },
 }))
 
@@ -40,6 +41,7 @@ vi.mock('./usePrefs', () => ({
         setWeightUnit: typeof setWeightUnit
         setWeekStartDay: typeof setWeekStartDay; setRestTimerDefaultSeconds: typeof setRestTimerDefaultSeconds
         setRestTimerHaptics: typeof setRestTimerHaptics; setShowRpe: typeof setShowRpe
+        setAutoFillSets: typeof setAutoFillSets
       },
     ) => unknown,
   ) =>
@@ -47,7 +49,7 @@ vi.mock('./usePrefs', () => ({
       ...prefsState,
       setTheme, setFontFamily, setFontScale,
       setWeightUnit,
-      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe,
+      setWeekStartDay, setRestTimerDefaultSeconds, setRestTimerHaptics, setShowRpe, setAutoFillSets,
     }),
 }))
 
@@ -64,6 +66,7 @@ beforeEach(() => {
   setRestTimerDefaultSeconds.mockReset()
   setRestTimerHaptics.mockReset()
   setShowRpe.mockReset()
+  setAutoFillSets.mockReset()
   prefsState.theme = 'navy'
   prefsState.fontFamily = 'system'
   prefsState.fontScale = 1
@@ -72,6 +75,7 @@ beforeEach(() => {
   prefsState.restTimerDefaultSeconds = 120
   prefsState.restTimerHaptics = true
   prefsState.showRpe = true
+  prefsState.autoFillSets = true
   useUpdateDisciplines.mockReturnValue({ mutate, isPending: false })
   useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing'] }, isLoading: false })
 })
@@ -257,6 +261,14 @@ describe('SettingsPage — Logging', () => {
     expect(checkbox).toBeChecked()
     fireEvent.click(checkbox)
     expect(setShowRpe).toHaveBeenCalledWith(false)
+  })
+
+  it('the autoFillSets checkbox reflects autoFillSets and toggling calls setAutoFillSets', () => {
+    render(<SettingsPage />)
+    const checkbox = screen.getByLabelText('Auto-fill later sets')
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    expect(setAutoFillSets).toHaveBeenCalledWith(false)
   })
 
   it('reflects restTimerHaptics=false and showRpe=false as unchecked', () => {

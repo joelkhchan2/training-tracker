@@ -35,6 +35,7 @@ interface PrefsState extends Prefs {
   setRestTimerDefaultSeconds: (restTimerDefaultSeconds: number) => void
   setRestTimerHaptics: (restTimerHaptics: boolean) => void
   setShowRpe: (showRpe: boolean) => void
+  setAutoFillSets: (autoFillSets: boolean) => void
 }
 
 export const usePrefs = create<PrefsState>((set, get) => {
@@ -59,6 +60,7 @@ export const usePrefs = create<PrefsState>((set, get) => {
       setRestTimerDefaultSeconds,
       setRestTimerHaptics,
       setShowRpe,
+      setAutoFillSets,
       ...prefsOnly
     } = get()
     const next: Prefs = { ...prefsOnly, ...patch }
@@ -76,6 +78,7 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setRestTimerDefaultSeconds: (restTimerDefaultSeconds) => persistApply({ restTimerDefaultSeconds }),
     setRestTimerHaptics: (restTimerHaptics) => persistApply({ restTimerHaptics }),
     setShowRpe: (showRpe) => persistApply({ showRpe }),
+    setAutoFillSets: (autoFillSets) => persistApply({ autoFillSets }),
   }
 })
 
