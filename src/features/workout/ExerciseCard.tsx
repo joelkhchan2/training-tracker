@@ -67,6 +67,12 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
   const { user } = useAuth()
   const { data: history } = useExerciseHistory(exerciseId, user?.id)
   const weightUnit = usePrefs((s) => s.weightUnit)
+  const globalAutoFill = usePrefs((s) => s.autoFillSets)
+  const autoFillOverride = usePrefs((s) => s.autoFillSetsByExercise[exercise.exerciseName])
+  const setAutoFillForExercise = usePrefs((s) => s.setAutoFillForExercise)
+  // Per-exercise override wins; otherwise inherit the global default. Remembered across future
+  // workouts because it lives in the synced prefs blob, keyed by exercise name.
+  const autoFill = autoFillOverride ?? globalAutoFill
   const last = history?.[0]
   const lastTop = last ? topSet(last, weightUnit) : null
 
@@ -122,12 +128,23 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
           </div>
         </div>
 
-        <CompactSelect
-          ariaLabel="Log as"
-          value={exercise.inputType}
-          onChange={(value) => setInputType(exIdx, value as ExerciseInputType)}
-          options={INPUT_TYPE_OPTIONS}
-        />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <CompactSelect
+            ariaLabel="Log as"
+            value={exercise.inputType}
+            onChange={(value) => setInputType(exIdx, value as ExerciseInputType)}
+            options={INPUT_TYPE_OPTIONS}
+          />
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              aria-label={`Auto-fill sets for ${exercise.exerciseName}`}
+              checked={autoFill}
+              onChange={(e) => setAutoFillForExercise(exercise.exerciseName, e.target.checked)}
+            />
+            Auto-fill sets
+          </label>
+        </div>
 
         {last && lastTop ? (
           <p className="text-xs text-muted">
@@ -137,7 +154,7 @@ export function ExerciseCard({ exIdx, exercise, exerciseId, onReplace, onRemove 
 
         <div className="space-y-2">
           {exercise.sets.map((set, setIdx) => (
-            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} inputType={exercise.inputType} />
+            <SetRow key={setIdx} exIdx={exIdx} setIdx={setIdx} set={set} inputType={exercise.inputType} autoFill={autoFill} />
           ))}
         </div>
 

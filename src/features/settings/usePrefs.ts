@@ -35,6 +35,9 @@ interface PrefsState extends Prefs {
   setRestTimerDefaultSeconds: (restTimerDefaultSeconds: number) => void
   setRestTimerHaptics: (restTimerHaptics: boolean) => void
   setShowRpe: (showRpe: boolean) => void
+  setAutoFillSets: (autoFillSets: boolean) => void
+  /** Set (or clear) the per-exercise carry-forward override for one exercise name. */
+  setAutoFillForExercise: (exerciseName: string, value: boolean) => void
 }
 
 export const usePrefs = create<PrefsState>((set, get) => {
@@ -59,6 +62,8 @@ export const usePrefs = create<PrefsState>((set, get) => {
       setRestTimerDefaultSeconds,
       setRestTimerHaptics,
       setShowRpe,
+      setAutoFillSets,
+      setAutoFillForExercise,
       ...prefsOnly
     } = get()
     const next: Prefs = { ...prefsOnly, ...patch }
@@ -76,6 +81,9 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setRestTimerDefaultSeconds: (restTimerDefaultSeconds) => persistApply({ restTimerDefaultSeconds }),
     setRestTimerHaptics: (restTimerHaptics) => persistApply({ restTimerHaptics }),
     setShowRpe: (showRpe) => persistApply({ showRpe }),
+    setAutoFillSets: (autoFillSets) => persistApply({ autoFillSets }),
+    setAutoFillForExercise: (exerciseName, value) =>
+      persistApply({ autoFillSetsByExercise: { ...get().autoFillSetsByExercise, [exerciseName]: value } }),
   }
 })
 

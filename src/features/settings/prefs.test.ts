@@ -52,7 +52,8 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
       {
         theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
         weightUnit: 'kg',
-        weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+        weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
+        autoFillSetsByExercise: { 'Front Lever': false },
       },
       { setItem: (k, v) => { store[k] = v } },
     )
@@ -60,7 +61,8 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
     expect(p).toEqual({
       theme: 'gold', fontFamily: 'mono', fontScale: 1.2,
       weightUnit: 'kg',
-      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
+      autoFillSetsByExercise: { 'Front Lever': false },
     })
   })
 
@@ -70,6 +72,8 @@ describe('readPrefs / writePrefs — P1 toggle fields', () => {
     expect(p.restTimerDefaultSeconds).toBe(120)
     expect(p.restTimerHaptics).toBe(true)
     expect(p.showRpe).toBe(true)
+    expect(p.autoFillSets).toBe(true)
+    expect(p.autoFillSetsByExercise).toEqual({})
   })
 
   it('falls back to monday for an unknown weekStartDay value', () => {
@@ -94,6 +98,8 @@ describe('DEFAULT_PREFS — P1 fields', () => {
     expect(DEFAULT_PREFS.restTimerDefaultSeconds).toBe(120)
     expect(DEFAULT_PREFS.restTimerHaptics).toBe(true)
     expect(DEFAULT_PREFS.showRpe).toBe(true)
+    expect(DEFAULT_PREFS.autoFillSets).toBe(true)
+    expect(DEFAULT_PREFS.autoFillSetsByExercise).toEqual({})
   })
 })
 
@@ -113,7 +119,8 @@ describe('coercePrefs (extracted from readPrefs)', () => {
   it('round-trips a full valid blob unchanged', () => {
     const full: Prefs = {
       theme: 'ember', fontFamily: 'inter', fontScale: 1.2, weightUnit: 'kg',
-      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false,
+      weekStartDay: 'sunday', restTimerDefaultSeconds: 180, restTimerHaptics: false, showRpe: false, autoFillSets: false,
+      autoFillSetsByExercise: { Squat: false, 'Bench Press': true },
     }
     expect(coercePrefs(full)).toEqual(full)
   })
@@ -124,7 +131,18 @@ describe('coercePrefs (extracted from readPrefs)', () => {
     expect(coercePrefs({ restTimerDefaultSeconds: -5 }).restTimerDefaultSeconds).toBe(120)
     expect(coercePrefs({ restTimerHaptics: 'no' as never }).restTimerHaptics).toBe(true)
     expect(coercePrefs({ showRpe: 0 as never }).showRpe).toBe(true)
+    expect(coercePrefs({ autoFillSets: 'yes' as never }).autoFillSets).toBe(true)
+    expect(coercePrefs({ autoFillSets: false }).autoFillSets).toBe(false)
     expect(coercePrefs({ weightUnit: 'stone' as never }).weightUnit).toBe('lb')
+  })
+
+  it('coerces autoFillSetsByExercise: non-object degrades to {}, non-boolean values dropped', () => {
+    expect(coercePrefs({}).autoFillSetsByExercise).toEqual({})
+    expect(coercePrefs({ autoFillSetsByExercise: 'nope' as never }).autoFillSetsByExercise).toEqual({})
+    expect(coercePrefs({ autoFillSetsByExercise: [] as never }).autoFillSetsByExercise).toEqual({})
+    expect(
+      coercePrefs({ autoFillSetsByExercise: { Squat: false, Bench: 'yes' as never, Deadlift: true } }).autoFillSetsByExercise,
+    ).toEqual({ Squat: false, Deadlift: true })
   })
 })
 

@@ -14,16 +14,26 @@ export interface SetRowProps {
    *  Duration render, and gates the AMRAP/FSL badges — meaningless outside 'weighted'
    *  (there's no reps target to compare a duration against). */
   inputType: ExerciseInputType
+  /** Effective carry-forward setting for this exercise, resolved by ExerciseCard against the
+   *  per-exercise override + global `autoFillSets` default. Optional so a standalone SetRow
+   *  render falls back to the global pref directly. */
+  autoFill?: boolean
 }
 
 /** One editable set within an exercise: the fields `inputType` calls for, a done toggle,
  *  and a remove action. Sized for mid-workout, sweaty-hands tapping — every interactive
  *  control here is at least 48px. */
-export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
+export function SetRow({ exIdx, setIdx, set, inputType, autoFill }: SetRowProps) {
   const updateSet = useSessionStore((s) => s.updateSet)
   const toggleDone = useSessionStore((s) => s.toggleDone)
   const removeSet = useSessionStore((s) => s.removeSet)
   const showRpe = usePrefs((s) => s.showRpe)
+  const globalAutoFill = usePrefs((s) => s.autoFillSets)
+  const carryForward = autoFill ?? globalAutoFill
+
+  // The value edits (weight/reps/duration) honor the carry-forward setting; the RPE/warmup
+  // patches below don't carry a value field, so their propagation is a no-op either way.
+  const patchSet = (patch: Partial<SessionSet>) => updateSet(exIdx, setIdx, patch, carryForward)
 
   const setNumber = setIdx + 1
   const showWeight = inputType === 'weighted' || inputType === 'weighted_time'
@@ -66,7 +76,7 @@ export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
           <WeightField
             label="Weight"
             valueLb={set.weight ?? 0}
-            onChangeLb={(weight) => updateSet(exIdx, setIdx, { weight })}
+            onChangeLb={(weight) => patchSet({ weight })}
             stepLb={5}
             hideSteppers
             inputClassName="text-xl font-bold"
@@ -77,14 +87,14 @@ export function SetRow({ exIdx, setIdx, set, inputType }: SetRowProps) {
           <DurationField
             label="Duration"
             valueSeconds={set.durationSeconds}
-            onChange={(durationSeconds) => updateSet(exIdx, setIdx, { durationSeconds })}
+            onChange={(durationSeconds) => patchSet({ durationSeconds })}
             inputClassName="text-xl font-bold"
           />
         ) : (
           <NumberField
             label="Reps"
             value={set.reps ?? 0}
-            onChange={(reps) => updateSet(exIdx, setIdx, { reps })}
+            onChange={(reps) => patchSet({ reps })}
             hideSteppers
             inputClassName="text-xl font-bold"
           />
