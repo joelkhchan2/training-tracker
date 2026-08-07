@@ -124,22 +124,22 @@ export function ClimbingLogPage() {
         <Card className="space-y-4">
           <p className="text-sm text-muted">Attempts &amp; sends per grade</p>
           {GRADES.map((g) => (
-            <div key={g} className="grid grid-cols-[3rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-3">
-              <span className="pb-3 text-lg font-semibold text-text">{formatVGrade(g)}</span>
-              <NumberField
-                label={`${formatVGrade(g)} attempts`}
-                value={entries[g]?.attempts ?? 0}
-                onChange={(v) => patch(g, 'attempts', v)}
-                min={0}
-                hideSteppers
-              />
-              <NumberField
-                label={`${formatVGrade(g)} sends`}
-                value={entries[g]?.sends ?? 0}
-                onChange={(v) => patch(g, 'sends', v)}
-                min={0}
-                hideSteppers
-              />
+            <div key={g} className="space-y-3">
+              <span className="text-lg font-semibold text-text">{formatVGrade(g)}</span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumberField
+                  label={`${formatVGrade(g)} attempts`}
+                  value={entries[g]?.attempts ?? 0}
+                  onChange={(v) => patch(g, 'attempts', v)}
+                  min={0}
+                />
+                <NumberField
+                  label={`${formatVGrade(g)} sends`}
+                  value={entries[g]?.sends ?? 0}
+                  onChange={(v) => patch(g, 'sends', v)}
+                  min={0}
+                />
+              </div>
             </div>
           ))}
         </Card>
