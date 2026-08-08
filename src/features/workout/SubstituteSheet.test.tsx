@@ -1,7 +1,7 @@
 import { render, fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SubstituteSheet } from './SubstituteSheet'
-import type { ExercisePickerProps } from '../programs/ExercisePicker'
+import type { ExercisePickerProps, PickedExercise } from '../programs/ExercisePicker'
 
 const { useAlternateExercises } = vi.hoisted(() => ({ useAlternateExercises: vi.fn() }))
 const { mockExercisePickerProps } = vi.hoisted(() => ({ mockExercisePickerProps: vi.fn() }))
@@ -15,6 +15,8 @@ vi.mock('../programs/ExercisePicker', () => ({
   },
 }))
 
+const PICK: PickedExercise = { exerciseName: 'Leg Extension', kind: 'strength' }
+
 describe('SubstituteSheet', () => {
   it('maps useAlternateExercises data to ExerciseListItem and passes it as suggested, labeled "Suggested alternates"', () => {
     useAlternateExercises.mockReturnValue({
@@ -24,7 +26,7 @@ describe('SubstituteSheet', () => {
       ],
       isLoading: false,
     })
-    render(<SubstituteSheet currentExerciseId="sq" currentName="Barbell Squat" onPick={vi.fn()} onClose={vi.fn()} />)
+    render(<SubstituteSheet currentExerciseId="sq" currentName="Barbell Squat" canPersist={false} onPick={vi.fn()} onClose={vi.fn()} />)
 
     expect(mockExercisePickerProps).toHaveBeenCalledWith(expect.objectContaining({
       suggested: [
@@ -37,25 +39,44 @@ describe('SubstituteSheet', () => {
 
   it('no longer renders its own "Suggested alternates" heading or fallback copy directly', () => {
     useAlternateExercises.mockReturnValue({ data: [], isLoading: false })
-    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" onPick={vi.fn()} onClose={vi.fn()} />)
+    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" canPersist={false} onPick={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.queryByText('Suggested alternates')).not.toBeInTheDocument()
     expect(screen.queryByText('No suggestions — search below.')).not.toBeInTheDocument()
     expect(screen.getByTestId('exercise-picker-stub')).toBeInTheDocument()
   })
 
-  it('passes onPick through to the embedded ExercisePicker unchanged', () => {
+  it('forwards a pick to onPick with makePermanent=false by default', () => {
     useAlternateExercises.mockReturnValue({ data: [], isLoading: false })
     const onPick = vi.fn()
-    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" onPick={onPick} onClose={vi.fn()} />)
+    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" canPersist onPick={onPick} onClose={vi.fn()} />)
 
-    expect(mockExercisePickerProps).toHaveBeenCalledWith(expect.objectContaining({ onPick }))
+    // Invoke the wrapper the picker was handed.
+    mockExercisePickerProps.mock.calls.at(-1)![0].onPick(PICK)
+    expect(onPick).toHaveBeenCalledWith(PICK, false)
+  })
+
+  it('forwards makePermanent=true once the "Change in my program" box is checked', () => {
+    useAlternateExercises.mockReturnValue({ data: [], isLoading: false })
+    const onPick = vi.fn()
+    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" canPersist onPick={onPick} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Change in my program/i }))
+    mockExercisePickerProps.mock.calls.at(-1)![0].onPick(PICK)
+    expect(onPick).toHaveBeenCalledWith(PICK, true)
+  })
+
+  it('hides the permanent-swap checkbox when canPersist is false', () => {
+    useAlternateExercises.mockReturnValue({ data: [], isLoading: false })
+    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" canPersist={false} onPick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.queryByRole('checkbox', { name: /Change in my program/i })).not.toBeInTheDocument()
   })
 
   it('calls onClose when Cancel is tapped', () => {
     useAlternateExercises.mockReturnValue({ data: [], isLoading: false })
     const onClose = vi.fn()
-    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" onPick={vi.fn()} onClose={onClose} />)
+    render(<SubstituteSheet currentExerciseId={null} currentName="Zercher Squat" canPersist={false} onPick={vi.fn()} onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalled()
   })

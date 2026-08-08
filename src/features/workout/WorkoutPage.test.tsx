@@ -12,13 +12,16 @@ import type { LinearProgressionConfig } from '../../domain/types'
 import type { ActiveWorkoutBundle } from '../../data/queries'
 import type { ExerciseListItem } from '../../data/exerciseCatalog'
 
-const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate, fetchLastSetsByExercise, useExerciseSearch } = vi.hoisted(() => {
+const { mockNavigate, useActiveWorkout, useSaveWorkout, mockMutate, mockSwapMutate, useSwapProgramExercise, fetchLastSetsByExercise, useExerciseSearch } = vi.hoisted(() => {
   const mockMutate = vi.fn()
+  const mockSwapMutate = vi.fn()
   return {
     mockNavigate: vi.fn(),
     useActiveWorkout: vi.fn(),
     useSaveWorkout: vi.fn(() => ({ mutate: mockMutate, isPending: false })),
     mockMutate,
+    mockSwapMutate,
+    useSwapProgramExercise: vi.fn(() => ({ mutate: mockSwapMutate, isPending: false })),
     fetchLastSetsByExercise: vi.fn(),
     useExerciseSearch: vi.fn((): { data: ExerciseListItem[] } => ({ data: [] })),
   }
@@ -41,6 +44,7 @@ vi.mock('../../lib/useAuth', () => ({
 
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/mutations', () => ({ useSaveWorkout }))
+vi.mock('../../data/saveProgram', () => ({ useSwapProgramExercise }))
 vi.mock('../../data/exerciseHistory', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/exerciseHistory')>()
   // Real buildTodayExerciseIdMap (pure, used by WorkoutPage itself); useExerciseHistory
@@ -823,6 +827,70 @@ describe('WorkoutPage — swap re-prefill (with race guard)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Substitute Squat' }))
 
     expect(screen.getByText('Suggested alternates')).toBeInTheDocument()
+  })
+})
+
+describe('WorkoutPage — permanent exercise swap', () => {
+  // A day-populated bundle: findTodayProgramExercise needs bundle.days[cursor.dayIndex] to
+  // resolve the today's-day slot, so the default fixture (days: []) can't drive the permanent
+  // path. cursor.dayIndex 0 -> day-1, which holds Squat (pe-1) and Push-up (pe-2).
+  const dayBundle: ActiveWorkoutBundle = {
+    ...bundle,
+    days: [{ id: 'day-1', program_id: 'prog-fixture', name: 'Squat Day', discipline: 'strength', target: null, order_index: 0 }],
+  }
+
+  beforeEach(() => {
+    mockSwapMutate.mockReset()
+    useSwapProgramExercise.mockReturnValue({ mutate: mockSwapMutate, isPending: false })
+    useActiveWorkout.mockReturnValue({ data: dayBundle, isLoading: false })
+    fetchLastSetsByExercise.mockResolvedValue({}) // swap re-prefill: no history, resolves cleanly
+  })
+
+  it('does not write to the program when the "Change in my program" box is left unchecked', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [legPressResult] })
+    renderAtWorkout()
+
+    replaceExercise0WithLegPress()
+
+    expect(useSessionStore.getState().exercises[0].exerciseName).toBe('Leg Press')
+    expect(mockSwapMutate).not.toHaveBeenCalled()
+  })
+
+  it('repoints the program slot when the box is checked before picking', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    useExerciseSearch.mockReturnValue({ data: [legPressResult] })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace Squat' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Change in my program/i }))
+    fireEvent.change(screen.getByLabelText('Search exercises'), { target: { value: 'leg' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Leg Press' }))
+
+    // In-session swap still happens…
+    expect(useSessionStore.getState().exercises[0].exerciseName).toBe('Leg Press')
+    // …and the permanent write targets Squat's slot (pe-1) on today's day.
+    expect(mockSwapMutate).toHaveBeenCalledTimes(1)
+    expect(mockSwapMutate.mock.calls[0][0]).toEqual({
+      programExerciseId: 'pe-1',
+      newExerciseName: 'Leg Press',
+      newKind: 'strength',
+    })
+  })
+
+  it('hides the permanent-swap checkbox for an adhoc-added exercise (no program slot)', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    // Add an exercise not in the program, then open its Substitute sheet.
+    fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Custom exercise' }))
+    fireEvent.change(screen.getByLabelText('Custom exercise name'), { target: { value: 'Sled Push' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add exercise' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Substitute Sled Push' }))
+    expect(screen.queryByRole('checkbox', { name: /Change in my program/i })).not.toBeInTheDocument()
   })
 })
 
