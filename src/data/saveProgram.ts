@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Cursor, DayDiscipline, ProgramDiscipline, Scheme } from '../domain'
-import type { ProgramDraft } from '../domain/programDraft'
+import type { DraftExerciseKind, ProgramDraft } from '../domain/programDraft'
 import { draftToProgram } from '../domain/programDraft'
 import { getSupabase } from './supabase'
-import { resolveDraftExerciseIds } from './resolveDraftExercises'
+import { resolveDraftExerciseIds, resolveExercisesByName } from './resolveDraftExercises'
 
 export interface ProgramRowIds {
   programId: string
@@ -288,6 +288,68 @@ export function useUpdateProgramDetails() {
         .update({ name: name.trim(), description: description.trim() || null })
         .eq('id', programId)
       if (error) throw error
+
+      return { userId }
+    },
+    onSuccess: ({ userId }) => {
+      queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })
+      queryClient.invalidateQueries({ queryKey: ['publicPrograms', userId] })
+    },
+  })
+}
+
+export interface SwapProgramExerciseInput {
+  /** The `program_exercises` row to repoint. Its `program_day_id`, `order_index`, `scheme`,
+   *  and `role_key` (TM key) are all preserved — only the exercise identity changes. */
+  programExerciseId: string
+  newExerciseName: string
+  newKind: DraftExerciseKind
+}
+
+/**
+ * Permanently swaps which exercise occupies one program slot: repoints a single
+ * `program_exercises` row to a different exercise, keeping its day, order, scheme, and TM
+ * key. This is the "make this substitution stick" path from the mid-workout Substitute
+ * sheet — distinct from the in-session `replaceExercise`, which only changes the live
+ * session. Resolves (or mints) the new exercise id by name, exactly like the save/activate
+ * paths. Keeping the slot's existing `scheme`/`role_key` is deliberate: for the common case
+ * (a fixed-scheme accessory — "do leg extensions here instead of leg curls") the prescription
+ * carries over unchanged; for a percentage/linear main lift the swapped-in exercise inherits
+ * the old lift's TM key, which is the least-surprising result for a slot the user is
+ * repointing rather than re-programming.
+ *
+ * Runs as `auth.uid()`, so RLS scopes the update to the user's own program; a `.select()`
+ * guard turns a zero-row update (e.g. a slot the user doesn't own) into an explicit error
+ * rather than a silent no-op. Invalidates the active-workout bundle so the new exercise shows
+ * on the next prescription.
+ */
+export function useSwapProgramExercise() {
+  const queryClient = useQueryClient()
+
+  return useMutation<{ userId: string }, Error, SwapProgramExerciseInput>({
+    mutationFn: async ({ programExerciseId, newExerciseName, newKind }) => {
+      const supabase = getSupabase()
+
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      const userId = userData?.user?.id
+      if (!userId) throw new Error('Not authenticated')
+
+      const idByName = await resolveExercisesByName([{ name: newExerciseName, kind: newKind }], userId)
+      const newExerciseId = idByName[newExerciseName]
+      if (!newExerciseId) throw new Error('Could not resolve the selected exercise')
+
+      const { data, error } = await supabase
+        .from('program_exercises')
+        .update({
+          exercise_id: newExerciseId,
+          exercise_name: newExerciseName,
+          exercise_type: newKind === 'bodyweight' ? 'bodyweight' : 'weighted',
+        })
+        .eq('id', programExerciseId)
+        .select('id')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error("Couldn't update your program — the exercise slot wasn't found.")
 
       return { userId }
     },

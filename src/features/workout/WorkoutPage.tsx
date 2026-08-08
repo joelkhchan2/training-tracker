@@ -8,7 +8,9 @@ import { Button } from '../../components/ui/Button'
 import { useAuth } from '../../lib/useAuth'
 import { useActiveWorkout } from '../../data/queries'
 import type { ActiveWorkoutBundle } from '../../data/queries'
+import type { ProgramExerciseRow } from '../../data/types'
 import { useSaveWorkout } from '../../data/mutations'
+import { useSwapProgramExercise } from '../../data/saveProgram'
 import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { buildTodayExerciseIdMap, fetchLastSetsByExercise } from '../../data/exerciseHistory'
@@ -51,6 +53,21 @@ function buildExerciseIdMap(bundle: ActiveWorkoutBundle): Record<string, string>
     if (name) map[name] = pe.exercise_id
   }
   return map
+}
+
+/** Finds the `program_exercises` row backing a prescribed exercise on today's program day,
+ *  matched by display name — the key the Substitute sheet's "make permanent" write repoints.
+ *  Returns null for an exercise that isn't a prescribed slot on today's day (an adhoc add, or
+ *  one already swapped in-session), so the caller can hide the permanent-swap option. */
+function findTodayProgramExercise(bundle: ActiveWorkoutBundle, exerciseName: string): ProgramExerciseRow | null {
+  const day = bundle.days[bundle.cursor.dayIndex]
+  if (!day) return null
+  for (const pe of bundle.programExercises) {
+    if (pe.program_day_id !== day.id) continue
+    const name = (pe.exercise_id ? bundle.exercisesById[pe.exercise_id]?.name : undefined) ?? pe.exercise_name
+    if (name === exerciseName) return pe
+  }
+  return null
 }
 
 /** Maps the bundle's DB-shaped personal_records rows to the domain
@@ -130,6 +147,7 @@ export function WorkoutPage() {
   const { user } = useAuth()
   const { data: bundle } = useActiveWorkout(user?.id)
   const saveWorkout = useSaveWorkout()
+  const swapProgramExercise = useSwapProgramExercise()
 
   const status = useSessionStore((s) => s.status)
   const clientId = useSessionStore((s) => s.clientId)
@@ -306,31 +324,49 @@ export function WorkoutPage() {
     navigate('/')
   }
 
-  function handlePick(pick: PickedExercise) {
-    if (!sheet) return
-    if (sheet.mode === 'add') {
-      if (sheet.index !== undefined) insertExerciseAt(sheet.index, pick)
-      else addExercise(pick)
-    } else {
-      const exIdx = sheet.exIdx
-      replaceExercise(exIdx, pick) // clears synchronously (Spec A); preserves the slot id
-      if (pick.exerciseId && user) {
-        fetchLastSetsByExercise([pick.exerciseId], user.id)
-          .then((byId) => {
-            const lastSets = byId[pick.exerciseId!]
-            if (!lastSets) return
-            const ex = useSessionStore.getState().exercises[exIdx]
-            // Race guard: the slot still holds the exercise this fetch was for (a later swap to a
-            // different exercise changes exerciseId and correctly drops this stale fetch), AND
-            // every set is still untouched (the shape replaceExercise left).
-            if (!ex || ex.exerciseId !== pick.exerciseId) return
-            if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
-            lastSets.forEach((ls, i) => {
-              if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
-            })
-          })
-          .catch(() => {}) // no history / fetch error → leave blank
+  function handleAddPick(pick: PickedExercise) {
+    if (!sheet || sheet.mode !== 'add') return
+    if (sheet.index !== undefined) insertExerciseAt(sheet.index, pick)
+    else addExercise(pick)
+    setSheet(null)
+  }
+
+  function handleSubstitute(pick: PickedExercise, makePermanent: boolean) {
+    if (!sheet || sheet.mode !== 'replace') return
+    const exIdx = sheet.exIdx
+    const targetName = exercises[exIdx]?.exerciseName
+    replaceExercise(exIdx, pick) // in-session swap: clears synchronously (Spec A), preserves the slot id
+
+    // Optional permanent swap: repoint the underlying program slot so the substitution
+    // sticks for future workouts. Only fires for a real prescribed slot on today's day
+    // (findTodayProgramExercise ↔ SubstituteSheet's `canPersist`); errors surface inline
+    // but never block the in-session swap that already happened above.
+    if (makePermanent && bundle && targetName) {
+      const pe = findTodayProgramExercise(bundle, targetName)
+      if (pe) {
+        swapProgramExercise.mutate(
+          { programExerciseId: pe.id, newExerciseName: pick.exerciseName, newKind: pick.kind },
+          { onError: (err) => setErrorMsg(err.message || 'Could not update your program.') },
+        )
       }
+    }
+
+    if (pick.exerciseId && user) {
+      fetchLastSetsByExercise([pick.exerciseId], user.id)
+        .then((byId) => {
+          const lastSets = byId[pick.exerciseId!]
+          if (!lastSets) return
+          const ex = useSessionStore.getState().exercises[exIdx]
+          // Race guard: the slot still holds the exercise this fetch was for (a later swap to a
+          // different exercise changes exerciseId and correctly drops this stale fetch), AND
+          // every set is still untouched (the shape replaceExercise left).
+          if (!ex || ex.exerciseId !== pick.exerciseId) return
+          if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
+          lastSets.forEach((ls, i) => {
+            if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
+          })
+        })
+        .catch(() => {}) // no history / fetch error → leave blank
     }
     setSheet(null)
   }
@@ -410,11 +446,12 @@ export function WorkoutPage() {
           <SubstituteSheet
             currentExerciseId={exercises[sheet.exIdx]?.exerciseId ?? todayIdByName[exercises[sheet.exIdx]?.exerciseName ?? ''] ?? null}
             currentName={exercises[sheet.exIdx]?.exerciseName ?? ''}
-            onPick={handlePick}
+            canPersist={!!(bundle && findTodayProgramExercise(bundle, exercises[sheet.exIdx]?.exerciseName ?? ''))}
+            onPick={handleSubstitute}
             onClose={() => setSheet(null)}
           />
         ) : (
-          <ExercisePickerSheet onPick={handlePick} onClose={() => setSheet(null)} />
+          <ExercisePickerSheet onPick={handleAddPick} onClose={() => setSheet(null)} />
         )
       ) : null}
     </>
