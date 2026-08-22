@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ClimbingLogPage } from './ClimbingLogPage'
+import { useClimbingDraft } from './climbingDraftStore'
 
 const { useLogClimbing } = vi.hoisted(() => ({ useLogClimbing: vi.fn() }))
 const { useProfile } = vi.hoisted(() => ({ useProfile: vi.fn() }))
@@ -35,6 +36,10 @@ const climbingBundle = {
 }
 
 beforeEach(() => {
+  // Reset the persisted draft store (a module singleton) so entries/notes/date don't leak
+  // between tests. localStorage.clear() drops what persist wrote, reset() clears memory.
+  localStorage.clear()
+  useClimbingDraft.getState().reset()
   mutate.mockReset()
   nav.mockReset()
   locationState = null
@@ -71,6 +76,32 @@ describe('ClimbingLogPage', () => {
     // Direct typing still works alongside the steppers.
     fireEvent.change(screen.getByLabelText('V3 sends'), { target: { value: '5' } })
     expect(screen.getByLabelText('V3 sends')).toHaveValue('5')
+  })
+
+  it('retains an in-progress draft across a remount (exit/reopen)', () => {
+    const { unmount } = render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 attempts'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('V4 sends'), { target: { value: '1' } })
+
+    // Simulate closing the app and coming back: a fresh mount reads the persisted store.
+    unmount()
+    render(<ClimbingLogPage />)
+
+    expect(screen.getByLabelText('V4 attempts')).toHaveValue('3')
+    expect(screen.getByLabelText('V4 sends')).toHaveValue('1')
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled()
+  })
+
+  it('clears the draft after a successful save so the next log starts blank', () => {
+    mutate.mockImplementation((_input, opts) => opts.onSuccess({ sessionId: 's1', newMaxGrade: null, previousMaxGrade: null }))
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 sends'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    // Re-open: the persisted draft was reset, so the form is empty again.
+    render(<ClimbingLogPage />)
+    const inputs = screen.getAllByLabelText('V4 sends')
+    expect(inputs[inputs.length - 1]).toHaveValue('0')
   })
 
   it('saves normalized rows: includes projecting (attempts, 0 sends) and clamps sends-only', () => {
