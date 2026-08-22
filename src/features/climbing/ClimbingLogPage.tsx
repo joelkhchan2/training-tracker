@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '../../components/ui/AppShell'
 import { Card } from '../../components/ui/Card'
@@ -12,22 +12,9 @@ import { useProfile } from '../../data/profile'
 import { useActiveWorkout } from '../../data/queries'
 import { buildSavePlan } from '../../data/mutations'
 import { useLogClimbing } from '../../data/logClimbing'
+import { useClimbingDraft } from './climbingDraftStore'
 
 const GRADES = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-
-/** Local-calendar YYYY-MM-DD (not UTC — avoids "tomorrow" flips late at night). */
-function todayLocal(): string {
-  const d = new Date()
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-interface GradeEntry {
-  attempts: number
-  sends: number
-}
 
 export function ClimbingLogPage() {
   const nav = useNavigate()
@@ -39,14 +26,22 @@ export function ClimbingLogPage() {
   // never reads it. The query stays disabled until user.id is known.
   const { data: bundle } = useActiveWorkout(user?.id)
   const logClimbing = useLogClimbing()
-  // Stable across retries so the RPC's on-conflict idempotency engages on a failed-then-retried
-  // save instead of minting a duplicate session (matches CardioLogPage).
-  const [clientId] = useState(() => crypto.randomUUID())
-  const [entries, setEntries] = useState<Record<number, GradeEntry>>({})
-  const [notes, setNotes] = useState('')
-  const [date, setDate] = useState(todayLocal())
+  // The in-progress draft lives in a persisted store (tt-climbing-draft), so a half-entered
+  // session survives exiting/backgrounding the app or a mid-entry reload — resuming where the
+  // user left off, the same as the strength workout screen. Cleared on a successful save.
+  const entries = useClimbingDraft((s) => s.entries)
+  const notes = useClimbingDraft((s) => s.notes)
+  const date = useClimbingDraft((s) => s.date)
+  const patch = useClimbingDraft((s) => s.patch)
+  const setNotes = useClimbingDraft((s) => s.setNotes)
+  const setDate = useClimbingDraft((s) => s.setDate)
+  const ensureStarted = useClimbingDraft((s) => s.ensureStarted)
+  const resetDraft = useClimbingDraft((s) => s.reset)
   const [error, setError] = useState<string | null>(null)
   const [pr, setPr] = useState<{ newMax: number; prevMax: number | null } | null>(null)
+
+  // Mint the idempotency key on mount (idempotent — keeps an existing draft's key).
+  useEffect(() => { ensureStarted() }, [ensureStarted])
 
   const climbingEnabled = (profile?.enabled_disciplines ?? []).includes('climbing')
   // A program-linked launch is authorized by the program itself, so skip the enabled-disciplines redirect.
@@ -63,13 +58,6 @@ export function ClimbingLogPage() {
     })),
   )
   const valid = payload.length > 0
-
-  function patch(grade: number, field: keyof GradeEntry, value: number) {
-    setEntries((prev) => {
-      const current = prev[grade] ?? { attempts: 0, sends: 0 }
-      return { ...prev, [grade]: { ...current, [field]: value } }
-    })
-  }
 
   // Where a successful save lands: Home in program-linked mode (so the advanced cursor shows), History otherwise.
   const successDest = programLinked ? '/' : '/history'
@@ -93,10 +81,15 @@ export function ClimbingLogPage() {
       // else: cursor drifted onto a non-climbing day -> fall back to ad-hoc (log, no advance).
     }
 
+    const clientId = ensureStarted()
     logClimbing.mutate(
       { clientId, date, notes: notes.trim() || null, sends: payload, nextCursor: advance?.nextCursor, lastAdvanceKey: advance?.lastAdvanceKey },
       {
         onSuccess: (res) => {
+          // Clear the persisted draft first so the next log starts blank and a killed-app-then-
+          // reopen can't resurrect an already-saved session. The PR screen reads its own local
+          // state, so clearing the draft here doesn't affect it.
+          resetDraft()
           if (res.newMaxGrade != null) setPr({ newMax: res.newMaxGrade, prevMax: res.previousMaxGrade })
           else nav(successDest)
         },
