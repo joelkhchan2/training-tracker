@@ -11,7 +11,7 @@ import type { ActiveWorkoutBundle } from '../../data/queries'
 import type { ProgramExerciseRow } from '../../data/types'
 import { useSaveWorkout } from '../../data/mutations'
 import { useSwapProgramExercise } from '../../data/saveProgram'
-import type { ProgressionExerciseInput, SaveWorkoutResult, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
+import type { ProgressionExerciseInput, SaveWorkoutResult, TrainingMaxUpdate, WorkoutSessionInput, WorkoutSetInput } from '../../data/mutations'
 import { resolveExercisesByName } from '../../data/resolveDraftExercises'
 import { buildTodayExerciseIdMap, fetchLastSetsByExercise } from '../../data/exerciseHistory'
 import { detectStrengthPRs, sessionTonnage, shapeSetForSave } from '../../domain'
@@ -135,6 +135,22 @@ function buildProgressionOutcomeDisplays(
       failsBeforeDeload: m?.failsBeforeDeload,
     }
   })
+}
+
+/** Resolves the cycle TM bumps (keyed by tmKey) to display rows keyed by exercise name, via
+ *  the program's own percentage exercises (tmKey -> exerciseName). A key with no matching
+ *  exercise falls back to the raw key rather than being dropped. */
+function buildTrainingMaxBumpDisplays(
+  bundle: ActiveWorkoutBundle,
+  updates: TrainingMaxUpdate[],
+): { name: string; previous: number; next: number }[] {
+  const nameByTmKey: Record<string, string> = {}
+  for (const day of bundle.program.days) {
+    for (const ex of day.exercises ?? []) {
+      if (ex.tmKey) nameByTmKey[ex.tmKey] = ex.exerciseName
+    }
+  }
+  return updates.map((u) => ({ name: nameByTmKey[u.key] ?? u.key, previous: u.prev_value, next: u.value }))
 }
 
 type Summary = Omit<SummarySheetProps, 'onClose'>
@@ -299,12 +315,14 @@ export function WorkoutPage() {
           programId,
           progressionExercises,
           workingWeights: bundle.workingWeights,
+          trainingMaxes: bundle.trainingMaxes,
         },
         {
           onSuccess: (result) => {
             useRestTimer.getState().skip() // stop any running rest timer on finish
             const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
-            setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes })
+            const trainingMaxBumps = buildTrainingMaxBumpDisplays(bundle, result.trainingMaxUpdates)
+            setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes, trainingMaxBumps })
           },
           onError: (err) => {
             setErrorMsg(err.message || 'Could not save your workout. Please try again.')

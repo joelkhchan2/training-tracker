@@ -113,6 +113,33 @@ describe('SummarySheet — weight unit (kg)', () => {
   })
 })
 
+describe('SummarySheet — cycle training-max bumps', () => {
+  it('renders each bump as "🔺 Name prev → next" under a New cycle header', () => {
+    render(
+      <SummarySheet
+        tonnage={0}
+        setCount={0}
+        exerciseCount={0}
+        prs={[]}
+        trainingMaxBumps={[
+          { name: 'Squat', previous: 200, next: 210 },
+          { name: 'Bench Press', previous: 100, next: 105 },
+        ]}
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('New cycle — training max increased')).toBeInTheDocument()
+    expect(screen.getByText('🔺 Squat 200 → 210')).toBeInTheDocument()
+    expect(screen.getByText('🔺 Bench Press 100 → 105')).toBeInTheDocument()
+  })
+
+  it('omits the New cycle section entirely when there are no bumps', () => {
+    render(<SummarySheet tonnage={0} setCount={0} exerciseCount={0} prs={[]} onClose={vi.fn()} />)
+    expect(screen.queryByText('New cycle — training max increased')).not.toBeInTheDocument()
+  })
+})
+
 describe('SummarySheet — tonnage tile', () => {
   afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
 

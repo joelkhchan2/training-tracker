@@ -366,7 +366,7 @@ describe('WorkoutPage', () => {
     expect(payload.progressionSets).toEqual([])
 
     act(() =>
-      options.onSuccess({ sessionId: 'session-1', cycleComplete: false, nextCursor: bundle.cursor, progressionOutcomes: [] }),
+      options.onSuccess({ sessionId: 'session-1', cycleComplete: false, nextCursor: bundle.cursor, progressionOutcomes: [], trainingMaxUpdates: [] }),
     )
 
     const tonnageLabel = screen.getByText('tonnage')
@@ -405,6 +405,7 @@ describe('WorkoutPage', () => {
         cycleComplete: false,
         nextCursor: bundle.cursor,
         progressionOutcomes: [],
+        trainingMaxUpdates: [],
       }),
     )
 
@@ -650,6 +651,7 @@ describe('WorkoutPage — AMRAP display and linear-progression wiring', () => {
         cycleComplete: false,
         nextCursor: linearBundle.cursor,
         progressionOutcomes: [{ exerciseName: 'Squat', action: 'increase', nextWeight: 105 }],
+        trainingMaxUpdates: [],
       }),
     )
 
