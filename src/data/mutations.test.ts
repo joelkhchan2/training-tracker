@@ -4,8 +4,24 @@ import { createElement } from 'react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LinearProgressionConfig, Program } from '../domain'
-import { buildProgressionUpdates, buildSavePlan, useSaveWorkout } from './mutations'
+import { buildProgressionUpdates, buildSavePlan, buildTrainingMaxUpdates, useSaveWorkout } from './mutations'
 import type { ProgressionExerciseInput, WorkingWeights } from './mutations'
+
+// Percentage (5/3/1-style) program with a cycle_tm_bump rule and a single 1-week day, so a
+// save at cursor day 0 completes the cycle deterministically (advanceCursor rolls cycle).
+const PERCENT_PROGRAM: Program = {
+  name: '531-ish',
+  discipline: 'strength',
+  progressionRule: { type: 'cycle_tm_bump', bumps: { squat: 10, benchPress: 5 } },
+  days: [
+    {
+      name: 'A',
+      exercises: [
+        { exerciseName: 'Squat', tmKey: 'squat', order: 0, scheme: { type: 'percentage', tmKey: 'squat', weeks: [{ sets: [{ pct: 0.65, reps: 5 }] }] } },
+      ],
+    },
+  ],
+}
 
 // Minimal 2-day, 1-week (fixed scheme) program: no percentage scheme, so
 // programWeekCount defaults to 1 and cursor math is deterministic.
@@ -35,6 +51,25 @@ describe('buildSavePlan', () => {
       cycleComplete: true,
       lastAdvanceKey: '2-1-0',
     })
+  })
+})
+
+describe('buildTrainingMaxUpdates', () => {
+  it('applies a cycle_tm_bump to the existing maxes, as absolute values carrying prev_value', () => {
+    const updates = buildTrainingMaxUpdates(PERCENT_PROGRAM, { squat: 200, benchPress: 100 })
+    expect(updates).toEqual([
+      { key: 'squat', value: 210, prev_value: 200 },
+      { key: 'benchPress', value: 105, prev_value: 100 },
+    ])
+  })
+
+  it('skips a bump key the user never set a max for (no prev value to bump from)', () => {
+    const updates = buildTrainingMaxUpdates(PERCENT_PROGRAM, { squat: 200 })
+    expect(updates).toEqual([{ key: 'squat', value: 210, prev_value: 200 }])
+  })
+
+  it('returns [] for a program with no progressionRule', () => {
+    expect(buildTrainingMaxUpdates(TWO_DAY_PROGRAM, { squat: 200 })).toEqual([])
   })
 })
 
@@ -89,7 +124,82 @@ describe('useSaveWorkout', () => {
       cycleComplete: false,
       nextCursor: { dayIndex: 1, week: 1, cycle: 1 },
       progressionOutcomes: [],
+      trainingMaxUpdates: [],
     })
+  })
+
+  it('sends p_training_maxes with the bumped absolute maxes when a cycle completes (5/3/1 progression)', async () => {
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-cycle',
+        session: { discipline: 'strength', status: 'completed' },
+        sets: [{ exercise_id: 'ex-1', set_number: 1, weight: 130, reps: 5 }],
+        program: PERCENT_PROGRAM,
+        cursor: { dayIndex: 0, week: 1, cycle: 1 }, // 1 day / 1 week -> this save completes the cycle
+        trainingMaxes: { squat: 200, benchPress: 100 },
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    expect(params.p_training_maxes).toEqual([
+      { key: 'squat', value: 210, prev_value: 200 },
+      { key: 'benchPress', value: 105, prev_value: 100 },
+    ])
+    expect(result.current.data?.trainingMaxUpdates).toEqual([
+      { key: 'squat', value: 210, prev_value: 200 },
+      { key: 'benchPress', value: 105, prev_value: 100 },
+    ])
+  })
+
+  it('omits p_training_maxes when the cycle completes but the program has no progressionRule', async () => {
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-norule',
+        session: { discipline: 'strength', status: 'completed' },
+        sets: [{ exercise_id: 'ex-1', set_number: 1, weight: 135, reps: 5 }],
+        program: TWO_DAY_PROGRAM,
+        cursor: { dayIndex: 1, week: 1, cycle: 1 }, // last day -> cycle completes
+        trainingMaxes: { squat: 200 },
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    expect(params).not.toHaveProperty('p_training_maxes')
+  })
+
+  it('omits p_training_maxes mid-cycle even for a progression program (no cycle completion)', async () => {
+    // A 2-day variant of the percentage program: finishing day 0 advances within the cycle,
+    // so no TM bump is written yet.
+    const twoDayPercent: Program = {
+      ...PERCENT_PROGRAM,
+      days: [PERCENT_PROGRAM.days[0], { name: 'B', exercises: [{ exerciseName: 'Bench Press', tmKey: 'benchPress', order: 0, scheme: { type: 'percentage', tmKey: 'benchPress', weeks: [{ sets: [{ pct: 0.65, reps: 5 }] }] } }] }],
+    }
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-mid',
+        session: { discipline: 'strength', status: 'completed' },
+        sets: [{ exercise_id: 'ex-1', set_number: 1, weight: 130, reps: 5 }],
+        program: twoDayPercent,
+        cursor: { dayIndex: 0, week: 1, cycle: 1 }, // day 0 of 2 -> mid-cycle
+        trainingMaxes: { squat: 200, benchPress: 100 },
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    expect(params).not.toHaveProperty('p_training_maxes')
+    expect(result.current.data?.trainingMaxUpdates).toEqual([])
   })
 
   it('surfaces an rpc error (the cursor never partially advances since it is the same call)', async () => {

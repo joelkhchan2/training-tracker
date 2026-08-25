@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Cursor, Discipline, LinearProgressionAction, Program, Scheme } from '../domain'
-import { advanceCursor, applyLinearProgression } from '../domain'
+import type { Cursor, Discipline, LinearProgressionAction, Program, Scheme, TrainingMaxes } from '../domain'
+import { advanceCursor, applyLinearProgression, applyProgression } from '../domain'
 import { getSupabase } from './supabase'
 import type { StrengthSetRow } from './types'
 
@@ -41,6 +41,36 @@ export function buildSavePlan(program: Program, cursor: Cursor): SavePlan {
   const { cursor: nextCursor, cycleComplete } = advanceCursor(program, cursor)
   const lastAdvanceKey = `${nextCursor.cycle}-${nextCursor.week}-${nextCursor.dayIndex}`
   return { nextCursor, cycleComplete, lastAdvanceKey }
+}
+
+/** One training-max row to upsert on cycle completion. */
+export interface TrainingMaxUpdate {
+  key: string
+  /** Absolute new value (not a delta) — see `buildTrainingMaxUpdates`. */
+  value: number
+  /** The pre-bump value, kept for history/display (training_maxes.prev_value). */
+  prev_value: number
+}
+
+/** The training-max bumps to persist when a cycle completes: the program's `progressionRule`
+ *  (5/3/1's `cycle_tm_bump`, or a linear `add`) applied to the pre-save maxes, as ABSOLUTE new
+ *  values. Only keys that actually change are returned — a `cycle_tm_bump` lift the user never
+ *  set a max for (prev undefined) is skipped rather than invented. Returns [] when the program
+ *  has no `progressionRule`. Absolute (not delta) values are what make the RPC upsert
+ *  idempotent: replaying the same save re-writes the same numbers instead of bumping twice.
+ *
+ *  This is the fix for 5/3/1 not progressing across cycles — `applyProgression` existed in the
+ *  domain but was never called by the save path (only `applyLinearProgression` was). */
+export function buildTrainingMaxUpdates(program: Program, currentMaxes: TrainingMaxes): TrainingMaxUpdate[] {
+  if (!program.progressionRule) return []
+  const next = applyProgression(program, currentMaxes)
+  const out: TrainingMaxUpdate[] = []
+  for (const [key, value] of Object.entries(next)) {
+    const prev = currentMaxes[key]
+    if (prev === undefined || value === prev) continue
+    out.push({ key, value, prev_value: prev })
+  }
+  return out
 }
 
 /** Working-weight state keyed the same way `getPrescription`'s `workingWeights` arg and
@@ -177,6 +207,10 @@ export interface SaveWorkoutInput {
   programId?: string
   progressionExercises?: ProgressionExerciseInput[]
   workingWeights?: WorkingWeights
+  /** The user's current training maxes (bundle.trainingMaxes), used to compute the cycle
+   *  TM bump for percentage/5-3-1 programs. Omit when the program has no `progressionRule`
+   *  or you don't want the bump applied. */
+  trainingMaxes?: TrainingMaxes
 }
 
 export interface SaveWorkoutResult {
@@ -184,6 +218,9 @@ export interface SaveWorkoutResult {
   cycleComplete: boolean
   nextCursor: Cursor
   progressionOutcomes: ProgressionOutcomeSummary[]
+  /** Training-max bumps written this save (cycle completion only); empty otherwise. Lets the
+   *  summary acknowledge "Squat 200 → 210" without re-deriving it. */
+  trainingMaxUpdates: TrainingMaxUpdate[]
 }
 
 /** Saves a strength session and advances the user's program cursor via the atomic
@@ -194,7 +231,7 @@ export function useSaveWorkout() {
   const queryClient = useQueryClient()
 
   return useMutation<SaveWorkoutResult, Error, SaveWorkoutInput>({
-    mutationFn: async ({ clientId, session, sets, progressionSets, program, cursor, programId, progressionExercises, workingWeights }) => {
+    mutationFn: async ({ clientId, session, sets, progressionSets, program, cursor, programId, progressionExercises, workingWeights, trainingMaxes }) => {
       const supabase = getSupabase()
 
       const { nextCursor, cycleComplete, lastAdvanceKey } = buildSavePlan(program, cursor)
@@ -202,6 +239,12 @@ export function useSaveWorkout() {
       const { updates, outcomes } = programId && progressionExercises && workingWeights
         ? buildProgressionUpdates(programId, progressionExercises, progressionSets ?? sets, workingWeights)
         : { updates: [] as ProgressUpdate[], outcomes: [] as ProgressionOutcomeSummary[] }
+
+      // Cycle TM bump (5/3/1 et al.): only on cycle completion, and only when the caller
+      // supplied the current maxes. Absolute values keep the RPC upsert idempotent.
+      const trainingMaxUpdates = cycleComplete && trainingMaxes
+        ? buildTrainingMaxUpdates(program, trainingMaxes)
+        : []
 
       const rpcParams: Record<string, unknown> = {
         p_client_id: clientId,
@@ -211,11 +254,12 @@ export function useSaveWorkout() {
         p_last_advance_key: lastAdvanceKey,
       }
       if (updates.length > 0) rpcParams.p_progress = updates
+      if (trainingMaxUpdates.length > 0) rpcParams.p_training_maxes = trainingMaxUpdates
 
       const { data: sessionId, error: rpcError } = await supabase.rpc('log_workout', rpcParams)
       if (rpcError) throw rpcError
 
-      return { sessionId: sessionId as string, cycleComplete, nextCursor, progressionOutcomes: outcomes }
+      return { sessionId: sessionId as string, cycleComplete, nextCursor, progressionOutcomes: outcomes, trainingMaxUpdates }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })

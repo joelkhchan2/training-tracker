@@ -17,12 +17,22 @@ export interface ProgressionOutcomeDisplay {
   failsBeforeDeload?: number
 }
 
+/** A cycle training-max bump for one lift (5/3/1 et al.), ready for display. Built by
+ *  `WorkoutPage` from `useSaveWorkout`'s `trainingMaxUpdates` (tmKey/value/prev_value), with the
+ *  tmKey resolved to its exercise name. Shown only when a cycle just completed. */
+export interface TrainingMaxBumpDisplay {
+  name: string
+  previous: number
+  next: number
+}
+
 export interface SummarySheetProps {
   tonnage: number
   setCount: number
   exerciseCount: number
   prs: DetectedPR[]
   progressionOutcomes?: ProgressionOutcomeDisplay[]
+  trainingMaxBumps?: TrainingMaxBumpDisplay[]
   onClose: () => void
 }
 
@@ -69,6 +79,7 @@ export function SummarySheet({
   exerciseCount,
   prs,
   progressionOutcomes = [],
+  trainingMaxBumps = [],
   onClose,
 }: SummarySheetProps) {
   const unit = usePrefs((s) => s.weightUnit)
@@ -120,6 +131,19 @@ export function SummarySheet({
               </li>
             ))}
           </ul>
+        ) : null}
+
+        {trainingMaxBumps.length > 0 ? (
+          <div className="space-y-1 rounded-xl border border-border bg-bg p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">New cycle — training max increased</p>
+            <ul className="space-y-1">
+              {trainingMaxBumps.map((bump, i) => (
+                <li key={`${bump.name}-${i}`} className="text-sm font-medium text-text">
+                  🔺 {bump.name} {formatWeight(bump.previous, unit)} → {formatWeight(bump.next, unit)}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
 
         <Button fullWidth onClick={onClose}>
