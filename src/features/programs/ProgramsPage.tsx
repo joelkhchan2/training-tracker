@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { useAuth } from '../../lib/useAuth'
 import { useActiveWorkout } from '../../data/queries'
+import type { ActiveWorkoutBundle } from '../../data/queries'
 import { usePublicPrograms } from '../../data/programLibrary'
 import type { LibraryProgram } from '../../data/programLibrary'
 import { useDeleteProgram } from '../../data/saveProgram'
@@ -13,11 +14,15 @@ import { useActivateDbProgram } from '../../data/activateProgram'
 import { PRESETS } from '../../domain/presets'
 import type { PresetMeta } from '../../domain/presets'
 import type { ProgramDiscipline } from '../../domain/types'
+import { formatWeight } from '../../domain'
+import { usePrefs } from '../settings/usePrefs'
 import { cn } from '../../lib/cn'
 import { ProgramCard } from './ProgramCard'
 import { ProgramPreview } from './ProgramPreview'
 import { ActivateSheet } from './ActivateSheet'
 import { EditProgramDetailsSheet } from './EditProgramDetailsSheet'
+import { TrainingMaxSheet } from './TrainingMaxSheet'
+import { labelForKey } from './tmLabels'
 
 type EditingDetails = { id: string; name: string; description: string }
 
@@ -41,6 +46,23 @@ const disciplineLabel: Record<ProgramDiscipline, string> = {
   climbing: 'Climbing',
   cardio: 'Cardio',
   mixed: 'Mixed',
+}
+
+/** The distinct `tmKey`s the active program's percentage lifts are calculated from, in first-seen
+ *  order. Only percentage schemes read `training_maxes`; linear lifts progress via
+ *  `exercise_progress`, so they're intentionally excluded from the training-max editor. */
+function activePercentageTmKeys(bundle: ActiveWorkoutBundle): string[] {
+  const keys: string[] = []
+  const seen = new Set<string>()
+  for (const day of bundle.program.days) {
+    for (const ex of day.exercises ?? []) {
+      if (ex.scheme.type === 'percentage' && ex.scheme.tmKey && !seen.has(ex.scheme.tmKey)) {
+        seen.add(ex.scheme.tmKey)
+        keys.push(ex.scheme.tmKey)
+      }
+    }
+  }
+  return keys
 }
 
 interface LibraryProgramCardProps {
@@ -146,10 +168,14 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
   const activeInOwn = bundle ? own.some(p => p.id === bundle.programId) : false
   const showCurrentProgramCard = Boolean(bundle && !activeInOwn)
 
+  const weightUnit = usePrefs((s) => s.weightUnit)
+  const tmKeys = bundle ? activePercentageTmKeys(bundle) : []
+
   const [selected, setSelected] = useState<Selection>(null)
   const [activating, setActivating] = useState<PresetMeta | null>(null)
   const [dbError, setDbError] = useState<string | null>(null)
   const [editingDetails, setEditingDetails] = useState<EditingDetails | null>(null)
+  const [editingMaxes, setEditingMaxes] = useState(false)
 
   const deleteProgram = useDeleteProgram()
   const activateDbProgram = useActivateDbProgram()
@@ -248,6 +274,32 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
               </section>
             ) : null}
 
+            {bundle && tmKeys.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Training maxes</h2>
+                <Card className="space-y-3">
+                  <p className="text-sm text-muted">
+                    {bundle.program.name}&rsquo;s percentage lifts are calculated from these.
+                  </p>
+                  <ul className="space-y-1">
+                    {tmKeys.map((key) => (
+                      <li key={key} className="flex items-center justify-between text-sm">
+                        <span className="text-text">{labelForKey(key)}</span>
+                        <span className="font-semibold tabular-nums text-text">
+                          {bundle.trainingMaxes[key] != null ? formatWeight(bundle.trainingMaxes[key], weightUnit) : '—'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="px-1 pt-1">
+                    <Button variant="secondary" size="sm" onClick={() => setEditingMaxes(true)}>
+                      Edit training maxes
+                    </Button>
+                  </div>
+                </Card>
+              </section>
+            ) : null}
+
             <section className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Presets</h2>
               <div className="space-y-3">
@@ -316,6 +368,10 @@ export function ProgramsPage({ onUse }: ProgramsPageProps) {
           initialDescription={editingDetails.description}
           onClose={() => setEditingDetails(null)}
         />
+      ) : null}
+
+      {editingMaxes && bundle ? (
+        <TrainingMaxSheet keys={tmKeys} current={bundle.trainingMaxes} onClose={() => setEditingMaxes(false)} />
       ) : null}
     </>
   )

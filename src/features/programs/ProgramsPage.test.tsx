@@ -19,11 +19,14 @@ const {
   mockActivateDbMutate,
   useUpdateProgramDetails,
   mockUpdateDetailsMutate,
+  useUpdateTrainingMaxes,
+  mockUpdateMaxesMutate,
 } = vi.hoisted(() => {
   const mockMutate = vi.fn()
   const mockDeleteMutate = vi.fn()
   const mockActivateDbMutate = vi.fn()
   const mockUpdateDetailsMutate = vi.fn()
+  const mockUpdateMaxesMutate = vi.fn()
   return {
     mockNavigate: vi.fn(),
     useActiveWorkout: vi.fn(),
@@ -36,6 +39,8 @@ const {
     mockActivateDbMutate,
     useUpdateProgramDetails: vi.fn(() => ({ mutate: mockUpdateDetailsMutate, isPending: false })),
     mockUpdateDetailsMutate,
+    useUpdateTrainingMaxes: vi.fn(() => ({ mutate: mockUpdateMaxesMutate, isPending: false })),
+    mockUpdateMaxesMutate,
   }
 })
 
@@ -58,6 +63,7 @@ vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/activateProgram', () => ({ useActivateProgram, useActivateDbProgram }))
 vi.mock('../../data/programLibrary', () => ({ usePublicPrograms }))
 vi.mock('../../data/saveProgram', () => ({ useDeleteProgram, useUpdateProgramDetails }))
+vi.mock('../../data/trainingMaxes', () => ({ useUpdateTrainingMaxes }))
 
 const ownProgram: LibraryProgram = {
   id: 'own-1',
@@ -123,6 +129,9 @@ describe('ProgramsPage', () => {
     mockUpdateDetailsMutate.mockReset()
     useUpdateProgramDetails.mockReset()
     useUpdateProgramDetails.mockReturnValue({ mutate: mockUpdateDetailsMutate, isPending: false })
+    mockUpdateMaxesMutate.mockReset()
+    useUpdateTrainingMaxes.mockReset()
+    useUpdateTrainingMaxes.mockReturnValue({ mutate: mockUpdateMaxesMutate, isPending: false })
     usePublicPrograms.mockReset()
     usePublicPrograms.mockReturnValue({ data: emptyLibrary, isLoading: false })
   })
@@ -169,6 +178,39 @@ describe('ProgramsPage', () => {
 
     const strongLiftsCard = screen.getByText('StrongLifts 5x5').closest('[role="button"]')
     expect(within(strongLiftsCard as HTMLElement).queryByText('Current')).not.toBeInTheDocument()
+  })
+
+  it('shows a Training maxes section with the active percentage program\'s current values', () => {
+    useActiveWorkout.mockReturnValue({
+      data: { ...bundleWithActiveProgram, trainingMaxes: { squat: 250, benchPress: 160, overheadPress: 105 } },
+      isLoading: false,
+    })
+
+    renderProgramsPage()
+
+    const section = screen.getByRole('heading', { name: 'Training maxes' }).closest('section') as HTMLElement
+    expect(within(section).getByText('Squat')).toBeInTheDocument()
+    expect(within(section).getByText('250')).toBeInTheDocument()
+    expect(within(section).getByText('160')).toBeInTheDocument()
+    expect(within(section).getByText('105')).toBeInTheDocument()
+  })
+
+  it('opens the training-max editor prefilled from current maxes', () => {
+    useActiveWorkout.mockReturnValue({
+      data: { ...bundleWithActiveProgram, trainingMaxes: { squat: 250, benchPress: 160, overheadPress: 105 } },
+      isLoading: false,
+    })
+
+    renderProgramsPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit training maxes' }))
+    expect(screen.getByRole('dialog', { name: 'Edit training maxes' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Squat')).toHaveValue('250')
+  })
+
+  it('hides the Training maxes section when there is no active program', () => {
+    renderProgramsPage()
+    expect(screen.queryByRole('heading', { name: 'Training maxes' })).not.toBeInTheDocument()
   })
 
   it('fires onUse with the selected preset when "Use this program" is tapped', () => {
