@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { WeightField } from '../../components/ui/WeightField'
 import type { PresetMeta } from '../../domain/presets'
 import { useActivateProgram } from '../../data/activateProgram'
+import { labelForKey } from './tmLabels'
 
 export interface ActivateSheetProps {
   preset: PresetMeta
@@ -12,19 +13,6 @@ export interface ActivateSheetProps {
    *  doesn't force re-entering numbers already on file. */
   existingTrainingMaxes?: Record<string, number>
   onClose: () => void
-}
-
-/** Friendly labels for the `tmKeys` used by percentage-based presets. Falls back to
- *  the raw key for any future key this map hasn't been updated for. */
-const TM_LABELS: Record<string, string> = {
-  squat: 'Squat',
-  benchPress: 'Bench Press',
-  barbellDeadlift: 'Deadlift',
-  overheadPress: 'Overhead Press',
-}
-
-function labelForKey(key: string): string {
-  return TM_LABELS[key] ?? key
 }
 
 function initialMaxes(preset: PresetMeta, existing?: Record<string, number>): Record<string, number> {
