@@ -104,11 +104,14 @@ export async function fetchLastSetsByExercise(
   return result
 }
 
-/** Pure: fill each prescribed set's EMPTY fields (null or 0) from the same-index set of that
- *  exercise's last session, matched by NAME. Applies per-field to weight, reps AND duration, so a
- *  timed exercise prefills its last hold and a bodyweight exercise its last reps, exactly the way a
- *  weighted exercise already prefills its last load. A field the program actually prescribes
- *  (a real weight/reps/duration) is authoritative and left untouched, as are unmatched indices. */
+/** Pure: prefill each prescribed set from the same-index set of that exercise's last session,
+ *  matched by NAME. What carries over depends on how the exercise loads:
+ *   - Weighted (last set had a weight): fill the missing load; the prescribed reps stay the target.
+ *   - Bodyweight (last set had NO weight): reps ARE the progression, so carry last session's reps —
+ *     overriding any prescribed rep count, which for bodyweight is only a soft target.
+ *   - Timed: fill the hold only when the prescription doesn't specify one.
+ *  A field the program actually prescribes for a weighted lift (its %-weight, its rep target, a
+ *  prescribed hold) stays authoritative, and unmatched set indices are left untouched. */
 export function applyAutofill(
   prescription: PrescribedExercise[],
   lastSetsByName: Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]>,
@@ -123,9 +126,14 @@ export function applyAutofill(
         const l = last[i]
         if (!l) return s
         let next = s
-        if (empty(s.weight) && l.weight != null) next = { ...next, weight: l.weight }
-        if (empty(s.reps) && l.reps != null) next = { ...next, reps: l.reps }
-        if (empty(s.durationSeconds) && l.durationSeconds != null) next = { ...next, durationSeconds: l.durationSeconds }
+        if (empty(s.weight) && l.weight != null) {
+          next = { ...next, weight: l.weight } // weighted: carry last load, keep prescribed reps
+        } else if (l.weight == null && l.reps != null) {
+          next = { ...next, reps: l.reps } // bodyweight: reps are the load — carry them (override target)
+        }
+        if (empty(s.durationSeconds) && l.durationSeconds != null) {
+          next = { ...next, durationSeconds: l.durationSeconds } // timed: fill an unspecified hold
+        }
         return next
       }),
     }
