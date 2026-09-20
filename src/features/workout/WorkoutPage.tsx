@@ -387,7 +387,11 @@ export function WorkoutPage() {
           if (!ex || ex.exerciseId !== pick.exerciseId) return
           if (!ex.sets.every((s) => s.weight == null && s.reps == null && !s.done)) return
           lastSets.forEach((ls, i) => {
-            if (i < ex.sets.length) useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps })
+            if (i < ex.sets.length) {
+              // Prefill weight/reps AND duration so a swapped-in timed or bodyweight exercise
+              // carries its last values, just like a weighted one carries its last load.
+              useSessionStore.getState().updateSet(exIdx, i, { weight: ls.weight, reps: ls.reps, durationSeconds: ls.durationSeconds ?? null })
+            }
           })
         })
         .catch(() => {}) // no history / fetch error → leave blank

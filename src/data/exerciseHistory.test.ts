@@ -3,11 +3,11 @@ import { buildExerciseHistory, applyAutofill, buildTodayExerciseIdMap } from './
 
 const rows = [
   // session B (newer) — 2 working sets + 1 warmup
-  { session_id: 'sB', date: '2026-07-20', set_number: 1, weight: 45, reps: 5, is_warmup: true },
-  { session_id: 'sB', date: '2026-07-20', set_number: 2, weight: 135, reps: 5, is_warmup: false },
-  { session_id: 'sB', date: '2026-07-20', set_number: 3, weight: 155, reps: 3, is_warmup: false },
+  { session_id: 'sB', date: '2026-07-20', set_number: 1, weight: 45, reps: 5, duration_seconds: null, is_warmup: true },
+  { session_id: 'sB', date: '2026-07-20', set_number: 2, weight: 135, reps: 5, duration_seconds: null, is_warmup: false },
+  { session_id: 'sB', date: '2026-07-20', set_number: 3, weight: 155, reps: 3, duration_seconds: null, is_warmup: false },
   // session A (older) — 1 working set
-  { session_id: 'sA', date: '2026-07-13', set_number: 1, weight: 125, reps: 5, is_warmup: false },
+  { session_id: 'sA', date: '2026-07-13', set_number: 1, weight: 125, reps: 5, duration_seconds: null, is_warmup: false },
 ]
 
 describe('buildExerciseHistory', () => {
@@ -19,16 +19,23 @@ describe('buildExerciseHistory', () => {
     expect(out[0].e1rm).toBeGreaterThan(155) // epley top set, > raw top weight
     expect(out[1].volume).toBe(125 * 5)
   })
+  it('carries duration_seconds through to the session sets', () => {
+    const timed = [
+      { session_id: 's1', date: '2026-07-20', set_number: 1, weight: null, reps: null, duration_seconds: 12, is_warmup: false },
+      { session_id: 's1', date: '2026-07-20', set_number: 2, weight: null, reps: null, duration_seconds: 10, is_warmup: false },
+    ]
+    expect(buildExerciseHistory(timed)[0].sets.map(s => s.durationSeconds)).toEqual([12, 10])
+  })
   it('caps at 10 sessions', () => {
     const many = Array.from({ length: 14 }, (_, i) => ({
-      session_id: `s${i}`, date: `2026-07-${String(i + 1).padStart(2, '0')}`, set_number: 1, weight: 100, reps: 5, is_warmup: false,
+      session_id: `s${i}`, date: `2026-07-${String(i + 1).padStart(2, '0')}`, set_number: 1, weight: 100, reps: 5, duration_seconds: null, is_warmup: false,
     }))
     expect(buildExerciseHistory(many)).toHaveLength(10)
   })
 })
 
-describe('applyAutofill (per-set, weight-only, fallback)', () => {
-  const last = { Curl: [{ weight: 30, reps: 12 }, { weight: 30, reps: 10 }] }
+describe('applyAutofill (per-set: weight, reps, duration; fills empties only)', () => {
+  const last = { Curl: [{ weight: 30, reps: 12, durationSeconds: null }, { weight: 30, reps: 10, durationSeconds: null }] }
   it('fills weight for no-prescribed-weight sets by set index; never overrides a real weight', () => {
     const rx = [
       { exerciseName: 'Squat', sets: [{ weight: 135, reps: 5 }, { weight: 135, reps: 5 }] }, // prescribed → untouched
@@ -41,12 +48,28 @@ describe('applyAutofill (per-set, weight-only, fallback)', () => {
     expect(out[1].sets[2].weight).toBeUndefined() // today has more sets than last → blank
     expect(out[1].sets[0].reps).toBe(12) // prescribed reps target unchanged
   })
+  it('fills a timed set\'s duration from last session (empty prescribed duration)', () => {
+    const lastTimed = { 'Front Lever': [{ weight: null, reps: null, durationSeconds: 12 }, { weight: null, reps: null, durationSeconds: 9 }] }
+    const rx = [
+      { exerciseName: 'Front Lever', sets: [{ durationSeconds: undefined }, { durationSeconds: 0 }, { durationSeconds: 8 }] },
+    ] as never
+    const out = applyAutofill(rx, lastTimed) as never as { sets: { durationSeconds?: number }[] }[]
+    expect(out[0].sets[0].durationSeconds).toBe(12) // undefined → filled
+    expect(out[0].sets[1].durationSeconds).toBe(9)  // 0 → filled
+    expect(out[0].sets[2].durationSeconds).toBe(8)  // real prescribed duration — untouched
+  })
+  it('fills a bodyweight set\'s reps from last session when reps is empty', () => {
+    const lastBw = { 'Pull-up': [{ weight: null, reps: 11, durationSeconds: null }] }
+    const rx = [{ exerciseName: 'Pull-up', sets: [{ weight: undefined, reps: undefined }] }] as never
+    const out = applyAutofill(rx, lastBw) as never as { sets: { reps?: number }[] }[]
+    expect(out[0].sets[0].reps).toBe(11) // no prescribed reps → filled from last
+  })
   it('no-op when exercise has no last data', () => {
     const rx = [{ exerciseName: 'Dip', sets: [{ weight: undefined, reps: 8 }] }] as never
     expect((applyAutofill(rx, {}) as never as { sets: { weight?: number }[] }[])[0].sets[0].weight).toBeUndefined()
   })
   it('never overrides a real prescribed weight, but still fills a sibling no-weight set', () => {
-    const lastWithData = { Bench: [{ weight: 95, reps: 8 }, { weight: 95, reps: 8 }] }
+    const lastWithData = { Bench: [{ weight: 95, reps: 8, durationSeconds: null }, { weight: 95, reps: 8, durationSeconds: null }] }
     const rx = [
       { exerciseName: 'Bench', sets: [{ weight: 135, reps: 5 }, { weight: undefined, reps: 5 }] },
     ] as never

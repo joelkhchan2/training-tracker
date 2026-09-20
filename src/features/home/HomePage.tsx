@@ -57,7 +57,7 @@ export function HomePage() {
           .filter((id): id is string => !!id)
         if (ids.length > 0) {
           const byId = await fetchLastSetsByExercise(ids, user.id)
-          const byName: Record<string, { weight: number | null; reps: number | null }[]> = {}
+          const byName: Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]> = {}
           for (const ex of prescription) {
             const id = todayMap[ex.exerciseName]
             if (id && byId[id]) byName[ex.exerciseName] = byId[id]

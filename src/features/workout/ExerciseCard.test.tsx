@@ -99,8 +99,8 @@ describe('ExerciseCard', () => {
             e1rm: 165,
             volume: 465,
             sets: [
-              { weight: 155, reps: 3, isWarmup: false },
-              { weight: 45, reps: 8, isWarmup: true },
+              { weight: 155, reps: 3, durationSeconds: null, isWarmup: false },
+              { weight: 45, reps: 8, durationSeconds: null, isWarmup: true },
             ],
           },
         ],
@@ -126,8 +126,8 @@ describe('ExerciseCard', () => {
             e1rm: 0,
             volume: 0,
             sets: [
-              { weight: null, reps: 6, isWarmup: false },
-              { weight: null, reps: 8, isWarmup: false },
+              { weight: null, reps: 6, durationSeconds: null, isWarmup: false },
+              { weight: null, reps: 8, durationSeconds: null, isWarmup: false },
             ],
           },
         ],
@@ -188,7 +188,7 @@ describe('ExerciseCard — kg mode', () => {
       data: [
         {
           sessionId: 's1', date: '2026-07-20', e1rm: 165, volume: 465,
-          sets: [{ weight: 155, reps: 3, isWarmup: false }, { weight: 45, reps: 8, isWarmup: true }],
+          sets: [{ weight: 155, reps: 3, durationSeconds: null, isWarmup: false }, { weight: 45, reps: 8, durationSeconds: null, isWarmup: true }],
         },
       ],
       isLoading: false,
