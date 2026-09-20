@@ -928,3 +928,22 @@ describe('WorkoutPage — rest timer default wiring', () => {
     expect(useRestTimer.getState().remaining).toBe(180)
   })
 })
+
+describe('WorkoutPage — ad-hoc session', () => {
+  it('finishing an ad-hoc session saves without advancing the program', async () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'adhoc-1', startedAt: '2026-09-20T00:00:00.000Z' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Face Pulls', kind: 'strength' })
+    useSessionStore.getState().updateSet(0, 0, { weight: 50, reps: 12 })
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1))
+    const [payload] = mockMutate.mock.calls[0]
+    expect(payload.adhoc).toBe(true)
+    expect(payload.session.program_variant).toBeNull()
+    expect(payload.session.program_week).toBeNull()
+    expect(payload.session.session_type).toBe('Ad-hoc workout')
+    expect(payload.progressionExercises).toEqual([])
+  })
+})

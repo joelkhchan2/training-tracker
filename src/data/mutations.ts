@@ -200,8 +200,10 @@ export interface SaveWorkoutInput {
    *  a prescribed-only subset (excludes adhoc/added exercises) so an added exercise whose
    *  exercise_id coincidentally matches a programmed linear lift can't trigger a spurious deload. */
   progressionSets?: WorkoutSetInput[]
-  program: Program
-  cursor: Cursor
+  /** The active program + cursor drive the cursor advance and progression. Optional because an
+   *  ad-hoc session (`adhoc: true`) advances nothing and may run with no active program at all. */
+  program?: Program
+  cursor?: Cursor
   /** Needed to build `p_progress` rows; omit (along with `progressionExercises` /
    *  `workingWeights`) when the session has no linear-progression exercises to update. */
   programId?: string
@@ -211,12 +213,17 @@ export interface SaveWorkoutInput {
    *  TM bump for percentage/5-3-1 programs. Omit when the program has no `progressionRule`
    *  or you don't want the bump applied. */
   trainingMaxes?: TrainingMaxes
+  /** True for an off-program ad-hoc session (the "+ Log" blank strength workout): the sets are
+   *  saved but the program cursor is NOT advanced and no progression / TM bump is applied. */
+  adhoc?: boolean
 }
 
 export interface SaveWorkoutResult {
   sessionId: string
   cycleComplete: boolean
-  nextCursor: Cursor
+  /** The cursor after this save (unchanged for an ad-hoc session; undefined only when an ad-hoc
+   *  session ran with no active program/cursor at all). */
+  nextCursor?: Cursor
   progressionOutcomes: ProgressionOutcomeSummary[]
   /** Training-max bumps written this save (cycle completion only); empty otherwise. Lets the
    *  summary acknowledge "Squat 200 → 210" without re-deriving it. */
@@ -231,18 +238,19 @@ export function useSaveWorkout() {
   const queryClient = useQueryClient()
 
   return useMutation<SaveWorkoutResult, Error, SaveWorkoutInput>({
-    mutationFn: async ({ clientId, session, sets, progressionSets, program, cursor, programId, progressionExercises, workingWeights, trainingMaxes }) => {
+    mutationFn: async ({ clientId, session, sets, progressionSets, program, cursor, programId, progressionExercises, workingWeights, trainingMaxes, adhoc }) => {
       const supabase = getSupabase()
 
-      const { nextCursor, cycleComplete, lastAdvanceKey } = buildSavePlan(program, cursor)
+      // An ad-hoc session is logged on its own: no cursor advance, no progression, no TM bump.
+      const plan = !adhoc && program && cursor ? buildSavePlan(program, cursor) : null
 
-      const { updates, outcomes } = programId && progressionExercises && workingWeights
+      const { updates, outcomes } = !adhoc && programId && progressionExercises && workingWeights
         ? buildProgressionUpdates(programId, progressionExercises, progressionSets ?? sets, workingWeights)
         : { updates: [] as ProgressUpdate[], outcomes: [] as ProgressionOutcomeSummary[] }
 
       // Cycle TM bump (5/3/1 et al.): only on cycle completion, and only when the caller
       // supplied the current maxes. Absolute values keep the RPC upsert idempotent.
-      const trainingMaxUpdates = cycleComplete && trainingMaxes
+      const trainingMaxUpdates = plan?.cycleComplete && trainingMaxes && program
         ? buildTrainingMaxUpdates(program, trainingMaxes)
         : []
 
@@ -250,8 +258,12 @@ export function useSaveWorkout() {
         p_client_id: clientId,
         p_session: session,
         p_sets: sets,
-        p_next_cursor: nextCursor,
-        p_last_advance_key: lastAdvanceKey,
+      }
+      // Omitting p_next_cursor leaves the program cursor untouched (the RPC only advances when
+      // it's non-null) — exactly what an ad-hoc session needs.
+      if (plan) {
+        rpcParams.p_next_cursor = plan.nextCursor
+        rpcParams.p_last_advance_key = plan.lastAdvanceKey
       }
       if (updates.length > 0) rpcParams.p_progress = updates
       if (trainingMaxUpdates.length > 0) rpcParams.p_training_maxes = trainingMaxUpdates
@@ -259,7 +271,13 @@ export function useSaveWorkout() {
       const { data: sessionId, error: rpcError } = await supabase.rpc('log_workout', rpcParams)
       if (rpcError) throw rpcError
 
-      return { sessionId: sessionId as string, cycleComplete, nextCursor, progressionOutcomes: outcomes, trainingMaxUpdates }
+      return {
+        sessionId: sessionId as string,
+        cycleComplete: plan?.cycleComplete ?? false,
+        nextCursor: plan?.nextCursor ?? cursor,
+        progressionOutcomes: outcomes,
+        trainingMaxUpdates,
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeWorkout'] })

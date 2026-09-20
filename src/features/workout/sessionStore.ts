@@ -156,6 +156,11 @@ export interface SessionState {
   exercises: SessionExercise[]
   notes: string
   bodyWeight: number | null
+  /** True for a blank session started off-program via `startAdHoc` (the "+ Log" FAB). The save
+   *  flow reads this to skip advancing the program cursor and applying progression/TM bumps — an
+   *  ad-hoc session is logged on its own, never as a program day. Undefined on sessions persisted
+   *  before this field existed, which reads (correctly) as a program session. */
+  adhoc: boolean
 }
 
 export interface StartSessionMeta {
@@ -202,6 +207,10 @@ function buildAdhocExercise(pick: ExercisePick): SessionExercise {
 
 export interface SessionActions {
   startFromPrescription: (prescription: PrescribedExercise[], meta: StartSessionMeta) => void
+  /** Starts a blank, off-program strength session (empty exercise list) — the "+ Log →
+   *  Strength workout" entry point. Flagged `adhoc` so the save flow logs it without advancing
+   *  the program cursor. The user builds it up with `addExercise`. */
+  startAdHoc: (meta: { clientId: string; startedAt: string }) => void
   /** `carryForward` (default true) gates the smart carry-forward to later not-yet-done sets;
    *  pass false (from the `autoFillSets` pref) to edit only the targeted set. */
   updateSet: (exIdx: number, setIdx: number, patch: Partial<SessionSet>, carryForward?: boolean) => void
@@ -233,6 +242,7 @@ const initialState: SessionState = {
   exercises: [],
   notes: '',
   bodyWeight: null,
+  adhoc: false,
 }
 
 export const useSessionStore = create<SessionState & SessionActions>()(
@@ -283,6 +293,22 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           exercises,
           notes: '',
           bodyWeight: null,
+          adhoc: false,
+        })
+      },
+
+      startAdHoc: (meta) => {
+        set({
+          status: 'active',
+          clientId: meta.clientId,
+          sessionType: 'Ad-hoc',
+          dayName: null,
+          dayIndex: null,
+          startedAt: meta.startedAt,
+          exercises: [],
+          notes: '',
+          bodyWeight: null,
+          adhoc: true,
         })
       },
 
@@ -451,6 +477,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         exercises: state.exercises,
         notes: state.notes,
         bodyWeight: state.bodyWeight,
+        adhoc: state.adhoc,
       }),
     },
   ),
