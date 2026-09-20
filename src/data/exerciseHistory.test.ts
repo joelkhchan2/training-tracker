@@ -58,11 +58,19 @@ describe('applyAutofill (per-set: weight, reps, duration; fills empties only)', 
     expect(out[0].sets[1].durationSeconds).toBe(9)  // 0 → filled
     expect(out[0].sets[2].durationSeconds).toBe(8)  // real prescribed duration — untouched
   })
-  it('fills a bodyweight set\'s reps from last session when reps is empty', () => {
-    const lastBw = { 'Pull-up': [{ weight: null, reps: 11, durationSeconds: null }] }
-    const rx = [{ exerciseName: 'Pull-up', sets: [{ weight: undefined, reps: undefined }] }] as never
+  it('carries a bodyweight set\'s reps from last session, overriding the prescribed rep target', () => {
+    const lastBw = { 'Pull-up': [{ weight: null, reps: 11, durationSeconds: null }, { weight: null, reps: 9, durationSeconds: null }] }
+    const rx = [{ exerciseName: 'Pull-up', sets: [{ weight: undefined, reps: 8 }, { weight: undefined, reps: 8 }] }] as never
     const out = applyAutofill(rx, lastBw) as never as { sets: { reps?: number }[] }[]
-    expect(out[0].sets[0].reps).toBe(11) // no prescribed reps → filled from last
+    expect(out[0].sets[0].reps).toBe(11) // last actual reps win over prescribed 8
+    expect(out[0].sets[1].reps).toBe(9)
+  })
+  it('does NOT override a weighted exercise\'s prescribed reps (reps-fill is bodyweight-only)', () => {
+    const lastWeighted = { Bench: [{ weight: 100, reps: 10, durationSeconds: null }] }
+    const rx = [{ exerciseName: 'Bench', sets: [{ weight: 135, reps: 5 }] }] as never
+    const out = applyAutofill(rx, lastWeighted) as never as { sets: { weight?: number; reps?: number }[] }[]
+    expect(out[0].sets[0].reps).toBe(5) // prescribed reps stay the target for a weighted lift
+    expect(out[0].sets[0].weight).toBe(135)
   })
   it('no-op when exercise has no last data', () => {
     const rx = [{ exerciseName: 'Dip', sets: [{ weight: undefined, reps: 8 }] }] as never
