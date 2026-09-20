@@ -169,6 +169,7 @@ export function WorkoutPage() {
   const clientId = useSessionStore((s) => s.clientId)
   const sessionType = useSessionStore((s) => s.sessionType)
   const dayName = useSessionStore((s) => s.dayName)
+  const adhoc = useSessionStore((s) => s.adhoc)
   const exercises = useSessionStore((s) => s.exercises)
   const reset = useSessionStore((s) => s.reset)
   const addExercise = useSessionStore((s) => s.addExercise)
@@ -212,14 +213,16 @@ export function WorkoutPage() {
   }
 
   async function handleFinish() {
-    if (!bundle || !clientId || !user) {
+    // An ad-hoc session logs on its own and doesn't need the program bundle; a program session
+    // does (it maps prescribed exercises to ids and advances the cursor).
+    if (!clientId || !user || (!adhoc && !bundle)) {
       setErrorMsg('Still loading your program — please wait a moment and try again.')
       return
     }
     setErrorMsg(null)
     setIsResolving(true)
     try {
-      const exerciseIdByName = buildExerciseIdMap(bundle)
+      const exerciseIdByName = bundle ? buildExerciseIdMap(bundle) : {}
       const adhocItems = exercises
         .filter((ex) => ex.adhoc)
         .map((ex) => ({ name: ex.exerciseName, kind: ex.kind }))
@@ -278,7 +281,7 @@ export function WorkoutPage() {
 
       const tonnage = sessionTonnage(loggedSets)
       const exerciseCount = new Set(loggedSets.map((s) => s.exerciseName)).size
-      const prs = detectStrengthPRs(loggedSets, mapExistingPRs(bundle))
+      const prs = detectStrengthPRs(loggedSets, bundle ? mapExistingPRs(bundle) : [])
 
       const now = new Date()
       const timerFields = startedAt
@@ -291,18 +294,19 @@ export function WorkoutPage() {
 
       const session: WorkoutSessionInput = {
         discipline: 'strength',
-        session_type: dayName ?? sessionType ?? undefined,
+        session_type: adhoc ? 'Ad-hoc workout' : (dayName ?? sessionType ?? undefined),
         date: localDateString(now),
-        program_variant: bundle.program.name,
-        program_week: bundle.cursor.week,
+        // Ad-hoc sessions aren't tied to a program day, so they carry no program variant/week.
+        program_variant: adhoc ? null : bundle?.program.name,
+        program_week: adhoc ? null : bundle?.cursor.week,
         status: 'completed',
         notes: notes.trim() || null,
         body_weight: bodyWeight,
         ...timerFields,
       }
 
-      const programId = bundle.days[0]?.program_id
-      const progressionExercises = buildProgressionExercises(bundle, exerciseIdByName)
+      const programId = adhoc ? undefined : bundle?.days[0]?.program_id
+      const progressionExercises = adhoc || !bundle ? [] : buildProgressionExercises(bundle, exerciseIdByName)
 
       saveWorkout.mutate(
         {
@@ -310,18 +314,20 @@ export function WorkoutPage() {
           session,
           sets,
           progressionSets,
-          program: bundle.program,
-          cursor: bundle.cursor,
+          program: bundle?.program,
+          cursor: bundle?.cursor,
           programId,
+          adhoc,
           progressionExercises,
-          workingWeights: bundle.workingWeights,
-          trainingMaxes: bundle.trainingMaxes,
+          workingWeights: bundle?.workingWeights,
+          trainingMaxes: adhoc ? undefined : bundle?.trainingMaxes,
         },
         {
           onSuccess: (result) => {
             useRestTimer.getState().skip() // stop any running rest timer on finish
-            const progressionOutcomes = buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes)
-            const trainingMaxBumps = buildTrainingMaxBumpDisplays(bundle, result.trainingMaxUpdates)
+            // Ad-hoc (or no-program) sessions carry no progression/TM bumps — both come back empty.
+            const progressionOutcomes = bundle ? buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes) : []
+            const trainingMaxBumps = bundle ? buildTrainingMaxBumpDisplays(bundle, result.trainingMaxUpdates) : []
             setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes, trainingMaxBumps })
           },
           onError: (err) => {

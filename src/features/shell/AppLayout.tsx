@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { useAuth } from '../../lib/useAuth'
 import { useProfile } from '../../data/profile'
+import { useSessionStore } from '../workout/sessionStore'
 
 /** Routing shell for the tab-bar pages (Home/History/Programs/Settings). Renders the matched
  *  page via <Outlet/>, a persistent BottomNav, and a "+ Log" FAB whose chooser is gated by the
@@ -21,6 +22,20 @@ export function AppLayout() {
   function go(path: string) {
     setChooserOpen(false)
     nav(path)
+  }
+
+  /** "Strength workout" starts a blank, off-program session and jumps straight into it. If a
+   *  workout is already in progress we don't wipe it — Home owns the resume / start-new choice,
+   *  so route there instead. */
+  function startStrength() {
+    setChooserOpen(false)
+    const store = useSessionStore.getState()
+    if (store.status === 'active' && store.exercises.length > 0) {
+      nav('/')
+      return
+    }
+    store.startAdHoc({ clientId: crypto.randomUUID(), startedAt: new Date().toISOString() })
+    nav('/workout')
   }
 
   return (
@@ -46,7 +61,7 @@ export function AppLayout() {
             <button
               type="button"
               className="w-full rounded-xl border border-border bg-bg py-3 text-text"
-              onClick={() => go('/')}
+              onClick={startStrength}
             >
               Strength workout
             </button>

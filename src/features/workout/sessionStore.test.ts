@@ -33,6 +33,31 @@ beforeEach(() => {
   useSessionStore.getState().reset()
 })
 
+describe('startAdHoc', () => {
+  it('starts a blank, active, ad-hoc-flagged session', () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'c1', startedAt: '2026-09-20T00:00:00Z' })
+    const s = useSessionStore.getState()
+    expect(s.status).toBe('active')
+    expect(s.adhoc).toBe(true)
+    expect(s.exercises).toEqual([])
+    expect(s.clientId).toBe('c1')
+    expect(s.dayIndex).toBeNull()
+  })
+
+  it('clears the ad-hoc flag when a program session is started next', () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'c1', startedAt: '2026-09-20T00:00:00Z' })
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    expect(useSessionStore.getState().adhoc).toBe(false)
+  })
+
+  it('reset clears the ad-hoc flag', () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'c1', startedAt: '2026-09-20T00:00:00Z' })
+    useSessionStore.getState().reset()
+    expect(useSessionStore.getState().adhoc).toBe(false)
+    expect(useSessionStore.getState().status).toBe('idle')
+  })
+})
+
 describe('startFromPrescription', () => {
   it('maps a prescription into editable sets with prefilled values, done=false, and status active', () => {
     useSessionStore.getState().startFromPrescription(prescription, meta)

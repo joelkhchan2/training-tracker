@@ -202,6 +202,32 @@ describe('useSaveWorkout', () => {
     expect(result.current.data?.trainingMaxUpdates).toEqual([])
   })
 
+  it('an ad-hoc save omits the cursor advance, progression, and TM bump', async () => {
+    const { result } = renderHook(() => useSaveWorkout(), { wrapper })
+
+    await act(async () => {
+      result.current.mutate({
+        clientId: 'client-adhoc',
+        session: { discipline: 'strength', status: 'completed' },
+        sets: [{ exercise_id: 'ex-1', set_number: 1, weight: 100, reps: 5 }],
+        program: PERCENT_PROGRAM,
+        cursor: { dayIndex: 0, week: 1, cycle: 1 },
+        trainingMaxes: { squat: 200 },
+        adhoc: true,
+      })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const [, params] = rpc.mock.calls[0]
+    expect(params).not.toHaveProperty('p_next_cursor')
+    expect(params).not.toHaveProperty('p_last_advance_key')
+    expect(params).not.toHaveProperty('p_progress')
+    expect(params).not.toHaveProperty('p_training_maxes')
+    expect(result.current.data?.cycleComplete).toBe(false)
+    expect(result.current.data?.trainingMaxUpdates).toEqual([])
+  })
+
   it('surfaces an rpc error (the cursor never partially advances since it is the same call)', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
     const { result } = renderHook(() => useSaveWorkout(), { wrapper })
