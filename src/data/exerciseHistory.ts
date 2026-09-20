@@ -7,7 +7,7 @@ import type { PrescribedExercise } from '../domain/types'
 export interface ExerciseHistorySession {
   sessionId: string
   date: string
-  sets: { weight: number | null; reps: number | null; isWarmup: boolean }[]
+  sets: { weight: number | null; reps: number | null; durationSeconds: number | null; isWarmup: boolean }[]
   e1rm: number
   volume: number
 }
@@ -18,6 +18,7 @@ interface HistoryRow {
   set_number: number
   weight: number | null
   reps: number | null
+  duration_seconds: number | null
   is_warmup: boolean
 }
 
@@ -29,7 +30,7 @@ export function buildExerciseHistory(rows: HistoryRow[]): ExerciseHistorySession
   for (const r of rows) {
     let s = bySession.get(r.session_id)
     if (!s) { s = { sessionId: r.session_id, date: r.date, sets: [], e1rm: 0, volume: 0 }; bySession.set(r.session_id, s) }
-    s.sets.push({ weight: r.weight, reps: r.reps, isWarmup: r.is_warmup })
+    s.sets.push({ weight: r.weight, reps: r.reps, durationSeconds: r.duration_seconds, isWarmup: r.is_warmup })
   }
   const sessions = [...bySession.values()]
   for (const s of sessions) {
@@ -50,8 +51,8 @@ export function buildExerciseHistory(rows: HistoryRow[]): ExerciseHistorySession
 /** Flattens the `select` (embeds `sessions(date)`), ordered by set_number, into HistoryRows. */
 function toHistoryRows(data: unknown[]): HistoryRow[] {
   return (data ?? []).map((r) => {
-    const row = r as { session_id: string; set_number: number; weight: number | null; reps: number | null; is_warmup: boolean; sessions: { date: string } | null }
-    return { session_id: row.session_id, set_number: row.set_number, weight: row.weight, reps: row.reps, is_warmup: row.is_warmup, date: row.sessions?.date ?? '' }
+    const row = r as { session_id: string; set_number: number; weight: number | null; reps: number | null; duration_seconds: number | null; is_warmup: boolean; sessions: { date: string } | null }
+    return { session_id: row.session_id, set_number: row.set_number, weight: row.weight, reps: row.reps, duration_seconds: row.duration_seconds ?? null, is_warmup: row.is_warmup, date: row.sessions?.date ?? '' }
   })
 }
 
@@ -63,7 +64,7 @@ export function useExerciseHistory(exerciseId: string | null, userId: string | u
     queryFn: async (): Promise<ExerciseHistorySession[]> => {
       const { data, error } = await getSupabase()
         .from('strength_sets')
-        .select('session_id, set_number, weight, reps, is_warmup, sessions(date)')
+        .select('session_id, set_number, weight, reps, duration_seconds, is_warmup, sessions(date)')
         .eq('exercise_id', exerciseId!)
         .eq('user_id', userId!)
         .order('set_number', { ascending: true })
@@ -78,12 +79,12 @@ export function useExerciseHistory(exerciseId: string | null, userId: string | u
 export async function fetchLastSetsByExercise(
   exerciseIds: string[],
   userId: string,
-): Promise<Record<string, { weight: number | null; reps: number | null }[]>> {
-  const result: Record<string, { weight: number | null; reps: number | null }[]> = {}
+): Promise<Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]>> {
+  const result: Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]> = {}
   if (exerciseIds.length === 0) return result
   const { data, error } = await getSupabase()
     .from('strength_sets')
-    .select('exercise_id, session_id, set_number, weight, reps, is_warmup, sessions(date)')
+    .select('exercise_id, session_id, set_number, weight, reps, duration_seconds, is_warmup, sessions(date)')
     .in('exercise_id', exerciseIds)
     .eq('user_id', userId)
     .order('set_number', { ascending: true })
@@ -98,28 +99,34 @@ export async function fetchLastSetsByExercise(
   for (const [id, rows] of byExercise) {
     const latest = buildExerciseHistory(rows)[0]
     if (!latest) continue
-    result[id] = latest.sets.filter((s) => !s.isWarmup).map((s) => ({ weight: s.weight, reps: s.reps }))
+    result[id] = latest.sets.filter((s) => !s.isWarmup).map((s) => ({ weight: s.weight, reps: s.reps, durationSeconds: s.durationSeconds }))
   }
   return result
 }
 
-/** Pure: fill each prescribed exercise's no-weight sets (weight null OR 0) from the same-index set
- *  of that exercise's last session, matched by NAME. Fills weight only (prescribed reps stays the
- *  target). Program-weighted sets and unmatched indices are left untouched. */
+/** Pure: fill each prescribed set's EMPTY fields (null or 0) from the same-index set of that
+ *  exercise's last session, matched by NAME. Applies per-field to weight, reps AND duration, so a
+ *  timed exercise prefills its last hold and a bodyweight exercise its last reps, exactly the way a
+ *  weighted exercise already prefills its last load. A field the program actually prescribes
+ *  (a real weight/reps/duration) is authoritative and left untouched, as are unmatched indices. */
 export function applyAutofill(
   prescription: PrescribedExercise[],
-  lastSetsByName: Record<string, { weight: number | null; reps: number | null }[]>,
+  lastSetsByName: Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]>,
 ): PrescribedExercise[] {
+  const empty = (v: number | null | undefined) => v == null || v === 0
   return prescription.map((ex) => {
     const last = lastSetsByName[ex.exerciseName]
     if (!last) return ex
     return {
       ...ex,
       sets: ex.sets.map((s, i) => {
-        if (s.weight != null && s.weight !== 0) return s // real prescribed weight — authoritative
         const l = last[i]
-        if (!l || l.weight == null) return s
-        return { ...s, weight: l.weight }
+        if (!l) return s
+        let next = s
+        if (empty(s.weight) && l.weight != null) next = { ...next, weight: l.weight }
+        if (empty(s.reps) && l.reps != null) next = { ...next, reps: l.reps }
+        if (empty(s.durationSeconds) && l.durationSeconds != null) next = { ...next, durationSeconds: l.durationSeconds }
+        return next
       }),
     }
   })
