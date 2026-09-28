@@ -109,9 +109,10 @@ export async function fetchLastSetsByExercise(
  *   - Weighted (last set had a weight): fill the missing load; the prescribed reps stay the target.
  *   - Bodyweight (last set had NO weight): reps ARE the progression, so carry last session's reps —
  *     overriding any prescribed rep count, which for bodyweight is only a soft target.
- *   - Timed: fill the hold only when the prescription doesn't specify one.
- *  A field the program actually prescribes for a weighted lift (its %-weight, its rep target, a
- *  prescribed hold) stays authoritative, and unmatched set indices are left untouched. */
+ *   - Timed (last set had a duration): the hold IS the progression, so carry last session's
+ *     duration, overriding the prescribed hold (also a soft target). Runs independently so a
+ *     weighted-time hold carries both its load and its duration.
+ *  A weighted lift's own %-weight and rep target stay authoritative; unmatched indices untouched. */
 export function applyAutofill(
   prescription: PrescribedExercise[],
   lastSetsByName: Record<string, { weight: number | null; reps: number | null; durationSeconds: number | null }[]>,
@@ -131,8 +132,8 @@ export function applyAutofill(
         } else if (l.weight == null && l.reps != null) {
           next = { ...next, reps: l.reps } // bodyweight: reps are the load — carry them (override target)
         }
-        if (empty(s.durationSeconds) && l.durationSeconds != null) {
-          next = { ...next, durationSeconds: l.durationSeconds } // timed: fill an unspecified hold
+        if (l.durationSeconds != null) {
+          next = { ...next, durationSeconds: l.durationSeconds } // timed: hold is the progression — carry it (override)
         }
         return next
       }),

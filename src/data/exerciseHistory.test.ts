@@ -48,15 +48,19 @@ describe('applyAutofill (per-set: weight, reps, duration; fills empties only)', 
     expect(out[1].sets[2].weight).toBeUndefined() // today has more sets than last → blank
     expect(out[1].sets[0].reps).toBe(12) // prescribed reps target unchanged
   })
-  it('fills a timed set\'s duration from last session (empty prescribed duration)', () => {
-    const lastTimed = { 'Front Lever': [{ weight: null, reps: null, durationSeconds: 12 }, { weight: null, reps: null, durationSeconds: 9 }] }
+  it('carries a timed set\'s duration from last session, overriding the prescribed hold', () => {
+    const lastTimed = { 'Front Lever': [
+      { weight: null, reps: null, durationSeconds: 12 },
+      { weight: null, reps: null, durationSeconds: 9 },
+      { weight: null, reps: null, durationSeconds: 15 },
+    ] }
     const rx = [
       { exerciseName: 'Front Lever', sets: [{ durationSeconds: undefined }, { durationSeconds: 0 }, { durationSeconds: 8 }] },
     ] as never
     const out = applyAutofill(rx, lastTimed) as never as { sets: { durationSeconds?: number }[] }[]
-    expect(out[0].sets[0].durationSeconds).toBe(12) // undefined → filled
-    expect(out[0].sets[1].durationSeconds).toBe(9)  // 0 → filled
-    expect(out[0].sets[2].durationSeconds).toBe(8)  // real prescribed duration — untouched
+    expect(out[0].sets[0].durationSeconds).toBe(12) // undefined → carried
+    expect(out[0].sets[1].durationSeconds).toBe(9)  // 0 → carried
+    expect(out[0].sets[2].durationSeconds).toBe(15) // last actual overrides prescribed 8
   })
   it('carries a bodyweight set\'s reps from last session, overriding the prescribed rep target', () => {
     const lastBw = { 'Pull-up': [{ weight: null, reps: 11, durationSeconds: null }, { weight: null, reps: 9, durationSeconds: null }] }

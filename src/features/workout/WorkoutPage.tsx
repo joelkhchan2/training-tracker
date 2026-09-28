@@ -223,10 +223,13 @@ export function WorkoutPage() {
     setIsResolving(true)
     try {
       const exerciseIdByName = bundle ? buildExerciseIdMap(bundle) : {}
-      const adhocItems = exercises
-        .filter((ex) => ex.adhoc)
+      // Resolve (minting if needed) any exercise whose id we can't get from the program bundle:
+      // adhoc adds, AND prescribed exercises whose program row has no exercise_id. The latter is a
+      // seeding gap that otherwise makes the save path silently drop the exercise's sets.
+      const needsResolve = exercises
+        .filter((ex) => ex.adhoc || !(ex.exerciseId ?? exerciseIdByName[ex.exerciseName]))
         .map((ex) => ({ name: ex.exerciseName, kind: ex.kind }))
-      const adhocIdByName = adhocItems.length > 0 ? await resolveExercisesByName(adhocItems, user.id) : {}
+      const resolvedByName = needsResolve.length > 0 ? await resolveExercisesByName(needsResolve, user.id) : {}
 
       const loggedSets: LoggedSet[] = []
       const sets: WorkoutSetInput[] = []
@@ -235,8 +238,8 @@ export function WorkoutPage() {
 
       for (const exercise of exercises) {
         const resolvedId = exercise.adhoc
-          ? (adhocIdByName[exercise.exerciseName] ?? null)
-          : (exercise.exerciseId ?? exerciseIdByName[exercise.exerciseName] ?? null)
+          ? (resolvedByName[exercise.exerciseName] ?? null)
+          : (exercise.exerciseId ?? exerciseIdByName[exercise.exerciseName] ?? resolvedByName[exercise.exerciseName] ?? null)
         // Spec safety net + Global Constraint "no null exercise_id saves": if an exercise
         // still can't be resolved (shouldn't happen post-resolution), skip all its sets
         // rather than writing rows with a null exercise_id.

@@ -947,3 +947,23 @@ describe('WorkoutPage — ad-hoc session', () => {
     expect(payload.progressionExercises).toEqual([])
   })
 })
+
+describe('WorkoutPage — prescribed exercise with no program exercise_id', () => {
+  it('mints it by name and saves its sets instead of silently dropping them', async () => {
+    // "Face Pulls" isn't in the bundle's programExercises (no exercise_id), and it's prescribed
+    // (not adhoc). It must still be resolved/minted so its sets are saved.
+    useSessionStore.getState().startFromPrescription(
+      [{ exerciseName: 'Face Pulls', sets: [{ weight: 30, reps: 15 }] }],
+      meta,
+    )
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1))
+    expect(resolveExercisesByName).toHaveBeenCalled()
+    const [payload] = mockMutate.mock.calls[0]
+    const facePullSets = payload.sets.filter((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')
+    expect(facePullSets.length).toBeGreaterThan(0)
+  })
+})
