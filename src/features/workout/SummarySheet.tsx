@@ -33,6 +33,11 @@ export interface SummarySheetProps {
   prs: DetectedPR[]
   progressionOutcomes?: ProgressionOutcomeDisplay[]
   trainingMaxBumps?: TrainingMaxBumpDisplay[]
+  /** Names of exercises whose sets could NOT be resolved to a catalog exercise and were dropped
+   *  from this save — a defense-in-depth guard for data corruption/network failure mid-resolve
+   *  (see WorkoutPage's `droppedExerciseNames`). Should be rare-to-never; shown as a visible
+   *  warning (not just a dev console.warn) so data loss is never silent. */
+  droppedExerciseNames?: string[]
   onClose: () => void
 }
 
@@ -80,6 +85,7 @@ export function SummarySheet({
   prs,
   progressionOutcomes = [],
   trainingMaxBumps = [],
+  droppedExerciseNames = [],
   onClose,
 }: SummarySheetProps) {
   const unit = usePrefs((s) => s.weightUnit)
@@ -95,6 +101,19 @@ export function SummarySheet({
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
       >
         <h2 className="text-xl font-semibold text-text">Workout complete</h2>
+
+        {droppedExerciseNames.length > 0 ? (
+          <div role="alert" className="space-y-1 rounded-xl border border-danger bg-danger/10 p-3">
+            <p className="text-sm font-semibold text-danger">
+              {droppedExerciseNames.length === 1
+                ? "Couldn't save 1 exercise"
+                : `Couldn't save ${droppedExerciseNames.length} exercises`}
+            </p>
+            <p className="text-sm text-danger">
+              {droppedExerciseNames.join(', ')} — the rest of this workout saved, but these sets were lost. Please re-log them.
+            </p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="rounded-xl border border-border bg-bg p-3">

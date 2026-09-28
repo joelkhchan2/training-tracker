@@ -140,6 +140,48 @@ describe('SummarySheet — cycle training-max bumps', () => {
   })
 })
 
+describe('SummarySheet — dropped-exercise warning', () => {
+  it('shows a visible alert naming the exercise when one set was dropped', () => {
+    render(
+      <SummarySheet
+        tonnage={0}
+        setCount={0}
+        exerciseCount={0}
+        prs={[]}
+        droppedExerciseNames={['Front Lever Progression']}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save 1 exercise")
+    expect(alert).toHaveTextContent('Front Lever Progression')
+    expect(alert).toHaveTextContent('re-log')
+  })
+
+  it('pluralizes and lists multiple dropped exercises', () => {
+    render(
+      <SummarySheet
+        tonnage={0}
+        setCount={0}
+        exerciseCount={0}
+        prs={[]}
+        droppedExerciseNames={['Front Lever Progression', 'Scapular Pull-ups']}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save 2 exercises")
+    expect(alert).toHaveTextContent('Front Lever Progression, Scapular Pull-ups')
+  })
+
+  it('shows no warning when nothing was dropped', () => {
+    render(<SummarySheet tonnage={0} setCount={0} exerciseCount={0} prs={[]} onClose={vi.fn()} />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
 describe('SummarySheet — tonnage tile', () => {
   afterEach(() => usePrefs.setState({ weightUnit: 'lb' }))
 

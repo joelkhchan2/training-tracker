@@ -234,6 +234,9 @@ export function WorkoutPage() {
       const loggedSets: LoggedSet[] = []
       const sets: WorkoutSetInput[] = []
       const progressionSets: WorkoutSetInput[] = []
+      // Names of exercises we had to drop (see below) — surfaced to the user via the summary
+      // sheet, not just a dev console.warn, so this class of data loss is never silent.
+      const droppedExerciseNames: string[] = []
       let orderIndex = 0
 
       for (const exercise of exercises) {
@@ -245,11 +248,15 @@ export function WorkoutPage() {
         // rather than writing rows with a null exercise_id.
         if (resolvedId == null) {
           // Unreachable in normal use (prescribed exercises are always in the program bundle;
-          // adhoc exercises always resolve-or-mint). This guard only fires on out-of-band data
-          // drift — surface it in dev so a silently-dropped set isn't invisible.
+          // adhoc exercises always resolve-or-mint — `resolveExercisesByName` either matches or
+          // mints every name it's given, or throws, which is caught by the outer try/catch
+          // below). This guard only fires on out-of-band data drift. It used to be dev-only —
+          // now the rest of the workout still saves, but the dropped exercise is called out to
+          // the user in the summary sheet (droppedExerciseNames), not just the console.
           if (import.meta.env.DEV) {
             console.warn(`[workout] dropping sets for unresolved exercise "${exercise.exerciseName}" (no exercise_id)`)
           }
+          droppedExerciseNames.push(exercise.exerciseName)
           continue
         }
         exercise.sets.forEach((set, setIdx) => {
@@ -331,7 +338,7 @@ export function WorkoutPage() {
             // Ad-hoc (or no-program) sessions carry no progression/TM bumps — both come back empty.
             const progressionOutcomes = bundle ? buildProgressionOutcomeDisplays(bundle, result.progressionOutcomes) : []
             const trainingMaxBumps = bundle ? buildTrainingMaxBumpDisplays(bundle, result.trainingMaxUpdates) : []
-            setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes, trainingMaxBumps })
+            setSummary({ tonnage, setCount: loggedSets.length, exerciseCount, prs, progressionOutcomes, trainingMaxBumps, droppedExerciseNames })
           },
           onError: (err) => {
             setErrorMsg(err.message || 'Could not save your workout. Please try again.')
