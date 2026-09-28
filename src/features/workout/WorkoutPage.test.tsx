@@ -513,7 +513,7 @@ describe('WorkoutPage — save-path resolution of added exercises', () => {
     expect(payload.sets.every((s: { exercise_id: string | null }) => s.exercise_id != null)).toBe(true) // no null ids
   })
 
-  it('drops sets whose exercise cannot be resolved rather than saving a null id', async () => {
+  it('drops sets whose exercise cannot be resolved rather than saving a null id, and warns the user visibly on the summary', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {}) // suppress the expected dev-only drop warning
     useSessionStore.getState().startFromPrescription(prescription, meta)
     addAdhocFacePulls()
@@ -523,11 +523,20 @@ describe('WorkoutPage — save-path resolution of added exercises', () => {
     fireEvent.click(screen.getByRole('button', { name: /Finish workout/i }))
     await waitFor(() => expect(mockMutate).toHaveBeenCalled())
 
-    const [payload] = mockMutate.mock.calls[0]
+    const [payload, options] = mockMutate.mock.calls[0]
     expect(payload.sets.every((s: { exercise_id: string | null }) => s.exercise_id != null)).toBe(true)
     // The unresolved Face Pulls set is dropped entirely, not saved with a null/placeholder id.
     expect(payload.sets.some((s: { exercise_id: string | null }) => s.exercise_id === 'ex-facepulls')).toBe(false)
     expect(payload.sets).toHaveLength(5) // 3 squat + 2 push-up; the face-pulls set is gone
+
+    // The rest of the workout still saves — and the drop is surfaced to the user, not silent.
+    act(() =>
+      options.onSuccess({ sessionId: 'session-drop', cycleComplete: false, nextCursor: bundle.cursor, progressionOutcomes: [], trainingMaxUpdates: [] }),
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save 1 exercise")
+    expect(alert).toHaveTextContent('Face Pulls')
+
     warnSpy.mockRestore()
   })
 
