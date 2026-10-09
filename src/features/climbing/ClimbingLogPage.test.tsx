@@ -171,6 +171,25 @@ describe('ClimbingLogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
+  it('the in-session "+ Log" button offers Strength and Cardio but not Climbing (current page)', () => {
+    useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing', 'cardio'] }, isLoading: false })
+    render(<ClimbingLogPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    expect(screen.getByRole('button', { name: 'Strength workout' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cardio' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Climbing' })).not.toBeInTheDocument()
+  })
+
+  it('starting a strength workout from the in-session menu keeps the climbing draft intact', () => {
+    render(<ClimbingLogPage />)
+    fireEvent.change(screen.getByLabelText('V4 attempts'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Strength workout' }))
+    expect(nav).toHaveBeenCalledWith('/workout')
+    // The climbing draft (a separate persisted store) is untouched by navigating away.
+    expect(useClimbingDraft.getState().entries[4]?.attempts).toBe(3)
+  })
+
   it('program-linked: skips the enabled-disciplines redirect', () => {
     locationState = { programLinked: true }
     useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength'] }, isLoading: false })

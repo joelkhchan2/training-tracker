@@ -51,6 +51,23 @@ describe('CardioLogPage', () => {
     expect(screen.queryByLabelText('Activity')).not.toBeInTheDocument()
   })
 
+  it('the in-session "+ Log" button offers Strength and Climbing but not Cardio (current page)', () => {
+    useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing', 'cardio'] }, isLoading: false })
+    render(<CardioLogPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    expect(screen.getByRole('button', { name: 'Strength workout' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Climbing' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cardio' })).not.toBeInTheDocument()
+  })
+
+  it('picking Climbing from the in-session menu navigates there', () => {
+    useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing', 'cardio'] }, isLoading: false })
+    render(<CardioLogPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Climbing' }))
+    expect(nav).toHaveBeenCalledWith('/climbing/new')
+  })
+
   it('shows a pace preview once duration and distance are set', () => {
     render(<CardioLogPage />)
     // Defaults: activity Run, duration 30. Set distance to 5 → 30min/5km = 6:00 /km.

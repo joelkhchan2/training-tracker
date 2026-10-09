@@ -14,6 +14,7 @@ import { useActiveWorkout } from '../../data/queries'
 import { buildSavePlan } from '../../data/mutations'
 import { useLogClimbing } from '../../data/logClimbing'
 import { useClimbingDraft } from './climbingDraftStore'
+import { LogMenuSheet } from '../shell/LogMenuSheet'
 
 const GRADES = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -40,6 +41,7 @@ export function ClimbingLogPage() {
   const resetDraft = useClimbingDraft((s) => s.reset)
   const [error, setError] = useState<string | null>(null)
   const [pr, setPr] = useState<{ newMax: number; prevMax: number | null } | null>(null)
+  const [logMenuOpen, setLogMenuOpen] = useState(false)
 
   // Mint the idempotency key on mount (idempotent — keeps an existing draft's key).
   useEffect(() => { ensureStarted() }, [ensureStarted])
@@ -113,7 +115,19 @@ export function ClimbingLogPage() {
   }
 
   return (
-    <AppShell title="Log climbing">
+    <AppShell
+      title="Log climbing"
+      right={
+        <button
+          type="button"
+          aria-label="Log another session"
+          onClick={() => setLogMenuOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-xl font-semibold text-text"
+        >
+          +
+        </button>
+      }
+    >
       <div className="space-y-4">
         <Card className="space-y-3">
           <p className="text-sm text-muted">Attempts &amp; sends per grade</p>
@@ -134,9 +148,9 @@ export function ClimbingLogPage() {
                     <span className="text-xl font-extrabold text-text">{formatVGrade(g)}</span>
                     {active ? <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-accent" /> : null}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     <div>
-                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Attempts</span>
+                      <span className="block text-[10px] font-medium uppercase tracking-wide text-muted">Attempts</span>
                       <NumberField
                         label={`${formatVGrade(g)} attempts`}
                         labelClassName="sr-only"
@@ -147,7 +161,7 @@ export function ClimbingLogPage() {
                       />
                     </div>
                     <div>
-                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Sends</span>
+                      <span className="block text-[10px] font-medium uppercase tracking-wide text-muted">Sends</span>
                       <NumberField
                         label={`${formatVGrade(g)} sends`}
                         labelClassName="sr-only"
@@ -181,6 +195,7 @@ export function ClimbingLogPage() {
           {logClimbing.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
+      <LogMenuSheet open={logMenuOpen} onClose={() => setLogMenuOpen(false)} exclude="climbing" />
     </AppShell>
   )
 }

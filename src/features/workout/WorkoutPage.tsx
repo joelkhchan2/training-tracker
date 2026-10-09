@@ -30,6 +30,7 @@ import { useRestTimer } from './restTimer'
 import { useSessionStore } from './sessionStore'
 import { usePrefs } from '../settings/usePrefs'
 import { reorderFromDragEnd } from './dragReorder'
+import { LogMenuSheet } from '../shell/LogMenuSheet'
 
 /** Formats a Date as a local-calendar YYYY-MM-DD string. Using
  *  `toISOString().slice(0, 10)` would report the UTC date, which flips to
@@ -188,6 +189,7 @@ export function WorkoutPage() {
   const [isResolving, setIsResolving] = useState(false)
   const [sheet, setSheet] = useState<{ mode: 'add'; index?: number } | { mode: 'replace'; exIdx: number } | null>(null)
   const [timerOpen, setTimerOpen] = useState(false)
+  const [logMenuOpen, setLogMenuOpen] = useState(false)
 
   // MouseSensor + TouchSensor (not PointerSensor): a TouchSensor registered alongside
   // PointerSensor never activates on touch (pointerdown wins the race before
@@ -424,6 +426,14 @@ export function WorkoutPage() {
             >
               ⏱
             </button>
+            <button
+              type="button"
+              aria-label="Log another session"
+              onClick={() => setLogMenuOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-xl font-semibold text-text"
+            >
+              +
+            </button>
           </div>
         }
       >
@@ -476,6 +486,8 @@ export function WorkoutPage() {
       {summary ? <SummarySheet {...summary} onClose={handleSummaryClose} /> : null}
 
       {timerOpen ? <TimerPopup onClose={() => setTimerOpen(false)} /> : null}
+
+      <LogMenuSheet open={logMenuOpen} onClose={() => setLogMenuOpen(false)} exclude="strength" />
 
       <RestTimerPill />
 
