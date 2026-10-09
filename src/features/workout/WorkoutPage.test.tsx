@@ -45,6 +45,9 @@ vi.mock('../../lib/useAuth', () => ({
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
 vi.mock('../../data/mutations', () => ({ useSaveWorkout }))
 vi.mock('../../data/saveProgram', () => ({ useSwapProgramExercise }))
+// The in-session "+ Log" button (LogMenuSheet) reads enabled disciplines via useProfile
+// (react-query); this test harness has no QueryClientProvider, so stub it out.
+vi.mock('../../data/profile', () => ({ useProfile: () => ({ data: { enabled_disciplines: ['strength', 'climbing', 'cardio'] } }) }))
 vi.mock('../../data/exerciseHistory', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/exerciseHistory')>()
   // Real buildTodayExerciseIdMap (pure, used by WorkoutPage itself); useExerciseHistory
@@ -917,6 +920,28 @@ describe('WorkoutPage — timer popup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('dialog', { name: 'Adjust workout timer' })).not.toBeInTheDocument()
+  })
+})
+
+describe('WorkoutPage — in-session "+ Log" button', () => {
+  it('offers Climbing and Cardio but not Strength (current page)', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    expect(screen.getByRole('button', { name: 'Climbing' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cardio' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Strength workout' })).not.toBeInTheDocument()
+  })
+
+  it('picking Climbing navigates there without touching the in-progress workout', () => {
+    useSessionStore.getState().startFromPrescription(prescription, meta)
+    renderAtWorkout()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Climbing' }))
+    expect(mockNavigate).toHaveBeenCalledWith('/climbing/new')
+    expect(useSessionStore.getState().status).toBe('active')
   })
 })
 

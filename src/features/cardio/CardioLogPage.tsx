@@ -14,6 +14,7 @@ import { useProfile } from '../../data/profile'
 import { useActiveWorkout } from '../../data/queries'
 import { buildSavePlan } from '../../data/mutations'
 import { useLogCardio } from '../../data/logCardio'
+import { LogMenuSheet } from '../shell/LogMenuSheet'
 
 const ACTIVITIES = ['Run', 'Bike', 'Row', 'Swim', 'Walk', 'Elliptical', 'Hike', 'Other']
 
@@ -46,6 +47,7 @@ export function CardioLogPage() {
   const [notes, setNotes] = useState('')
   const [date, setDate] = useState(todayLocal())
   const [error, setError] = useState<string | null>(null)
+  const [logMenuOpen, setLogMenuOpen] = useState(false)
 
   // Route-level gate (spec): a user with cardio disabled who reaches /cardio/new directly (stale
   // link, typed URL, back button after disabling) is redirected home, in addition to the chooser
@@ -101,7 +103,19 @@ export function CardioLogPage() {
   }
 
   return (
-    <AppShell title="Log cardio">
+    <AppShell
+      title="Log cardio"
+      right={
+        <button
+          type="button"
+          aria-label="Log another session"
+          onClick={() => setLogMenuOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-xl font-semibold text-text"
+        >
+          +
+        </button>
+      }
+    >
       <div className="space-y-4">
         <Card className="space-y-4">
           <Select
@@ -133,6 +147,7 @@ export function CardioLogPage() {
           {logCardio.isPending ? 'Saving…' : 'Save'}
         </Button>
       </div>
+      <LogMenuSheet open={logMenuOpen} onClose={() => setLogMenuOpen(false)} exclude="cardio" />
     </AppShell>
   )
 }

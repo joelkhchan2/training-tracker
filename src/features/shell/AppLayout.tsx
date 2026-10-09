@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
-import { useAuth } from '../../lib/useAuth'
-import { useProfile } from '../../data/profile'
-import { useSessionStore } from '../workout/sessionStore'
+import { LogMenuSheet } from './LogMenuSheet'
 
 /** Routing shell for the tab-bar pages (Home/History/Programs/Settings). Renders the matched
  *  page via <Outlet/>, a persistent BottomNav, and a "+ Log" FAB whose chooser is gated by the
@@ -11,32 +9,7 @@ import { useSessionStore } from '../workout/sessionStore'
  *  unchanged). Strength routes to Home, which owns the session-store seeding needed by
  *  /workout; direct /workout is not seeded and would redirect back to Home. */
 export function AppLayout() {
-  const nav = useNavigate()
-  const { user } = useAuth()
-  const { data: profile } = useProfile(user?.id)
   const [chooserOpen, setChooserOpen] = useState(false)
-
-  const cardioEnabled = (profile?.enabled_disciplines ?? []).includes('cardio')
-  const climbingEnabled = (profile?.enabled_disciplines ?? []).includes('climbing')
-
-  function go(path: string) {
-    setChooserOpen(false)
-    nav(path)
-  }
-
-  /** "Strength workout" starts a blank, off-program session and jumps straight into it. If a
-   *  workout is already in progress we don't wipe it — Home owns the resume / start-new choice,
-   *  so route there instead. */
-  function startStrength() {
-    setChooserOpen(false)
-    const store = useSessionStore.getState()
-    if (store.status === 'active' && store.exercises.length > 0) {
-      nav('/')
-      return
-    }
-    store.startAdHoc({ clientId: crypto.randomUUID(), startedAt: new Date().toISOString() })
-    nav('/workout')
-  }
 
   return (
     <div className="relative">
@@ -55,37 +28,7 @@ export function AppLayout() {
         </div>
       </div>
 
-      {chooserOpen ? (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40" onClick={() => setChooserOpen(false)}>
-          <div className="mx-auto w-full max-w-md space-y-2 rounded-t-2xl bg-surface p-4" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              className="w-full rounded-xl border border-border bg-bg py-3 text-text"
-              onClick={startStrength}
-            >
-              Strength workout
-            </button>
-            {cardioEnabled ? (
-              <button
-                type="button"
-                className="w-full rounded-xl border border-border bg-bg py-3 text-text"
-                onClick={() => go('/cardio/new')}
-              >
-                Cardio
-              </button>
-            ) : null}
-            {climbingEnabled ? (
-              <button
-                type="button"
-                className="w-full rounded-xl border border-border bg-bg py-3 text-text"
-                onClick={() => go('/climbing/new')}
-              >
-                Climbing
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <LogMenuSheet open={chooserOpen} onClose={() => setChooserOpen(false)} />
 
       <BottomNav />
     </div>
