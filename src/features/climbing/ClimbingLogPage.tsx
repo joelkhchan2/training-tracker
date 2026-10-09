@@ -117,7 +117,7 @@ export function ClimbingLogPage() {
       <div className="space-y-4">
         <Card className="space-y-3">
           <p className="text-sm text-muted">Attempts &amp; sends per grade</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {GRADES.map((g) => {
               const attempts = entries[g]?.attempts ?? 0
               const sends = entries[g]?.sends ?? 0
@@ -126,17 +126,17 @@ export function ClimbingLogPage() {
                 <div
                   key={g}
                   className={cn(
-                    'space-y-2 rounded-2xl border p-2',
+                    'space-y-3 rounded-2xl border p-3',
                     active ? 'border-accent bg-accent/10' : 'border-border bg-bg',
                   )}
                 >
-                  <div className="flex items-center justify-between px-0.5">
-                    <span className="text-base font-bold text-text">{formatVGrade(g)}</span>
-                    {active ? <span aria-hidden className="h-2 w-2 rounded-full bg-accent" /> : null}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-extrabold text-text">{formatVGrade(g)}</span>
+                    {active ? <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-accent" /> : null}
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1">
-                      <span className="w-8 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">Att</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Attempts</span>
                       <NumberField
                         label={`${formatVGrade(g)} attempts`}
                         labelClassName="sr-only"
@@ -144,11 +144,10 @@ export function ClimbingLogPage() {
                         onChange={(v) => patch(g, 'attempts', v)}
                         min={0}
                         compact
-                        className="flex-1"
                       />
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-8 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">Sent</span>
+                    <div>
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted">Sends</span>
                       <NumberField
                         label={`${formatVGrade(g)} sends`}
                         labelClassName="sr-only"
@@ -156,7 +155,6 @@ export function ClimbingLogPage() {
                         onChange={(v) => patch(g, 'sends', v)}
                         min={0}
                         compact
-                        className="flex-1"
                       />
                     </div>
                   </div>
