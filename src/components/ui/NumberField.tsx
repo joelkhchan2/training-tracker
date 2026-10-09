@@ -118,7 +118,7 @@ export function NumberField({
     'font-semibold text-text transition-colors hover:bg-surface-hover',
     'disabled:opacity-40 disabled:pointer-events-none',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
-    compact ? 'h-8 w-8 text-base' : 'h-12 w-12 text-2xl',
+    compact ? 'h-10 w-10 text-lg' : 'h-12 w-12 text-2xl',
   )
 
   return (
@@ -126,7 +126,7 @@ export function NumberField({
       <label htmlFor={inputId} className={labelClassName ?? 'text-sm font-medium text-muted'}>
         {label}
       </label>
-      <div className={cn('flex min-w-0 items-stretch', compact ? 'gap-1' : 'gap-2')}>
+      <div className={cn('flex min-w-0 items-stretch', compact ? 'gap-1.5' : 'gap-2')}>
         {hideSteppers ? null : (
           <button
             type="button"
@@ -150,7 +150,7 @@ export function NumberField({
           onChange={(event) => handleTextChange(event.target.value)}
           className={cn(
             'min-w-0 flex-1 rounded-xl border border-border bg-surface text-center',
-            inputClassName ?? (compact ? 'text-base font-bold' : 'text-3xl font-bold'),
+            inputClassName ?? (compact ? 'text-lg font-bold' : 'text-3xl font-bold'),
             'tabular-nums text-text',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             'disabled:opacity-40',
