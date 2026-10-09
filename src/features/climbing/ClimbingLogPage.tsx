@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { NumberField } from '../../components/ui/NumberField'
 import { Textarea } from '../../components/ui/Textarea'
+import { cn } from '../../lib/cn'
 import { formatVGrade, normalizeClimbingEntries } from '../../domain'
 import type { Cursor } from '../../domain'
 import { useAuth } from '../../lib/useAuth'
@@ -114,27 +115,55 @@ export function ClimbingLogPage() {
   return (
     <AppShell title="Log climbing">
       <div className="space-y-4">
-        <Card className="space-y-4">
+        <Card className="space-y-3">
           <p className="text-sm text-muted">Attempts &amp; sends per grade</p>
-          {GRADES.map((g) => (
-            <div key={g} className="space-y-3">
-              <span className="text-lg font-semibold text-text">{formatVGrade(g)}</span>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <NumberField
-                  label={`${formatVGrade(g)} attempts`}
-                  value={entries[g]?.attempts ?? 0}
-                  onChange={(v) => patch(g, 'attempts', v)}
-                  min={0}
-                />
-                <NumberField
-                  label={`${formatVGrade(g)} sends`}
-                  value={entries[g]?.sends ?? 0}
-                  onChange={(v) => patch(g, 'sends', v)}
-                  min={0}
-                />
-              </div>
-            </div>
-          ))}
+          <div className="grid grid-cols-3 gap-2">
+            {GRADES.map((g) => {
+              const attempts = entries[g]?.attempts ?? 0
+              const sends = entries[g]?.sends ?? 0
+              const active = attempts > 0 || sends > 0
+              return (
+                <div
+                  key={g}
+                  className={cn(
+                    'space-y-2 rounded-2xl border p-2',
+                    active ? 'border-accent bg-accent/10' : 'border-border bg-bg',
+                  )}
+                >
+                  <div className="flex items-center justify-between px-0.5">
+                    <span className="text-base font-bold text-text">{formatVGrade(g)}</span>
+                    {active ? <span aria-hidden className="h-2 w-2 rounded-full bg-accent" /> : null}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <span className="w-8 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">Att</span>
+                      <NumberField
+                        label={`${formatVGrade(g)} attempts`}
+                        labelClassName="sr-only"
+                        value={attempts}
+                        onChange={(v) => patch(g, 'attempts', v)}
+                        min={0}
+                        compact
+                        className="flex-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-8 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">Sent</span>
+                      <NumberField
+                        label={`${formatVGrade(g)} sends`}
+                        labelClassName="sr-only"
+                        value={sends}
+                        onChange={(v) => patch(g, 'sends', v)}
+                        min={0}
+                        compact
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </Card>
         <Card className="space-y-4">
           <div className="flex flex-col gap-2">

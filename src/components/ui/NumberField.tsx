@@ -17,6 +17,13 @@ export interface NumberFieldProps {
    *  SetRow) request a smaller size without shrinking the number on the other
    *  five screens that share this component. */
   inputClassName?: string
+  /** Visually hides the label (still present for screen readers/getByLabelText) — for a
+   *  caller that shows the label's meaning some other way (e.g. a grade bubble's own
+   *  heading) and doesn't want it repeated. Defaults to the normal visible label. */
+  labelClassName?: string
+  /** Shrinks the steppers/input for a dense grid of fields (e.g. climbing's per-grade
+   *  attempts/sends bubbles) without affecting the default size used everywhere else. */
+  compact?: boolean
 }
 
 // A *complete* number: digits, an optional leading '-', an optional '.digits'
@@ -59,6 +66,8 @@ export function NumberField({
   id,
   hideSteppers = false,
   inputClassName,
+  labelClassName,
+  compact = false,
 }: NumberFieldProps) {
   const autoId = useId()
   const inputId = id ?? autoId
@@ -105,18 +114,19 @@ export function NumberField({
   }
 
   const stepperClasses = cn(
-    'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-surface',
-    'text-2xl font-semibold text-text transition-colors hover:bg-surface-hover',
+    'flex shrink-0 items-center justify-center rounded-xl border border-border bg-surface',
+    'font-semibold text-text transition-colors hover:bg-surface-hover',
     'disabled:opacity-40 disabled:pointer-events-none',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
+    compact ? 'h-8 w-8 text-base' : 'h-12 w-12 text-2xl',
   )
 
   return (
     <div className={cn('flex min-w-0 flex-col gap-2', className)}>
-      <label htmlFor={inputId} className="text-sm font-medium text-muted">
+      <label htmlFor={inputId} className={labelClassName ?? 'text-sm font-medium text-muted'}>
         {label}
       </label>
-      <div className="flex min-w-0 items-stretch gap-2">
+      <div className={cn('flex min-w-0 items-stretch', compact ? 'gap-1' : 'gap-2')}>
         {hideSteppers ? null : (
           <button
             type="button"
@@ -140,7 +150,7 @@ export function NumberField({
           onChange={(event) => handleTextChange(event.target.value)}
           className={cn(
             'min-w-0 flex-1 rounded-xl border border-border bg-surface text-center',
-            inputClassName ?? 'text-3xl font-bold',
+            inputClassName ?? (compact ? 'text-base font-bold' : 'text-3xl font-bold'),
             'tabular-nums text-text',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             'disabled:opacity-40',
