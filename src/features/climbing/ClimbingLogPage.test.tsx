@@ -1,17 +1,38 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ClimbingLogPage } from './ClimbingLogPage'
 import { useClimbingDraft } from './climbingDraftStore'
+import { useSessionStore } from '../workout/sessionStore'
 
 const { useLogClimbing } = vi.hoisted(() => ({ useLogClimbing: vi.fn() }))
 const { useProfile } = vi.hoisted(() => ({ useProfile: vi.fn() }))
 const { useActiveWorkout } = vi.hoisted(() => ({ useActiveWorkout: vi.fn() }))
+const { saveWorkoutMutateAsync } = vi.hoisted(() => ({ saveWorkoutMutateAsync: vi.fn() }))
 const nav = vi.fn()
 let locationState: unknown = null
 
 vi.mock('../../data/logClimbing', () => ({ useLogClimbing }))
 vi.mock('../../data/profile', () => ({ useProfile }))
 vi.mock('../../data/queries', () => ({ useActiveWorkout }))
+// Inline "+ Add exercise" saves via useSaveWorkout (react-query); this test harness has no
+// QueryClientProvider, so stub it out. buildSavePlan (the climbing cursor-advance plan) stays real.
+vi.mock('../../data/mutations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/mutations')>()
+  return { ...actual, useSaveWorkout: () => ({ mutateAsync: saveWorkoutMutateAsync, isPending: false }) }
+})
+// An inline exercise card (ExerciseCard) calls useExerciseHistory (a real useQuery) for its
+// "last time" hint; this test harness has no QueryClientProvider, so stub it out.
+vi.mock('../../data/exerciseHistory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/exerciseHistory')>()
+  return { ...actual, useExerciseHistory: () => ({ data: undefined, isLoading: false }) }
+})
+// Resolves/mints exercise ids for the inline save path via a real Supabase call — stubbed so
+// tests don't need a live backend.
+vi.mock('../../data/resolveDraftExercises', () => ({
+  resolveExercisesByName: vi.fn(async (items: { name: string }[]) =>
+    Object.fromEntries(items.map((it, i) => [it.name, `ex-${i}`])),
+  ),
+}))
 vi.mock('../../lib/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
 vi.mock('react-router-dom', () => ({
   useNavigate: () => nav,
@@ -40,7 +61,10 @@ beforeEach(() => {
   // between tests. localStorage.clear() drops what persist wrote, reset() clears memory.
   localStorage.clear()
   useClimbingDraft.getState().reset()
+  useSessionStore.getState().reset()
   mutate.mockReset()
+  saveWorkoutMutateAsync.mockReset()
+  saveWorkoutMutateAsync.mockResolvedValue({ sessionId: 's-adhoc', cycleComplete: false, progressionOutcomes: [], trainingMaxUpdates: [] })
   nav.mockReset()
   locationState = null
   useLogClimbing.mockReturnValue({ mutate, isPending: false })
@@ -171,23 +195,49 @@ describe('ClimbingLogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  it('the in-session "+ Log" button offers Strength and Cardio but not Climbing (current page)', () => {
+  it('the in-session "+ Log" button offers Cardio but not Strength (use the inline "+ Add exercise" instead) or Climbing (current page)', () => {
     useProfile.mockReturnValue({ data: { enabled_disciplines: ['strength', 'climbing', 'cardio'] }, isLoading: false })
     render(<ClimbingLogPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
-    expect(screen.getByRole('button', { name: 'Strength workout' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cardio' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Strength workout' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Climbing' })).not.toBeInTheDocument()
   })
 
-  it('starting a strength workout from the in-session menu keeps the climbing draft intact', () => {
+  it('an exercise added to the shared session store renders as its own card alongside the climbing grades', () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'ex-1', startedAt: '2026-01-01T00:00:00Z' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Pull-up', kind: 'bodyweight' })
     render(<ClimbingLogPage />)
-    fireEvent.change(screen.getByLabelText('V4 attempts'), { target: { value: '3' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Log another session' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Strength workout' }))
+    expect(screen.getByText('Pull-up')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add exercise' })).toBeInTheDocument()
+  })
+
+  it('shows a "Resume workout" prompt instead of the add-exercise UI when a prescribed (non-adhoc) workout is already in progress', () => {
+    useSessionStore.getState().startFromPrescription([], { sessionType: 'Day A', dayName: 'Day A', dayIndex: 0, clientId: 'p-1', startedAt: '2026-01-01T00:00:00Z' })
+    render(<ClimbingLogPage />)
+    expect(screen.getByText(/already in progress/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resume workout' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ Add exercise' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Resume workout' }))
     expect(nav).toHaveBeenCalledWith('/workout')
-    // The climbing draft (a separate persisted store) is untouched by navigating away.
-    expect(useClimbingDraft.getState().entries[4]?.attempts).toBe(3)
+  })
+
+  it('Save with an added exercise but no climbing grades saves the exercise as an ad-hoc workout and navigates away', async () => {
+    useSessionStore.getState().startAdHoc({ clientId: 'ex-1', startedAt: '2026-01-01T00:00:00Z' })
+    useSessionStore.getState().addExercise({ exerciseName: 'Pull-up', kind: 'bodyweight' })
+    useSessionStore.getState().updateSet(0, 0, { reps: 8 })
+    render(<ClimbingLogPage />)
+    expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(saveWorkoutMutateAsync).toHaveBeenCalledTimes(1))
+    const [saveInput] = saveWorkoutMutateAsync.mock.calls[0]
+    expect(saveInput.adhoc).toBe(true)
+    // updateSet's smart carry-forward propagates reps:8 to the other 2 (still-empty) sets too.
+    expect(saveInput.sets).toHaveLength(3)
+    expect(saveInput.sets[0]).toEqual(expect.objectContaining({ reps: 8, weight: null }))
+    expect(mutate).not.toHaveBeenCalled() // no climbing grades logged — climbing isn't saved
+    await waitFor(() => expect(useSessionStore.getState().status).toBe('idle')) // the ad-hoc draft is cleared
+    expect(nav).toHaveBeenCalledWith('/history')
   })
 
   it('program-linked: skips the enabled-disciplines redirect', () => {

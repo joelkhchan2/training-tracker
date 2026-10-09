@@ -46,14 +46,15 @@ export interface LogMenuOption {
   onSelect: () => void
 }
 
-/** Builds the list of "+ Log" options available right now, minus `exclude` (the discipline
- *  already being logged on the current screen — there's no reason to offer switching to the
- *  same session type you're already in). */
-export function useLogMenuOptions(exclude?: Discipline): LogMenuOption[] {
+/** Builds the list of "+ Log" options available right now, minus `exclude` (the discipline(s)
+ *  already reachable another way on the current screen — e.g. the one already being logged
+ *  here, or one with its own inline "+ Add exercise" affordance on this page already). */
+export function useLogMenuOptions(exclude?: Discipline | Discipline[]): LogMenuOption[] {
   const { cardioEnabled, climbingEnabled, startStrength, goCardio, goClimbing } = useLogMenuActions()
+  const excluded = new Set(exclude == null ? [] : Array.isArray(exclude) ? exclude : [exclude])
   const options: LogMenuOption[] = []
-  if (exclude !== 'strength') options.push({ discipline: 'strength', label: 'Strength workout', onSelect: startStrength })
-  if (exclude !== 'cardio' && cardioEnabled) options.push({ discipline: 'cardio', label: 'Cardio', onSelect: goCardio })
-  if (exclude !== 'climbing' && climbingEnabled) options.push({ discipline: 'climbing', label: 'Climbing', onSelect: goClimbing })
+  if (!excluded.has('strength')) options.push({ discipline: 'strength', label: 'Strength workout', onSelect: startStrength })
+  if (!excluded.has('cardio') && cardioEnabled) options.push({ discipline: 'cardio', label: 'Cardio', onSelect: goCardio })
+  if (!excluded.has('climbing') && climbingEnabled) options.push({ discipline: 'climbing', label: 'Climbing', onSelect: goClimbing })
   return options
 }

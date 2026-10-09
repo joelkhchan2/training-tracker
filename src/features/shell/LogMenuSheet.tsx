@@ -4,8 +4,10 @@ import type { Discipline } from '../../domain'
 export interface LogMenuSheetProps {
   open: boolean
   onClose: () => void
-  /** The discipline already being logged on the current screen — omitted from the list. */
-  exclude?: Discipline
+  /** Discipline(s) already reachable another way on the current screen — omitted from the
+   *  list (e.g. the one already being logged here, or one with its own inline "+ Add
+   *  exercise" affordance on this page already). */
+  exclude?: Discipline | Discipline[]
 }
 
 /** Bottom sheet of "+ Log" options (Strength/Cardio/Climbing), gated by enabled disciplines.
